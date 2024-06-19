@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "829190868345",
+    "project_id": "bank-app-20bd8",
+    "storage_bucket": "bank-app-20bd8.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:829190868345:android:8f45a87955b60046d833a8",
+        "android_client_info": {
+          "package_name": "com.alexosuya.banking_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCqtd_2_DhOpx3BP32a8ULynbwuSRerQ64"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
