@@ -1,5 +1,6 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/auth_and_storage.dart';
+import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/login%20pages/account_created.dart';
 import 'package:banking_app/login%20pages/phone_signup.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -26,7 +27,7 @@ class _SignupPageState extends State<SignupPage> {
   bool _isLoading = false;
   bool _obscureText = true;
   GlobalKey<FormState> _key = GlobalKey<FormState>();
-  FirebaseNetwork _firebaseNetwork = FirebaseNetwork();
+  Network _firebaseNetwork = Network();
 
   _fullNameFocusNode(){
     _fullNameFocus = FocusNode();
@@ -310,7 +311,7 @@ class _SignupPageState extends State<SignupPage> {
                             });
                             if(v == 'Account created successfully'){
                               Navigator.push(context, MaterialPageRoute(builder: (context){
-                                return const SignInPage();
+                                return const AccountCreated();
                               })) ;
                             }else{
                               snack(context, v!);

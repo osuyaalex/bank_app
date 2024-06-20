@@ -1,14 +1,18 @@
-import 'package:banking_app/otp_field.dart';
+import 'package:banking_app/login%20pages/otp_field.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:local_auth/error_codes.dart' as local_auth_error;
+
 
 FirebaseAuth auth = FirebaseAuth.instance;
 FirebaseFirestore firestore = FirebaseFirestore.instance;
+final _localAuthentication = LocalAuthentication();
 
-class FirebaseNetwork{
+class Network{
   Future<String?> signUpUsers(String fullName,String email, String password, BuildContext context)async{
     try{
       UserCredential cred = await auth.createUserWithEmailAndPassword(email: email, password: password);
@@ -69,5 +73,28 @@ class FirebaseNetwork{
 
     // Sign in the user with the credential
     await auth.signInWithCredential(credential);
+  }
+
+
+
+  Future<bool?> authenticateUserWithBiometrics(String localizedReason,  BuildContext context) async {
+    bool isAuthorized = false;
+    try {
+      isAuthorized = await _localAuthentication.authenticate(
+          localizedReason: localizedReason,
+          options: const AuthenticationOptions(
+              biometricOnly: true,
+              stickyAuth: true
+          )
+
+      );
+    } on PlatformException catch (exception) {
+      if (exception.code == local_auth_error.notAvailable ||
+          exception.code == local_auth_error.passcodeNotSet ||
+          exception.code == local_auth_error.notEnrolled) {
+        snack(context, exception.message!);
+      }
+    }
+    return isAuthorized;
   }
 }

@@ -1,10 +1,11 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/auth_and_storage.dart';
-import 'package:banking_app/login%20pages/account_created_page.dart';
+import 'package:banking_app/firebase%20network/network.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
+
+import 'account_created.dart';
 
 class OTPField extends StatefulWidget {
   final String verificationId;
@@ -109,12 +110,12 @@ class _OTPFieldState extends State<OTPField> {
                       setState(() {
                         _isLoading = true;
                       });
-                      FirebaseNetwork().signInWithPhoneNumber(widget.verificationId, _token!).then((v){
+                      Network().signInWithPhoneNumber(widget.verificationId, _token!).then((v){
                         setState(() {
                           _isLoading = false;
                         });
                         Navigator.push(context, MaterialPageRoute(builder: (context){
-                          return const AccountCreatedPage();
+                          return const AccountCreated();
                         }));
                       });
                     }else{
@@ -130,6 +131,7 @@ class _OTPFieldState extends State<OTPField> {
                 minSize: false,
                 textOrIndicator: _isLoading
             ),
+            const SizedBox(height: 15),
             SizedBox(
               width: MediaQuery.of(context).size.width*0.7,
               child: RichText(

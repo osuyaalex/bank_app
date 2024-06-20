@@ -1,5 +1,5 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/auth_and_storage.dart';
+import 'package:banking_app/firebase%20network/network.dart';
 import 'package:flutter/material.dart';
 import 'package:phone_form_field/phone_form_field.dart';
 
@@ -111,7 +111,7 @@ class _PhoneSignupState extends State<PhoneSignup> {
                       setState(() {
                         _isLoading = true;
                       });
-                      FirebaseNetwork().phoneSignup(phone!.international, context);
+                      Network().phoneSignup(phone!.international, context);
                       setState(() {
                         _isLoading = false;
                       });
