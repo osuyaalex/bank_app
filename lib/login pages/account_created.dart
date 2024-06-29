@@ -1,4 +1,4 @@
-import 'package:banking_app/login%20pages/biometric_authentication.dart';
+import 'package:banking_app/login%20pages/details_page.dart';
 import 'package:banking_app/login%20pages/touch_id_authorization.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -42,7 +42,7 @@ class AccountCreated extends StatelessWidget {
                 text: 'Proceed',
                 onPressed: (){
                   Navigator.push(context, MaterialPageRoute(builder: (context){
-                    return const TouchIDAuthorization();
+                    return const DetailsPage();
                   }));
                 },
                 textColor: Colors.white,

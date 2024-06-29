@@ -1,13 +1,33 @@
 import 'package:banking_app/firebase%20network/network.dart';
 import 'package:banking_app/main_page/summary.dart';
+import 'package:banking_app/utilities/shot_snackbar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 
 import '../elevated_button.dart';
 
-class TouchIDAuthorization extends StatelessWidget {
+class TouchIDAuthorization extends StatefulWidget {
   const TouchIDAuthorization({super.key});
 
+  @override
+  State<TouchIDAuthorization> createState() => _TouchIDAuthorizationState();
+}
+
+class _TouchIDAuthorizationState extends State<TouchIDAuthorization> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  Future<void> _userBiometrics() async {
+    try {
+      await _firestore.collection('Users').doc(_auth.currentUser!.uid).update({
+        'accessBiometric': true
+      });
+      shortSnack(context,'User name updated successfully');
+    } catch (e) {
+      print('Error updating user biometric: $e');
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -45,14 +65,16 @@ class TouchIDAuthorization extends StatelessWidget {
                 buttonColor: const Color(0xff5AA5E2),
                 text: 'Activate Now',
                 onPressed: (){
-                  Network().authenticateUserWithBiometrics(
-                      'Use Touch ID',
-                      context).then((v){
-                        if(v!){
-                          Navigator.push(context, MaterialPageRoute(builder: (context){
-                            return const Summary();
-                          }));
-                        }
+                  _userBiometrics().then((v){
+                    Network().authenticateUserWithBiometrics(
+                        'Use Touch ID',
+                        context).then((v){
+                      if(v!){
+                        Navigator.push(context, MaterialPageRoute(builder: (context){
+                          return const Summary();
+                        }));
+                      }
+                    });
                   });
                 },
                 textColor: Colors.white,
@@ -66,7 +88,9 @@ class TouchIDAuthorization extends StatelessWidget {
                 buttonColor: Color(0xff1C1939),
                 text: 'Skip This',
                 onPressed: (){
-
+                  Navigator.push(context, MaterialPageRoute(builder: (context){
+                    return const Summary();
+                  }));
                 },
                 textColor: Colors.white,
                 width: MediaQuery.of(context).size.width,
