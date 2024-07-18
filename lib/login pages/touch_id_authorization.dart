@@ -1,5 +1,5 @@
 import 'package:banking_app/firebase%20network/network.dart';
-import 'package:banking_app/main_page/summary.dart';
+import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/utilities/shot_snackbar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -71,7 +71,7 @@ class _TouchIDAuthorizationState extends State<TouchIDAuthorization> {
                         context).then((v){
                       if(v!){
                         Navigator.push(context, MaterialPageRoute(builder: (context){
-                          return const Summary();
+                          return const SelectTrackItems();
                         }));
                       }
                     });
@@ -89,7 +89,7 @@ class _TouchIDAuthorizationState extends State<TouchIDAuthorization> {
                 text: 'Skip This',
                 onPressed: (){
                   Navigator.push(context, MaterialPageRoute(builder: (context){
-                    return const Summary();
+                    return const SelectTrackItems();
                   }));
                 },
                 textColor: Colors.white,

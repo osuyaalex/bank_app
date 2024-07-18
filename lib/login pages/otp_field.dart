@@ -5,7 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 
-import '../login pages/account_created.dart';
+import 'account_created.dart';
 
 class OTPField extends StatefulWidget {
   final String verificationId;

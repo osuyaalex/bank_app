@@ -2,7 +2,6 @@ import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/network.dart';
 import 'package:banking_app/login%20pages/forgot_password.dart';
 import 'package:banking_app/login%20pages/signup_page.dart';
-import 'package:banking_app/unused/phone_signup.txt';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -304,15 +303,6 @@ class _SignInPageState extends State<SignInPage> {
                     height: MediaQuery.of(context).size.width*0.14,
                     minSize: false,
                     textOrIndicator: _isLoading
-                ),
-                SizedBox(height: 5,),
-                TextButton(
-                    onPressed: (){
-                      Navigator.push(context, MaterialPageRoute(builder: (context){
-                        return const PhoneSignup();
-                      }));
-                    },
-                    child: const Text('Sign in with Phone Number')
                 ),
                 const SizedBox(height: 15,),
                 RichText(

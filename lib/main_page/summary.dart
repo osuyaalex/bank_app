@@ -1,8 +1,9 @@
 import 'dart:async';
-import 'package:banking_app/login%20pages/details_page.dart';
+import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 
 
 class Summary extends StatefulWidget {
@@ -13,16 +14,22 @@ class Summary extends StatefulWidget {
 }
 
 class _SummaryState extends State<Summary> {
-  Map<String, dynamic> _users ={};
+  double _totalSpent = 0.0;
 
-  Future _getDataFromFirestore()async{
+
+  Future _getTrackItems()async{
     DocumentSnapshot userDoc = await FirebaseFirestore.instance
-        .collection('Users')
+        .collection('UsersTrackItems')
         .doc(FirebaseAuth.instance.currentUser!.uid)
         .get();
     setState(() {
-      Map<String, dynamic> creatorData = userDoc.data()!as Map<String, dynamic>;
-      _users = creatorData;
+      if (userDoc.exists && userDoc.data() != null) {
+      } else {
+          Navigator.push(context, MaterialPageRoute(builder: (context){
+            return const SelectTrackItems();
+          }));
+
+      }
     });
   }
 
@@ -32,17 +39,48 @@ class _SummaryState extends State<Summary> {
   void initState() {
     // TODO: implement initState
     super.initState();
-    _getDataFromFirestore().then((v){
-      if(_users['bankInfo'] == false){
-        Navigator.push(context, MaterialPageRoute(builder: (context){
-          return const DetailsPage();
-        }));
-      }
-    });
+    _getTrackItems();
+
 
   }
   @override
   Widget build(BuildContext context) {
-    return Scaffold();
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('Summary',
+        style: TextStyle(
+          color: Colors.black
+        ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        child: Center(
+          child: Column(
+            children: [
+              SvgPicture.asset('assets/Illustration.svg'),
+              const SizedBox(height: 22,),
+              const Text('This month spending',
+              style: TextStyle(
+                fontSize: 24
+              ),
+              ),
+              const SizedBox(height: 22,),
+              Text('N ${_totalSpent.toString()}',
+                style: const TextStyle(
+                    fontSize: 30,
+                  fontWeight: FontWeight.w500
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

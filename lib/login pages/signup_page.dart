@@ -1,6 +1,7 @@
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/network.dart';
 import 'package:banking_app/login%20pages/account_created.dart';
+import 'package:banking_app/login%20pages/phone_signup.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:flutter/gestures.dart';
@@ -354,41 +355,58 @@ class _SignupPageState extends State<SignupPage> {
                   ],
                 ),
                 const SizedBox(height: 40,),
-                Button(
-                    buttonColor: Color(0xff5AA5E2),
-                    text: 'Sign up my Account',
-                    onPressed: ()async{
-                      if(_key.currentState!.validate()){
-                        if(_terms == true){
-                          setState(() {
-                            _isLoading = true;
-                          });
-                           _network.signUpUsers(
-                              _firstName.text,
-                              _lastName.text,
-                              _email.text,
-                              _password.text,
-                            context
-                          ).then((v){
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0),
+                  child: Button(
+                      buttonColor: Color(0xff5AA5E2),
+                      text: 'Sign up my Account',
+                      onPressed: ()async{
+                        if(_key.currentState!.validate()){
+                          if(_terms == true){
                             setState(() {
-                              _isLoading = false;
+                              _isLoading = true;
                             });
-                            if(v == 'Account created successfully'){
-                              Navigator.push(context, MaterialPageRoute(builder: (context){
-                                return const AccountCreated();
-                              })) ;
-                            }else{
-                              snack(context, v!);
-                            }
-                          });
+                             _network.signUpUsers(
+                                _firstName.text,
+                                _lastName.text,
+                                _email.text,
+                                _password.text,
+                              context
+                            ).then((v){
+                              setState(() {
+                                _isLoading = false;
+                              });
+                              if(v == 'Account created successfully'){
+                                Navigator.push(context, MaterialPageRoute(builder: (context){
+                                  return const AccountCreated();
+                                })) ;
+                              }else{
+                                snack(context, v!);
+                              }
+                            });
+                          }
                         }
-                      }
+                      },
+                      textColor: Colors.white,
+                      width: MediaQuery.of(context).size.width,
+                      height: MediaQuery.of(context).size.width*0.14,
+                      minSize: false,
+                      textOrIndicator: _isLoading
+                  ),
+                ),
+                Button(
+                    buttonColor: Color(0xff1C1939),
+                    text: 'Sign in with phone',
+                    onPressed: (){
+                     Navigator.push(context, MaterialPageRoute(builder: (context){
+                       return const PhoneSignup();
+                     }));
                     },
                     textColor: Colors.white,
                     width: MediaQuery.of(context).size.width,
                     height: MediaQuery.of(context).size.width*0.14,
                     minSize: false,
-                    textOrIndicator: _isLoading
+                    textOrIndicator:false
                 ),
                 const SizedBox(height: 15,),
                 RichText(

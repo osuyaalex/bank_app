@@ -1,7 +1,6 @@
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/network.dart';
 import 'package:banking_app/login%20pages/touch_id_authorization.dart';
-import 'package:banking_app/main_page/summary.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -500,6 +499,7 @@ class _DetailsPageState extends State<DetailsPage> {
                               _connectToMono();
                              });
                           }else{
+                            snack(context, v.message!);
                             setState(() {
                               _isLoading = false;
                             });

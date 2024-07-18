@@ -1,5 +1,8 @@
-import 'package:banking_app/login%20pages/signup_page.dart';
+import 'package:banking_app/login%20pages/sign_in_page.dart';
+import 'package:banking_app/main_page/home_page.dart';
+import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/providers/text_field_providers.dart';
+import 'package:banking_app/root_page.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -8,11 +11,14 @@ import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-
+import 'firebase_notifications.dart';
 import 'firebase_options.dart';
-import 'main_page/summary.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 void main() async{
+  tz.initializeTimeZones();
+  tz.setLocalLocation(tz.getLocation('Africa/Lagos'));
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -22,6 +28,8 @@ void main() async{
     androidProvider: AndroidProvider.debug,
     appleProvider: AppleProvider.appAttest,
   );
+  await FirebaseApi().initNotifications();
+
   runApp( MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_){
@@ -53,26 +61,30 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent));
-    final router = GoRouter(
-      initialLocation:'/deeplink/signup' ,
+    final summaryRouter = GoRouter(
+      initialLocation:'/root' ,
       routes: [
         GoRoute(
-            path: '/deeplink/signup',
-            builder: (_, __) => const SignupPage()
+            path: '/root',
+            builder: (_, __) => RootPage()
+        ),
+        GoRoute(
+            path: '/deeplink/signIn',
+            builder: (_, __) => const SignInPage()
         ),
         GoRoute(
             path: '/deeplink/summary',
-            builder: (_, __) => Summary()
+            builder: (_, __) => HomePage()
         ),
-        // GoRoute(
-        //     path: '/deeplink/homepage',
-        //     builder: (_, __) => HomePage()
-        // ),
+        GoRoute(
+            path: '/deeplink/selectTrack',
+            builder: (_, __) => const SelectTrackItems()
+        ),
       ],
     );
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      routerConfig: router,
+      routerConfig: summaryRouter,
       title: 'Flutter Demo',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Color(0xff5AA5E2)),
@@ -80,7 +92,7 @@ class MyApp extends StatelessWidget {
         textTheme: GoogleFonts.dmSansTextTheme(
           Theme.of(context).textTheme,
         ),
-      
+
       ),
       builder: EasyLoading.init(),
     );

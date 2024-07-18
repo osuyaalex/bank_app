@@ -1,19 +1,26 @@
 import 'dart:convert';
-
+import 'dart:io';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path/path.dart' as path;
 import 'package:banking_app/firebase%20network/json/exchange_code_for_token.dart';
 import 'package:banking_app/firebase%20network/json/create_link_token_json.dart';
-import 'package:banking_app/unused/otp_field.txt';
+import 'package:banking_app/firebase%20network/json/get_transaction_json.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth/error_codes.dart' as local_auth_error;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-
+import 'package:image/image.dart' as img;
+import '../login pages/otp_field.dart';
+import '../providers/image_cache.dart';
 import 'keys.dart';
 
 
@@ -21,6 +28,9 @@ import 'keys.dart';
 FirebaseAuth auth = FirebaseAuth.instance;
 FirebaseFirestore firestore = FirebaseFirestore.instance;
 final _localAuthentication = LocalAuthentication();
+final ImagePicker _picker = ImagePicker();
+final ImageCacheManager _cacheManager = ImageCacheManager();
+
 
 class Network{
   Future<String?> signUpUsers(String firstName,String lastName,String email, String password, BuildContext context)async{
@@ -33,17 +43,10 @@ class Network{
         "firstName": firstName,
         "lastName":lastName,
         "email": email,
+        "image":null,
         'createdAt': FieldValue.serverTimestamp(),
         'accessBiometric': false,
-        "gender":null,
-        "bankInfo": false,
         "phoneNumber":null,
-        "monoCustomerId":null,
-        "userAddress":null,
-        "userIdNumber":null,
-        "userIdentificationType":"bvn",
-        "bvn":null,
-        "authToken": null
       });
       return 'Account created successfully';
     }on FirebaseAuthException catch (e) {
@@ -133,15 +136,10 @@ class Network{
           "firstName": null,
           "lastName":null,
           "email": null,
+          "image":null,
           'createdAt': FieldValue.serverTimestamp(),
           'accessBiometric': false,
-          "bankInfo": false,
           "phoneNumber":user.phoneNumber,
-          "monoCustomerId":null,
-          "userAddress":null,
-          "userIdNumber":null,
-          "userIdentificationType":"BVN",
-          "bvn":null
         });
       }
     final prefs = await SharedPreferences.getInstance();
@@ -171,6 +169,81 @@ class Network{
 
   //Future<String?> loginInUsers(String email,)
 
+  Future<String?> pickImages(ImageSource source) async {
+    XFile? file = await _picker.pickImage(source: source);
+    final storageReference = FirebaseStorage.instance
+        .ref()
+        .child('images/${DateTime.now().millisecondsSinceEpoch}.jpg');
+    try {
+      if (file != null) {
+        EasyLoading.show();
+        File imageFile = File(file.path);
+        int imageSizeInBytes = imageFile.lengthSync();
+        double imageSizeInMB = imageSizeInBytes / (1024 * 1024);
+        if (imageSizeInMB > 2) {
+          double scaleFactor = 2 / imageSizeInMB;
+          List<int> imageBytes = await resizeImage(imageFile, scaleFactor);
+          file = await saveResizedImage(imageBytes);
+        }
+        final uploadTask = storageReference.putFile(File(file.path));
+        await uploadTask.whenComplete(() {});
+        final downloadUrl = await storageReference.getDownloadURL();
+        await firestore.collection('Users').doc(auth.currentUser!.uid).update({
+          "image":downloadUrl
+        });
+        EasyLoading.dismiss();
+        return downloadUrl;
+      } else {
+        return null;
+      }
+    } catch (e) {
+      print('Error picking images: $e');
+      // Handle errors as needed
+      return null;
+    }
+  }
+
+  Future<List<int>> resizeImage(File imageFile, double scaleFactor) async {
+    String cacheKey = '${path.basename(imageFile.path)}_$scaleFactor';
+    // Check if the resized image is already in the cache
+    Uint8List? cachedImage = await _cacheManager.getImageFromCache(cacheKey);
+    if (cachedImage != null) {
+      print('Using cached image for resizing: $cacheKey');
+      return cachedImage;
+    }
+
+    try {
+      // Read original image bytes
+      List<int> originalBytes = await imageFile.readAsBytes();
+
+      // Get original image dimensions
+      img.Image originalImage = img.decodeImage( Uint8List.fromList(originalBytes))!;
+      int originalWidth = originalImage.width;
+      int originalHeight = originalImage.height;
+
+      // Compress and resize the image
+      List<int> compressedBytes = await FlutterImageCompress.compressWithList(
+        Uint8List.fromList(originalBytes),
+        minHeight: (originalHeight * scaleFactor).toInt(),
+        minWidth: (originalWidth * scaleFactor).toInt(),
+        quality: 90, // Adjust the quality as needed
+      );
+
+      // Add the resized image to the cache
+      _cacheManager.addToCache(cacheKey, Uint8List.fromList(compressedBytes));
+
+      return compressedBytes;
+    } catch (e) {
+      print('Error resizing image: $e');
+      throw e;
+    }
+  }
+
+  Future<XFile> saveResizedImage(List<int> imageBytes) async {
+    File resizedFile = File('${(await getTemporaryDirectory()).path}/resized_image.jpg');
+    await resizedFile.writeAsBytes(imageBytes);
+    return XFile(resizedFile.path);
+  }
 
 
   Future<bool?> authenticateUserWithBiometrics(String localizedReason,  BuildContext context) async {
@@ -306,24 +379,20 @@ class Network{
     return ExchangeCodeForToken.fromJson(jsonResponse);
   }
 
-  Future<void> generateImage(
-      String prompt,
+  Future<GetMonthlyTransactions> getMonthlySpend(
+      String accountToken,
       BuildContext context) async {
     var jsonResponse;
     try {
-      String url = "https://api.openai.com/v1/images/generations";
+      DateTime now = DateTime.now();
+      String currentMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+      String url = "$apiUrl/accounts/$accountToken/transactions?period=$currentMonth";
       final response = await http.post(Uri.parse(url),
         headers: {
           'accept': 'application/json',
           'Content-Type': 'application/json',
-          'mono-sec-key': openAiKey
+          'mono-sec-key': secretKey,
         },
-        body: jsonEncode({
-          "model": "dall-e-3",
-          "prompt": prompt,
-          "n": 1,
-          "size": "24x24"
-        }),
       );
 
       print('hhhhhhhhhhhh');
@@ -357,7 +426,7 @@ class Network{
       }
     }
 
-    return jsonResponse;
+    return GetMonthlyTransactions.fromJson(jsonResponse);
   }
 }
 
