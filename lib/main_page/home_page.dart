@@ -1,5 +1,6 @@
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
+import 'package:banking_app/main_page/widget/progress_bar.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -216,6 +217,12 @@ class _HomePageState extends State<HomePage> {
                           itemBuilder: (context, index){
                           var listedItems = monthData['listItems'][index];
                           print(monthData['listItems'].length);
+                          double progress = 0;
+                          double maxValue = double.parse(listedItems['budgetSet']);
+                          double currentValue = listedItems['totalAmountSpent'];
+                            progress = (maxValue > 0) ? (currentValue / maxValue) : 0.0;
+                            progress = progress.isFinite ? progress : 0.0;
+
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8.0),
                             child: GestureDetector(
@@ -252,13 +259,10 @@ class _HomePageState extends State<HomePage> {
                                       ],
                                     ),
                                     const SizedBox(height: 10,),
-                                    Container(
-                                      height: 50,
-                                      width: MediaQuery.of(context).size.width,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade50,
-                                        borderRadius: BorderRadius.circular(40)
-                                      ),
+                                    ProgressIndicatorWidget(
+                                        currentValue: currentValue,
+                                      maxValue: maxValue,
+                                      progress: progress,
                                     ),
                                     const SizedBox(height: 15,),
                                     const Divider()

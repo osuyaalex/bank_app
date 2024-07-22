@@ -59,14 +59,18 @@ class EditItemsButtons extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 23),
-                Text(text),
+                Text(text,
+                style: const TextStyle(
+                  fontSize: 12
+                ),
+                ),
               ],
             ),
           ),
         )
             : AnimatedOpacity(
               opacity: opacity,
-              duration: Duration(milliseconds: 500),
+              duration: const Duration(milliseconds: 200),
               child: Stack(
                         children: [
               expandedContent,

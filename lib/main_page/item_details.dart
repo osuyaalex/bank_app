@@ -1,6 +1,7 @@
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/network.dart';
 import 'package:banking_app/main_page/widget/edit_items_buttons.dart';
+import 'package:banking_app/utilities/snackbar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -32,21 +33,26 @@ class _ItemDetailsState extends State<ItemDetails> {
   double _opacity = 0;
   final TextEditingController _itemName = TextEditingController();
   final TextEditingController _itemDescription = TextEditingController();
+  final TextEditingController _dailySpend = TextEditingController();
 
   void toggleContainer(int index) {
-    setState(() {
-      _opacity = 0;
-      if (_expandedIndex == index) {
-        _expandedIndex = null;
-      } else {
-        _expandedIndex = index;
-      }
-    });
-    Future.delayed(Duration(seconds: 1),(){
+    if(widget.itemDetails['budgetSet'] == '0'){
+      snack(context, 'You have to set a budget for this item to proceed');
+    }else{
       setState(() {
-        _opacity = 1;
+        _opacity = 0;
+        if (_expandedIndex == index) {
+          _expandedIndex = null;
+        } else {
+          _expandedIndex = index;
+        }
       });
-    });
+      Future.delayed(Duration(milliseconds: 500),(){
+        setState(() {
+          _opacity = 1;
+        });
+      });
+    }
   }
   Future<void> _getUserData() async {
     try {
@@ -91,6 +97,49 @@ class _ItemDetailsState extends State<ItemDetails> {
       print('Error updating user biometric: $e');
     }
   }
+
+  _updateDailySpend(String value) async {
+    try {
+      DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
+          .collection("track_items")
+          .doc(widget.actualMonth)
+          .collection("monthUsers")
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .get();
+
+      if (documentSnapshot.exists) {
+        Map<String, dynamic> data = documentSnapshot.data() as Map<String, dynamic>;
+        List<dynamic> listItems = data['listItems'];
+
+        // Convert value to a number
+        double newDailySpend = double.tryParse(value) ?? 0.0;
+
+        // Get the current dailySpend
+        double currentDailySpend = double.tryParse(listItems[widget.index]['dailySpend'].toString()) ?? 0.0;
+        // Update the totalAmountSpent
+        double updatedDailySpend = currentDailySpend + newDailySpend;
+        listItems[widget.index]['dailySpend'] = updatedDailySpend;
+
+        // Update Firestore document
+        await FirebaseFirestore.instance
+            .collection("track_items")
+            .doc(widget.actualMonth)
+            .collection("monthUsers")
+            .doc(FirebaseAuth.instance.currentUser!.uid)
+            .update({
+          "listItems": listItems,
+
+        });
+
+        shortSnack(context, 'Budget set successfully');
+        Navigator.pop(context);
+      } else {
+        print('Document does not exist');
+      }
+    } catch (e) {
+      print('Error updating user biometric: $e');
+    }
+  }
   _showAlert(String value){
     showDialog(
         context: context,
@@ -101,8 +150,9 @@ class _ItemDetailsState extends State<ItemDetails> {
                 'so please ensure that you are completely certain of your budget before proceeding'),
             actions: [
               TextButton(
-                  onPressed: (){
-                   _editItemDetails('budgetSet', value);
+                  onPressed: ()async{
+                   await _editItemDetails('budgetSet', value);
+                   Navigator.pop(context);
                   },
                   child: const Text('Go on!'),
               ),
@@ -212,236 +262,331 @@ class _ItemDetailsState extends State<ItemDetails> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 25.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  height: MediaQuery.of(context).size.width*0.55,
-                ),
-                Center(
-                  child: Container(
-
-                    width: MediaQuery.of(context).size.width*0.85,
-                    height: MediaQuery.of(context).size.width*0.4,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(15),
-                      color: Colors.white
-                    ),
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 17.0, vertical: 10),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Total spend on',
-                                  style: TextStyle(
-                                    fontSize: 11
-                                  ),
-                                  ),
-                                  Text(widget.itemDetails['name'],
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600
-                                  ),
-                                  )
-                                ],
-                              ),
-                              Text('${widget.monthDetails['currency']} ${formatNumber(widget.itemDetails['totalAmountSpent'])}',
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600
-                              ),
-                              )
-                            ],
-                          ),
-                        ),
-                        Divider(),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 17.0),
-                          child: widget.itemDetails['budgetSet'] == '0'? Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                               Column(
-                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('No budget set for this item',
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).size.width*0.55,
+                  ),
+                  Center(
+                    child: Container(
+              
+                      width: MediaQuery.of(context).size.width*0.85,
+                      height: MediaQuery.of(context).size.width*0.4,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(15),
+                        color: Colors.white
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 17.0, vertical: 10),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Total spend on',
                                     style: TextStyle(
-                                        fontSize: 11
+                                      fontSize: 11
                                     ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 12.0),
-                                    child: GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          _tapToSetBudget = true;
-                                        });
-                                      },
-                                      child: const Text('Tap To Set Budget',
-                                        style: TextStyle(
-                                           fontSize: 12,
-                                            fontWeight: FontWeight.w600
-                                        ),
+                                    ),
+                                    Text(widget.itemDetails['name'],
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600
+                                    ),
+                                    )
+                                  ],
+                                ),
+                                Text('${widget.monthDetails['currency']} ${formatNumber(widget.itemDetails['totalAmountSpent'].toString())}',
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600
+                                ),
+                                )
+                              ],
+                            ),
+                          ),
+                          Divider(),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 17.0),
+                            child: widget.itemDetails['budgetSet'] == '0'? Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                 Column(
+                                   crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('No budget set for this item',
+                                      style: TextStyle(
+                                          fontSize: 11
                                       ),
                                     ),
-                                  )
-                                ],
-                              ),
-                              _tapToSetBudget?SizedBox(
-                                width: 70,
-                                child: TextFormField(
-                                  focusNode: _focusNode,
-                                  controller: _textEditingController,
-                                  onSaved: (v){
-                                    _showAlert(v!);
-                                  },
-                                  decoration: const InputDecoration(
-                                    hintText: 'Set',
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 12.0),
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _tapToSetBudget = true;
+                                          });
+                                        },
+                                        child: const Text('Tap To Set Budget',
+                                          style: TextStyle(
+                                             fontSize: 12,
+                                              fontWeight: FontWeight.w600
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  ],
+                                ),
+                                _tapToSetBudget?SizedBox(
+                                  width: 70,
+                                  child: TextFormField(
+                                    focusNode: _focusNode,
+                                    controller: _textEditingController,
+                                    onSaved: (v){
+                                      _showAlert(v!);
+                                    },
+                                    decoration: const InputDecoration(
+                                      hintText: 'Set',
+                                    ),
+                                  ),
+                                ):Container()
+                              ],
+                            ):Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Text('The budget set for this item is',
+                                  style: TextStyle(
+                                      fontSize: 12
                                   ),
                                 ),
-                              ):Container()
-                            ],
-                          ):Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              const Text('The budget set for this item is',
-                                style: TextStyle(
-                                    fontSize: 12
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 11.0),
-                                child: Text('${widget.monthDetails['currency']} ${formatNumber(widget.itemDetails['budgetSet'])}',
-                                  style: const TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w700
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 11.0),
+                                  child: Text('${widget.monthDetails['currency']} ${formatNumber(widget.itemDetails['budgetSet'])}',
+                                    style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700
+                                    ),
                                   ),
-                                ),
-                              )
-                            ],
+                                )
+                              ],
+                            )
                           )
-                        )
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(height: 25,),
-                const Text('Update',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16
-                ),
-                ),
-                SizedBox(height: 17,),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    EditItemsButtons(
-                      key: ValueKey(0),
-                      tap: _expandedIndex == 0,
-                      svg: 'assets/edit-report-svgrepo-com.svg',
-                      text: 'Edit Item',
-                      onTap: () => toggleContainer(0),
-                      expandedContent: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Center(
-                                child: Text('Edit Item',
+                  SizedBox(height: 25,),
+                  const Text('Update',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16
+                  ),
+                  ),
+                  SizedBox(height: 17,),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      EditItemsButtons(
+                        key: ValueKey(0),
+                        tap: _expandedIndex == 0,
+                        svg: 'assets/edit-report-svgrepo-com.svg',
+                        text: 'Edit Item',
+                        onTap: () => toggleContainer(0),
+                        expandedContent: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Center(
+                                  child: Text('Edit Item',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold
+                                  ),),
+                                ),
+                                const SizedBox(height: 15,),
+                                const Text('Item Name',
                                 style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold
-                                ),),
-                              ),
-                              const SizedBox(height: 15,),
-                              const Text('Item Name',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600
-                              ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                child: TextFormField(
-                                  controller: _itemName,
+                                  fontWeight: FontWeight.w600
                                 ),
-                              ),
-                              _itemName.text.isNotEmpty?
-                                 Button(
-                                     buttonColor: const Color(0xff5AA5E2),
-                                     text: 'Edit',
-                                     onPressed: (){
-                                       EasyLoading.show();
-                                       _editItemDetails('name', _itemName.text);
-                                       EasyLoading.dismiss();
-                                     },
-                                     textColor: Colors.white,
-                                     width: 100,
-                                     height: 35,
-                                     minSize: true,
-                                     textOrIndicator: false):const SizedBox(),
-                              const SizedBox(height: 10,),
-                              const Text('Item Description',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w600
                                 ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                child: TextFormField(
-                                  controller: _itemDescription,
-                                  maxLines: 5,
-                                  maxLength: 300,
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                  child: TextFormField(
+                                    controller: _itemName,
+                                  ),
                                 ),
-                              ),
-                              _itemDescription.text.isNotEmpty?
-                              ElevatedButton(
-                                  onPressed: (){
-                                    EasyLoading.show();
-                                    _editItemDetails('description', _itemDescription.text);
-                                    EasyLoading.dismiss();
-                                  },
-                                  child: const Text('Edit',
-                                    style: TextStyle(
-                                        color: Colors.white
-                                    ),
-                                  )
-                              ):const SizedBox()
-                            ],
+                                _itemName.text.isNotEmpty?
+                                   Button(
+                                       buttonColor: const Color(0xff5AA5E2),
+                                       text: 'Edit',
+                                       onPressed: (){
+                                         EasyLoading.show();
+                                         _editItemDetails('name', _itemName.text);
+                                         EasyLoading.dismiss();
+                                       },
+                                       textColor: Colors.white,
+                                       width: 100,
+                                       height: 35,
+                                       minSize: true,
+                                       textOrIndicator: false):const SizedBox(),
+                                const SizedBox(height: 10,),
+                                const Text('Item Description',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w600
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                  child: TextFormField(
+                                    controller: _itemDescription,
+                                    maxLines: 5,
+                                    maxLength: 300,
+                                  ),
+                                ),
+                                _itemDescription.text.isNotEmpty?
+                                Button(
+                                    buttonColor: const Color(0xff5AA5E2),
+                                    text: 'Edit',
+                                    onPressed: (){
+                                      EasyLoading.show();
+                                      _editItemDetails('name', _itemDescription.text);
+                                      EasyLoading.dismiss();
+                                    },
+                                    textColor: Colors.white,
+                                    width: 100,
+                                    height: 35,
+                                    minSize: true,
+                                    textOrIndicator: false):const SizedBox()
+                              ],
+                            ),
                           ),
                         ),
+                        shouldShrink: _expandedIndex != null && _expandedIndex != 0,
+                        opacity: _opacity,
                       ),
-                      shouldShrink: _expandedIndex != null && _expandedIndex != 0,
-                      opacity: _opacity,
-                    ),
-                    EditItemsButtons(
-                      key: ValueKey(1),
-                      tap: _expandedIndex == 1,
-                      svg: 'assets/edit-report-svgrepo-com.svg',
-                      text: 'Edit Item 2',
-                      onTap: () => toggleContainer(1),
-                      expandedContent: Center(child: Text('Expanded Content 2')),
-                      shouldShrink: _expandedIndex != null && _expandedIndex != 1,
-                      opacity: _opacity,
-                    ),
-                    EditItemsButtons(
-                      key: ValueKey(2),
-                      tap: _expandedIndex == 2,
-                      svg: 'assets/edit-report-svgrepo-com.svg',
-                      text: 'Edit Item 3',
-                      onTap: () => toggleContainer(2),
-                      expandedContent: Center(child: Text('Expanded Content 3')),
-                      shouldShrink: _expandedIndex != null && _expandedIndex != 2,
-                      opacity: _opacity,
-                    ),
-                  ],
-                )
-              ],
+                      EditItemsButtons(
+                        key: ValueKey(1),
+                        tap: _expandedIndex == 1,
+                        svg: 'assets/money-svgrepo-com.svg',
+                        text: 'Edit Spend',
+                        onTap: () => toggleContainer(1),
+                        expandedContent: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Center(
+                                  child:  Text('Update Item Daily Spend',
+                                    style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20,),
+                                const Text('Daily Spend',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w600
+                                  ),
+                                ),
+                                TextFormField(
+                                  controller: _dailySpend,
+                                  keyboardType: TextInputType.number,
+                                ),
+                                _dailySpend.text.isNotEmpty?
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12.0),
+                                  child: Button(
+                                      buttonColor: const Color(0xff5AA5E2),
+                                      text: 'Update',
+                                      onPressed: (){
+                                        EasyLoading.show();
+                                        _updateDailySpend(_dailySpend.text);
+                                        EasyLoading.dismiss();
+                                      },
+                                      textColor: Colors.white,
+                                      width: 100,
+                                      height: 35,
+                                      minSize: true,
+                                      textOrIndicator: false),
+                                ):const SizedBox(),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 10.0),
+                                  child: Text('Why should I update my Daily Spend?',
+                                  style: TextStyle(
+                                    decoration: TextDecoration.underline,
+                                    fontWeight: FontWeight.w600
+                                  ),
+                                  ),
+                                ),
+                                RichText(
+                                  textAlign: TextAlign.start,
+                                  text: const TextSpan(
+                                      text: 'At the end of each day, your  ',
+                                      style: TextStyle(
+                                          height: 1.5,
+                                          fontSize: 13,
+                                        color: Colors.black
+                                      ),
+                                      children: <TextSpan>[
+                                        TextSpan(
+                                            text: 'Daily Spend ',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600
+                                            ),
+                                        ),
+                                        TextSpan(
+                                          text: 'will be added to the ',
+                                        ),
+                                        TextSpan(
+                                          text: 'TotalAmount Spent for this item. ',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: 'The sum of the total amounts spent on all'
+                                              ' items will contribute to the ',
+                                        ),
+                                        TextSpan(
+                                          text: 'Total Monthly Spend.',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600
+                                          ),
+                                        ),
+                                      ]
+                                  ),
+
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        shouldShrink: _expandedIndex != null && _expandedIndex != 1,
+                        opacity: _opacity,
+                      ),
+                      EditItemsButtons(
+                        key: ValueKey(2),
+                        tap: _expandedIndex == 2,
+                        svg: 'assets/edit-report-svgrepo-com.svg',
+                        text: 'Edit Info',
+                        onTap: () => toggleContainer(2),
+                        expandedContent: Center(child: Text('Expanded Content 3')),
+                        shouldShrink: _expandedIndex != null && _expandedIndex != 2,
+                        opacity: _opacity,
+                      ),
+                    ],
+                  )
+                ],
+              ),
             ),
           ),
         ],

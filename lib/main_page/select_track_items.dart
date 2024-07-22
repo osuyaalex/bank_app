@@ -122,10 +122,13 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                              _selectedItem.add({'image':'',
                                "name":_items.text,
                                "description":"",
-                               "dailySpend":"0",
+                               "dailySpend":0.0,
                                "budgetSet":"0",
-                               "totalAmountSpent":"0",
-                               "currentMonth":_currentMonthName
+                               "totalAmountSpent":0.0,
+                               "currentMonth":_currentMonthName,
+                               "previousDailySpends":[],
+                               "lastResetTime":Timestamp.now()
+
                              });
                            });
                          }
@@ -203,10 +206,12 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                               _selectedItem.add({'image':_loadItems[index]['image'],
                                 "name":_loadItems[index]['name'],
                                 "description":"",
-                                "dailySpend":"0",
+                                "dailySpend":0.0,
                                 "budgetSet":"0",
-                                "totalAmountSpent":"0",
-                                "currentMonth":_currentMonthName
+                                "totalAmountSpent":0.0,
+                                "currentMonth":_currentMonthName,
+                                "previousDailySpends":[],
+                                "lastResetTime":Timestamp.now()
                               });
                             });
                           }, textColor: Colors.white,
@@ -241,10 +246,12 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                                       _selectedItem.add({'image':_loadItems[index]['image'],
                                         "name":_loadItems[index]['name'],
                                         "description":"",
-                                        "dailySpend":"0",
+                                        "dailySpend":0.0,
                                         "budgetSet":"0",
-                                        "totalAmountSpent":"0",
-                                        "currentMonth":_currentMonthName
+                                        "totalAmountSpent":0.0,
+                                        "currentMonth":_currentMonthName,
+                                        "previousDailySpends":[],
+                                        "lastResetTime":Timestamp.now()
                                       });
                                     });
                                   }, textColor: Colors.white,
@@ -325,7 +332,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                             .doc(_currentMonth).collection("monthUsers")
                             .doc(FirebaseAuth.instance.currentUser!.uid).set({
                           "listItems": _selectedItem,
-                          "monthlySpend": 0,
+                          "monthlySpend": 0.0,
                           "currency": _currency().currencySymbol,
                           "currentMonthName": _currentMonthName,
                         });

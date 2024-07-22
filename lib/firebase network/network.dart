@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:banking_app/firebase%20network/json/exchange_code_for_token.dart';
 import 'package:banking_app/firebase%20network/json/create_link_token_json.dart';
@@ -266,6 +267,65 @@ class Network{
     }
     return isAuthorized;
   }
+
+  Future<void> resetDailySpend() async {
+    print('ddddfehjgxnhjsyjyjzrhkjuksug');
+    String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
+    currentMonth = currentMonth.replaceAll(' ', '');
+    try {
+      DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
+          .collection("track_items")
+          .doc(currentMonth) // Replace with actual month identifier
+          .collection("monthUsers")
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .get();
+
+      if (documentSnapshot.exists) {
+        Map<String, dynamic> data = documentSnapshot.data() as Map<String, dynamic>;
+        List<dynamic> listItems = data['listItems'];
+        double monthlySpend = data['monthlySpend'];
+
+        for (var item in listItems) {
+          double dailySpend = double.tryParse(item['dailySpend'].toString()) ?? 0.0;
+          double totalAmountSpent = double.tryParse(item['totalAmountSpent'].toString()) ?? 0.0;
+
+          // Add current dailySpend and timestamp to previousDailySpends
+          List<dynamic> previousDailySpends = item['previousDailySpends'] ?? [];
+          previousDailySpends.add({
+            'dailySpend': dailySpend,
+            'previousTime': item['lastResetTime'],
+          });
+
+          // Update totalAmountSpent
+          monthlySpend += item['dailySpend'];
+          item['totalAmountSpent'] = totalAmountSpent + dailySpend;
+          // Reset dailySpend
+          item['dailySpend'] = 0.0;
+          // Update lastResetTime
+          item['lastResetTime'] = Timestamp.now();
+          // Update previousDailySpends
+          item['previousDailySpends'] = previousDailySpends;
+
+        }
+
+        // Update Firestore document
+        await FirebaseFirestore.instance
+            .collection("track_items")
+            .doc(currentMonth) // Replace with actual month identifier
+            .collection("monthUsers")
+            .doc(FirebaseAuth.instance.currentUser!.uid)
+            .update({
+          "listItems": listItems,
+          "monthlySpend":monthlySpend
+        });
+      } else {
+        print('Document does not exist');
+      }
+    } catch (e) {
+      print('Error resetting daily spend: $e');
+    }
+  }
+
 
   Future<CreateCustomer> createCustomer(
   String idNumber, String email,String lastName, String firstName,

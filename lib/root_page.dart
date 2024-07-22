@@ -13,7 +13,7 @@ class RootPage extends StatelessWidget {
         } else if (snapshot.hasData) {
           // User is signed in, navigate to summary
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            GoRouter.of(context).go('/deeplink/summary');
+            GoRouter.of(context).go('/deeplink/home');
           });
         } else {
           // User is not signed in, navigate to sign in
