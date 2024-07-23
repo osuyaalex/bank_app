@@ -96,7 +96,7 @@ class Network{
     return auth.currentUser;
   }
   
-  Future<void> phoneSignup(String phoneNumber, BuildContext context)async{
+  Future<void> phoneSignup(String phoneNumber,String mode, BuildContext context)async{
     await auth.verifyPhoneNumber(
       phoneNumber: phoneNumber, // The user's phone number
       verificationCompleted: (PhoneAuthCredential credential) async {
@@ -112,7 +112,7 @@ class Network{
         // Save verificationId for later use
 
         Navigator.push(context, MaterialPageRoute(builder: (context){
-          return  OTPField(verificationId: verificationId, phoneNo: phoneNumber,);
+          return  OTPField(verificationId: verificationId, phoneNo: phoneNumber,mode: mode,);
         }));
       },
       codeAutoRetrievalTimeout: (String verificationId) {
@@ -121,7 +121,7 @@ class Network{
     );
   }
 
-  Future<String?> signInWithPhoneNumber(String verificationId, String token) async {
+  Future<String?> signInWithPhoneNumber(String verificationId, String token, String mode) async {
 
     try{
     // Create a PhoneAuthCredential with the code
@@ -132,17 +132,19 @@ class Network{
     // Sign in the user with the credential
       UserCredential userCredential = await auth.signInWithCredential(credential);
       User? user = userCredential.user;
-      if(user != null){
-        await firestore.collection('Users').doc(user.uid).set({
-          "firstName": null,
-          "lastName":null,
-          "email": null,
-          "image":null,
-          'createdAt': FieldValue.serverTimestamp(),
-          'accessBiometric': false,
-          "phoneNumber":user.phoneNumber,
-        });
-      }
+      if(mode == "signUp"){
+        if(user != null){
+          await firestore.collection('Users').doc(user.uid).set({
+            "firstName": null,
+            "lastName":null,
+            "email": null,
+            "image":null,
+            'createdAt': FieldValue.serverTimestamp(),
+            'accessBiometric': false,
+            "phoneNumber":user.phoneNumber,
+          });
+        }
+      }else{}
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('phoneNumber', user!.phoneNumber!);
       return null;

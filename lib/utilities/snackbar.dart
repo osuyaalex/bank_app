@@ -3,14 +3,18 @@ import 'package:flutter/material.dart';
 void snack(BuildContext context, String title) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      action: SnackBarAction(
-          label: "OK",
-          onPressed: (){
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          }
+      showCloseIcon: true,
+      closeIconColor: Colors.red,
+      duration: const Duration(seconds: 5),
+      content: Text(title,
+      style: TextStyle(
+        fontWeight: FontWeight.w500,
+        color: Colors.grey.shade500,
+        fontSize: 13
       ),
-      duration: Duration(seconds: 7),
-      content: Text(title),
+      ),
+
+      backgroundColor: Colors.white,
       //behavior: SnackBarBehavior.floating,
       // Provide a unique tag for each SnackBar instance
       // by appending the current timestamp to the title

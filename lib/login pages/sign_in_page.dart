@@ -6,6 +6,7 @@ import 'package:banking_app/utilities/snackbar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:phone_form_field/phone_form_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../main_page/summary.dart';
@@ -18,7 +19,7 @@ class SignInPage extends StatefulWidget {
 }
 
 class _SignInPageState extends State<SignInPage> {
-  TextEditingController _email = TextEditingController();
+  TextEditingController? _email = TextEditingController();
   TextEditingController _password = TextEditingController();
   late FocusNode _emailFocus;
   late FocusNode _passwordFocus;
@@ -28,6 +29,8 @@ class _SignInPageState extends State<SignInPage> {
   bool _obscureText = true;
   final GlobalKey<FormState> _key = GlobalKey<FormState>();
   final Network _network = Network();
+  bool _switch = false;
+  PhoneNumber? phone;
 
 
 
@@ -153,7 +156,45 @@ class _SignInPageState extends State<SignInPage> {
                 SizedBox(
                   height: MediaQuery.of(context).size.width*0.17,
                 ),
-                SizedBox(
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    const Text('With Email',
+                      style: TextStyle(
+                          color: Colors.grey,
+                        fontWeight: FontWeight.w600
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: Switch(
+                          trackColor: WidgetStatePropertyAll(const Color(0xff5AA5E2).withOpacity(0.5)),
+                          thumbColor: WidgetStatePropertyAll(const Color(0xff5AA5E2)),
+                          trackOutlineWidth: WidgetStatePropertyAll(0),
+                          trackOutlineColor: WidgetStatePropertyAll(Colors.transparent),
+                          value: _switch,
+                          onChanged: (v){
+                            setState(() {
+                              _switch = v;
+                              if(_switch == false){
+                                phone = null;
+                              }else{
+                                _email = null;
+                              }
+                            });
+                          }
+                      ),
+                    ),
+                    const Text('With Phone',
+                      style: TextStyle(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 15,),
+                _switch == false?SizedBox(
                   height: MediaQuery.of(context).size.width*0.12,
                   child: TextFormField(
                     focusNode: _emailFocus,
@@ -198,9 +239,68 @@ class _SignInPageState extends State<SignInPage> {
                       ),
                     ),
                   ),
+                ):SizedBox(
+                  height: MediaQuery.of(context).size.width*0.12,
+                  child: PhoneFormField(
+                    key: const Key('phone-field'),
+                    controller: null,
+                    initialValue: null,
+                    shouldFormat: true,
+                    defaultCountry: IsoCode.NG,
+                    decoration:  InputDecoration(
+                      filled: true,
+                      fillColor: Colors.grey.shade200,
+                      errorStyle: const TextStyle(fontSize: 0.01),
+                      contentPadding: const EdgeInsets.only(top: 5),
+                      hintStyle: const TextStyle(
+                          fontSize: 12.5
+                      ),
+                      hintText: "Enter Phone Number",
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(7),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(7),
+                          borderSide:  BorderSide(
+                              color: Colors.grey.shade400
+                          )
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(7),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(7),
+                          borderSide: BorderSide(
+                              color: Colors.grey.shade400
+                          )
+                      ),
+                    ),
+                    validator: PhoneValidator.required(),
+                    isCountryChipPersistent: true,
+                    isCountrySelectionEnabled: true,
+                    countrySelectorNavigator: const CountrySelectorNavigator.bottomSheet(),
+                    showFlagInInput: true,
+                    flagSize: 16,
+                    autofillHints: const [AutofillHints.telephoneNumber],
+                    enabled: true,
+                    autofocus: false,
+
+                    onChanged: (PhoneNumber? p)async{
+                      setState(() {
+                        phone = p;
+                      });
+                    },
+                    // ... + other textfield params
+                  ),
                 ),
                 const SizedBox(height: 5,),
-                SizedBox(
+                _switch == false?SizedBox(
                   height: MediaQuery.of(context).size.width*0.12,
                   child: TextFormField(
                     focusNode: _passwordFocus,
@@ -254,9 +354,9 @@ class _SignInPageState extends State<SignInPage> {
                       ),
                     ),
                   ),
-                ),
+                ):Container(),
                 const SizedBox(height: 15,),
-                Row(
+                _switch == false?Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
@@ -268,9 +368,9 @@ class _SignInPageState extends State<SignInPage> {
                         child: const Text('Forgot Password')
                     )
                   ],
-                ),
+                ):Container(),
                 const SizedBox(height: 40,),
-                Button(
+                _switch == false?Button(
                     buttonColor: const Color(0xff5AA5E2),
                     text: 'Sign in my Account',
                     onPressed: ()async{
@@ -279,13 +379,13 @@ class _SignInPageState extends State<SignInPage> {
                             _isLoading = true;
                           });
                           _network.signInUsersWithEmailAndPassword(
-                              _email.text, _password.text
+                              _email!.text, _password.text
                           ).then((v){
                             if(v! == 'login Successful'){
                               setState(() {
                                 _isLoading = false;
                               });
-                              Navigator.push(context, MaterialPageRoute(builder: (context){
+                              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context){
                                 return const Summary();
                               }));
                             }else{
@@ -300,6 +400,20 @@ class _SignInPageState extends State<SignInPage> {
                     },
                     textColor: Colors.white,
                     width: MediaQuery.of(context).size.width,
+                    height: MediaQuery.of(context).size.width*0.14,
+                    minSize: false,
+                    textOrIndicator: _isLoading
+                ):
+                Button(
+                    buttonColor: const Color(0xff1C1939),
+                    text: 'Sign in my Account',
+                    onPressed: (){
+                      if(_key.currentState!.validate()){
+                        _network.phoneSignup(phone!.international,"login",context);
+                      }
+                    },
+                    textColor: Colors.white,
+                    width: double.infinity,
                     height: MediaQuery.of(context).size.width*0.14,
                     minSize: false,
                     textOrIndicator: _isLoading

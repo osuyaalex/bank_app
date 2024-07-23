@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class ProgressIndicatorWidget extends StatefulWidget {
   final double currentValue;
@@ -14,6 +15,11 @@ class ProgressIndicatorWidget extends StatefulWidget {
 class _ProgressIndicatorWidgetState extends State<ProgressIndicatorWidget> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
+
+  String _formatNumber(double number) {
+    final formatter = NumberFormat('#,###.##');
+    return formatter.format(number);
+  }
 
   @override
   void initState() {
@@ -65,7 +71,8 @@ class _ProgressIndicatorWidgetState extends State<ProgressIndicatorWidget> with 
               ),
               child: Center(
                 child: Text(
-                  '\$${widget.currentValue.toStringAsFixed(2)}',
+                  widget.currentValue != 0?
+                  '\$${_formatNumber(widget.currentValue)}':'',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -74,7 +81,7 @@ class _ProgressIndicatorWidgetState extends State<ProgressIndicatorWidget> with 
               right: 10,
               top: 10,
               child: Text(
-                '\$${widget.maxValue.toStringAsFixed(2)}',
+                '\$${_formatNumber(widget.maxValue)}',
                 style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
               ),
             ),

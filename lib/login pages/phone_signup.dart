@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:phone_form_field/phone_form_field.dart';
 
 class PhoneSignup extends StatefulWidget {
-  const PhoneSignup({super.key});
+  final String mode;
+  const PhoneSignup({super.key, required this.mode});
 
   @override
   State<PhoneSignup> createState() => _PhoneSignupState();
@@ -111,7 +112,7 @@ class _PhoneSignupState extends State<PhoneSignup> {
                       setState(() {
                         _isLoading = true;
                       });
-                      Network().phoneSignup(phone!.international, context);
+                      Network().phoneSignup(phone!.international,widget.mode, context);
                       setState(() {
                         _isLoading = false;
                       });

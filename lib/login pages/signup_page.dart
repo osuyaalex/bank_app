@@ -399,7 +399,7 @@ class _SignupPageState extends State<SignupPage> {
                     text: 'Sign in with phone',
                     onPressed: (){
                      Navigator.push(context, MaterialPageRoute(builder: (context){
-                       return const PhoneSignup();
+                       return const PhoneSignup(mode:"signUp");
                      }));
                     },
                     textColor: Colors.white,

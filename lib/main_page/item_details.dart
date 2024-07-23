@@ -91,7 +91,11 @@ class _ItemDetailsState extends State<ItemDetails> {
           .doc(FirebaseAuth.instance.currentUser!.uid).update({
         "listItems":listItems
       });
-      shortSnack(context,'Budget set successfully');
+      if(specificItem == 'budgetSet'){
+        snack(context,'${widget.itemDetails['name']} budget updated successfully');
+      }else{
+        snack(context,'${widget.itemDetails['name']} $specificItem updated successfully');
+      }
       Navigator.pop(context);
     } catch (e) {
       print('Error updating user biometric: $e');
@@ -131,7 +135,7 @@ class _ItemDetailsState extends State<ItemDetails> {
 
         });
 
-        shortSnack(context, 'Budget set successfully');
+        snack(context, '${widget.itemDetails['name']} daily spend updated successfully');
         Navigator.pop(context);
       } else {
         print('Document does not exist');

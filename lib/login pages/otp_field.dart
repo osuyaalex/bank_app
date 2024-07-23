@@ -1,5 +1,6 @@
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/main_page/home_page.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +11,8 @@ import 'account_created.dart';
 class OTPField extends StatefulWidget {
   final String verificationId;
   final String phoneNo;
-  const OTPField({super.key, required this.verificationId, required this.phoneNo});
+  final String mode;
+  const OTPField({super.key, required this.verificationId, required this.phoneNo, required this.mode});
 
   @override
   State<OTPField> createState() => _OTPFieldState();
@@ -110,13 +112,19 @@ class _OTPFieldState extends State<OTPField> {
                       setState(() {
                         _isLoading = true;
                       });
-                      Network().signInWithPhoneNumber(widget.verificationId, _token!).then((v){
+                      Network().signInWithPhoneNumber(widget.verificationId, _token!,widget.mode).then((v){
                         setState(() {
                           _isLoading = false;
                         });
-                        Navigator.push(context, MaterialPageRoute(builder: (context){
-                          return const AccountCreated();
-                        }));
+                        if(widget.mode == "signUp"){
+                          Navigator.push(context, MaterialPageRoute(builder: (context){
+                            return const AccountCreated();
+                          }));
+                        }else{
+                          Navigator.push(context, MaterialPageRoute(builder: (context){
+                            return const HomePage();
+                          }));
+                        }
                       });
                     }else{
                       snack(context, "Code not complete");

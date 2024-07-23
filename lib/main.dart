@@ -30,7 +30,7 @@ void main() async{
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Africa/Lagos'));
   WidgetsFlutterBinding.ensureInitialized();
-  Workmanager().initialize(callbackDispatcher);
+  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
   Workmanager().registerPeriodicTask(
     "1",
     "resetDailySpendTask",

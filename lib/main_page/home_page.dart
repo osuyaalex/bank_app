@@ -1,3 +1,4 @@
+import 'package:banking_app/main_page/add_more_items_page.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/widget/progress_bar.dart';
@@ -23,6 +24,7 @@ class _HomePageState extends State<HomePage> {
   List<String> _currentMonthDocs = [];
   Map<String, dynamic> _monthData = {};
   String _actualMonthValue = '';
+  int _lastPage = 0;
 
 
 
@@ -38,6 +40,7 @@ class _HomePageState extends State<HomePage> {
       _currentMonthDocs.sort();
       String lastMonth = _currentMonthDocs.isNotEmpty ? _currentMonthDocs.last : '';
 
+
       // Get the current month
       String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
       currentMonth = currentMonth.replaceAll(' ', '');
@@ -50,8 +53,11 @@ class _HomePageState extends State<HomePage> {
           MaterialPageRoute(builder: (context) => const SelectTrackItems()),
         );
       }
+
       //await _getTrackItems();
-      setState(() {});
+      setState(() {
+        _lastPage = _currentMonthDocs.length - 1;
+      });
     } catch (e) {
       print('Error retrieving documents: $e');
     }
@@ -98,9 +104,14 @@ class _HomePageState extends State<HomePage> {
   //   }
   // }
 
+  String _formatNumber(double number) {
+    final formatter = NumberFormat('#,###.##');
+    return formatter.format(number);
+  }
+
   void _initializeCurrentMonth() {
-    DateTime now = DateTime.now();
-    _currentMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
+    _currentMonth = currentMonth.replaceAll(' ', '');
   }
 
   @override
@@ -142,7 +153,7 @@ class _HomePageState extends State<HomePage> {
                       aspectRatio: 16/9,
                       height: MediaQuery.of(context).size.width*0.43,
                       autoPlay: false,
-                      initialPage: 0,
+                      initialPage: _lastPage,
                       enableInfiniteScroll: false,
                       enlargeCenterPage: true,
                     onPageChanged: (index, reason) {
@@ -156,6 +167,7 @@ class _HomePageState extends State<HomePage> {
                     itemBuilder: (BuildContext context, int index, int realIndex) {
                       String month = _currentMonthDocs[index];
                       _actualMonthValue = month;
+
                       //Map<String, dynamic> monthData = _data[month] ?? {};
                       DocumentSnapshot document = documents[index];
                       Map<String, dynamic> monthData = document.data() as Map<String, dynamic>;
@@ -211,10 +223,22 @@ class _HomePageState extends State<HomePage> {
                       List<DocumentSnapshot> documents = snapshot.data!;
                       DocumentSnapshot document = documents.firstWhere((doc) => doc.id == _actualMonthValue, orElse: () => documents.first);
                       Map<String, dynamic> monthData = document.data() as Map<String, dynamic>;
-
                       return ListView.builder(
-                        itemCount: monthData['listItems'].length,
+                        itemCount: monthData['listItems'].length+1,
                           itemBuilder: (context, index){
+                            if (index == monthData['listItems'].length){
+                              return Center(
+                                child: TextButton(
+                                    onPressed: (){
+                                      Navigator.push(context, MaterialPageRoute(builder: (context){
+                                        return const AddMoreTrackItems();
+                                      }));
+                                    },
+                                    child: const Text('Tap to add more items')
+                                ),
+                              );
+                            }
+
                           var listedItems = monthData['listItems'][index];
                           print(monthData['listItems'].length);
                           double progress = 0;
@@ -255,7 +279,7 @@ class _HomePageState extends State<HomePage> {
                       
                                           ],
                                         ),
-                                        Text('${monthData['currency']} ${listedItems['dailySpend']}/day')
+                                        Text('${monthData['currency']} ${_formatNumber(listedItems['dailySpend'])}/day')
                                       ],
                                     ),
                                     const SizedBox(height: 10,),
