@@ -1,0 +1,525 @@
+import 'package:banking_app/elevated_button.dart';
+import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/login%20pages/touch_id_authorization.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:mono_flutter/mono_flutter.dart';
+import 'package:phone_form_field/phone_form_field.dart';
+
+import '../firebase network/keys.dart';
+import '../utilities/snackbar.dart';
+
+class DetailsPage extends StatefulWidget {
+  const DetailsPage({super.key});
+
+  @override
+  State<DetailsPage> createState() => _DetailsPageState();
+}
+
+class _DetailsPageState extends State<DetailsPage> {
+  PhoneNumber? phone;
+  bool _isLoading = false;
+  TextEditingController _bvnNumber = TextEditingController();
+  TextEditingController _address = TextEditingController();
+  TextEditingController _dob = TextEditingController();
+  String? _gender;
+  late FocusNode _phoneFocus;
+  late FocusNode _bvnFocus;
+  late FocusNode _addressFocus;
+  late FocusNode _dobFocus;
+  late FocusNode _genderFocus;
+  late Color _phoneColor;
+  late Color _bvnColor;
+  late Color _addressColor;
+  late Color _dobColor;
+  late Color _genderColor;
+  final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
+  GlobalKey<FormState> _key = GlobalKey<FormState>();
+  Map<String, dynamic> _users ={};
+
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != DateTime.now()) {
+      setState(() {
+        _dob.text = _dateFormat.format(picked);
+      });
+    }
+  }
+  void _fieldFocusNode(FocusNode focus, void Function(Color) setColor) {
+    focus.addListener(() {
+      setState(() {
+        setColor(
+          focus.hasFocus ? Color(0xff5AA5E2).withOpacity(0.3) : Colors.grey.shade200,
+        );
+      });
+    });
+  }
+  Future<void> _updateFirestoreWithTokenDetails(
+      String gender,bool bankInfo, String? phoneNumber, String? firstName,String lastName, String customerID,
+      String userAddress, String userIdNumber, String bvn
+      ) async {
+    try {
+      await FirebaseFirestore.instance.
+      collection('Users')
+          .doc(FirebaseAuth.instance.currentUser!.uid).update({
+        "gender":gender,
+        "bankInfo":bankInfo,
+        "phoneNumber":phoneNumber,
+        "firstName":firstName,
+        "lastName": lastName,
+        "monoCustomerId":customerID,
+        "userAddress":userAddress,
+        "userIdNumber":userIdNumber,
+        "userIdentificationType":"BVN",
+        "bvn":bvn
+      });
+      snack(context,'Info has been successfully recorded');
+    } catch (e) {
+      snack(context, 'something went wrong');
+    }
+  }
+
+  Future _getDataFromFirestore()async{
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance
+        .collection('Users')
+        .doc(FirebaseAuth.instance.currentUser!.uid)
+        .get();
+    setState(() {
+      Map<String, dynamic> creatorData = userDoc.data()!as Map<String, dynamic>;
+      _users = creatorData;
+    });
+  }
+
+  _connectToMono(){
+    MonoFlutter().launch(
+      context,
+      clientKey,
+      // authCode: 'code_sGjE1Zh48lFR8vr3FkrD',
+      reference: DateTime.now().millisecondsSinceEpoch.toString(),
+      scope: "auth", // NEWLY INTRODUCED
+      data:  // NEWLY INTRODUCED
+      {
+        "customer": {
+          "id": _users['monoCustomerId']// REQUIRED
+        }
+      },
+      onEvent: (event, data) {
+        print('event: $event, data: $data');
+      },
+      onClosed: (code) {
+        print('Modal closed, $code');
+        snack(context, 'Mono loaded successfully');
+      },
+      onLoad: () {
+        print('Mono loaded successfully');
+      },
+      onSuccess: (code) {
+        print('Mono Success $code');
+        Network().exchangeCodeForToken(code, context).then((v)async{
+          if(v.status == "successful"){
+            await FirebaseFirestore.instance.
+            collection('Users')
+                .doc(FirebaseAuth.instance.currentUser!.uid).update({
+              'authToken': v.data!.id
+            });
+            setState(() {
+              _isLoading = false;
+            });
+            Navigator.push(context, MaterialPageRoute(builder: (context){
+              return const TouchIDAuthorization();
+            }));
+          }
+        });
+      },
+    );
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    _phoneFocus = FocusNode();
+    _bvnFocus = FocusNode();
+    _addressFocus = FocusNode();
+    _dobFocus = FocusNode();
+    _genderFocus = FocusNode();
+
+    // Initialize colors
+    _phoneColor = Colors.grey.shade200;
+    _bvnColor = Colors.grey.shade200;
+    _addressColor = Colors.grey.shade200;
+    _dobColor = Colors.grey.shade200;
+    _genderColor = Colors.grey.shade200;
+
+    // Add listeners to focus nodes
+    _fieldFocusNode(_phoneFocus, (color) => _phoneColor = color);
+    _fieldFocusNode(_bvnFocus, (color) => _bvnColor = color);
+    _fieldFocusNode(_addressFocus, (color) => _addressColor = color);
+    _fieldFocusNode(_dobFocus, (color) => _dobColor = color);
+    _fieldFocusNode(_genderFocus, (color) => _genderColor = color);
+    _getDataFromFirestore();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _key,
+      child: Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 30.0),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                SizedBox(height: MediaQuery.of(context).size.width*0.25,),
+                const Text('Bank Details',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 30
+                  ),
+                ),
+                const SizedBox(height: 20,),
+                SizedBox(
+                  width: MediaQuery.of(context).size.width*0.7,
+                  child: const Text('To ensure the seamless processing of your banking transactions,'
+                      ' please add some more information',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        height: 2,
+                        fontSize: 14.5,
+                        color: Colors.black54
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 25),
+                SizedBox(
+                  height: MediaQuery.of(context).size.width*0.12,
+                  child: PhoneFormField(
+                    focusNode: _phoneFocus,
+                    key: const Key('phone-field'),
+                    controller: null,
+                    initialValue: null,
+                    shouldFormat: true,
+                    defaultCountry: IsoCode.NG,
+                    decoration:  InputDecoration(
+                      filled: true,
+                      fillColor: _phoneColor,
+                      errorStyle: const TextStyle(fontSize: 0.01),
+                      contentPadding: const EdgeInsets.only(top: 5),
+                      hintStyle: const TextStyle(
+                          fontSize: 12.5
+                      ),
+                      hintText: "Enter Phone Number",
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(7),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Color(0xff5AA5E2)
+                          )
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                    ),
+                    validator: PhoneValidator.validMobile(),
+                    isCountryChipPersistent: true,
+                    isCountrySelectionEnabled: true,
+                    countrySelectorNavigator: const CountrySelectorNavigator.bottomSheet(),
+                    showFlagInInput: true,
+                    flagSize: 16,
+                    autofillHints: const [AutofillHints.telephoneNumber],
+                    enabled: true,
+                    autofocus: false,
+
+                    onChanged: (PhoneNumber? p)async{
+                      setState(() {
+                        phone = p;
+                      });
+                    },
+                    // ... + other textfield params
+                  ),
+                ),
+                SizedBox(height: 25,),
+                SizedBox(
+                  height: MediaQuery.of(context).size.width*0.12,
+                  child: TextFormField(
+                    focusNode: _dobFocus,
+                    controller: _dob,
+                    keyboardType: TextInputType.phone,
+                    validator: (v){
+                      if(v!.isEmpty){
+                        return 'Field must not be empty';
+                      }
+                      return null;
+                    },
+                    onTap: (){
+                      _selectDate(context);
+                    },
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: _dobColor,
+                      errorStyle: const TextStyle(fontSize: 0.01),
+                      hintStyle: const TextStyle(
+                          fontSize: 12.5
+                      ),
+                      hintText: 'DD/MM/YYYY',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Color(0xff5AA5E2)
+                          )
+                      ),
+                      enabledBorder:OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      disabledBorder:OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(
+                  height: 25,
+                ),
+                SizedBox(
+                  height: MediaQuery.of(context).size.width*0.12,
+                  child: DropdownButtonFormField(
+                    focusNode: _genderFocus,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: _genderColor,
+                      errorStyle: const TextStyle(fontSize: 0.01),
+                      contentPadding:const EdgeInsets.only(top: 5, left: 10),
+                      hintStyle: const TextStyle(
+                          fontSize: 12.5,
+                        height: 5
+                      ),
+                      hintText: 'select Gender',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Color(0xff5AA5E2)
+                          )
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                    ),
+                    items: ["Male", "Female", "Other"].map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        if(newValue== "Male"){
+                          _gender = "M";
+                        }else if(newValue== "Female"){
+                          _gender = "F";
+                        }else if(newValue== "Other"){
+                          _gender = "O";
+                        }
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(height: 25,),
+                SizedBox(
+                  height: MediaQuery.of(context).size.width*0.12,
+                  child: TextFormField(
+                    focusNode: _bvnFocus,
+                    controller: _bvnNumber,
+                    validator: (v){
+                      if(v!.isEmpty){
+                        return 'Field must not be empty';
+                      }
+                      return null;
+                    },
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: _bvnColor,
+                      errorStyle: const TextStyle(fontSize: 0.01),
+                      hintStyle: const TextStyle(
+                          fontSize: 12.5
+                      ),
+                      hintText: 'BVN Number',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Color(0xff5AA5E2)
+                          )
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: Colors.grey.shade400
+                          )
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 25,),
+                SizedBox(
+                  height: MediaQuery.of(context).size.width*0.12,
+                  child: TextFormField(
+                    focusNode: _addressFocus,
+                    controller: _address,
+                    validator: (v){
+                      if(v!.isEmpty){
+                        return 'Field must not be empty';
+                      }
+                      return null;
+                    },
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: _addressColor,
+                      errorStyle: const TextStyle(fontSize: 0.01),
+                      hintStyle: const TextStyle(
+                          fontSize: 12.5
+                      ),
+                      hintText: 'Address',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Color(0xff5AA5E2)
+                          )
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: Colors.grey.shade400
+                          )
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: MediaQuery.of(context).size.width*0.15,),
+                Button(
+                    buttonColor: Color(0xff5AA5E2),
+                    text: 'Continue',
+                    onPressed: (){
+                      if(_key.currentState!.validate()){
+                        setState(() {
+                          _isLoading = true;
+                        });
+                        Network().createCustomer(
+                            _bvnNumber.text,
+                            _users['email'],
+                            _users['lastName'],
+                            _users['firstName'],
+                            _address.text,
+                            phone!.international
+                            , context).then((v){
+                          if(v.status == "successful"){
+                             _updateFirestoreWithTokenDetails(
+                              _gender!,
+                                true,
+                                phone!.international,
+                                _users['firstName'],
+                                _users['lastName'],
+                                v.data!.id!,
+                                v.data!.address!,
+                                v.data!.identificationNo!,
+                                v.data!.bvn!
+                            ).then((v){
+                              _connectToMono();
+                             });
+                          }else{
+                            snack(context, v.message!);
+                            setState(() {
+                              _isLoading = false;
+                            });
+                          }
+                        });
+
+                      }
+                    },
+                    textColor: Colors.white,
+                    width:MediaQuery.of(context).size.width,
+                    height:MediaQuery.of(context).size.width*0.14,
+                    minSize: false,
+                    textOrIndicator: _isLoading
+                )
+
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

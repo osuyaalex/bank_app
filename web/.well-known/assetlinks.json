@@ -1,0 +1,9 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.alexosuya.banking_app",
+    "sha256_cert_fingerprints":
+    ["C2:F9:06:A0:FF:36:72:31:DA:19:A0:26:30:BB:93:7B:45:B9:56:83:B2:16:47:15:49:AB:F3:59:57:CD:A2:3F"]
+  }
+}]

@@ -1,0 +1,104 @@
+import 'package:banking_app/providers/text_field_providers.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:phone_form_field/phone_form_field.dart';
+import 'package:provider/provider.dart';
+
+Widget phoneNumberTF(BuildContext context){
+
+  return SizedBox(
+    height: MediaQuery.of(context).size.width*0.12,
+    child: PhoneFormField(
+      key: const Key('phone-field'),
+      controller: null,
+      initialValue: null,
+      shouldFormat: true,
+      defaultCountry: IsoCode.NG,
+      decoration:  InputDecoration(
+        errorStyle: const TextStyle(fontSize: 0.01),
+        contentPadding: const EdgeInsets.only(top: 5),
+        hintStyle: const TextStyle(
+            fontSize: 12.5
+        ),
+        hintText: "Enter Phone Number",
+        disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(7),
+            borderSide: BorderSide(
+                color: Colors.grey.shade400
+            )
+        ),
+      ),
+      validator: PhoneValidator.required(),
+      isCountryChipPersistent: true,
+      isCountrySelectionEnabled: true,
+      countrySelectorNavigator: const CountrySelectorNavigator.bottomSheet(),
+      showFlagInInput: true,
+      flagSize: 16,
+      autofillHints: const [AutofillHints.telephoneNumber],
+      enabled: true,
+      autofocus: false,
+
+      onChanged: (PhoneNumber? p)async{
+          Provider.of<TextFieldProviders>(context, listen: false).phoneNumber = p!;
+      },
+      // ... + other textfield params
+    ),
+  );
+}
+
+
+
+Widget fullNameTF(BuildContext context){
+  return Row(
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(right: 8.0),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.width*0.12,
+          width: MediaQuery.of(context).size.width*0.45,
+          child: TextFormField(
+            validator: (v){
+              if(v!.isEmpty){
+                return 'Field must not be empty';
+              }
+              return null;
+            },
+            onChanged: (v){
+              Provider.of<TextFieldProviders>(context, listen: false).firstName = v;
+            },
+            decoration: const InputDecoration(
+              errorStyle: TextStyle(fontSize: 0.01),
+              hintStyle: TextStyle(
+                  fontSize: 12.5
+              ),
+              hintText: 'First Name',
+            ),
+          ),
+        ),
+      ),
+      SizedBox(
+        height: MediaQuery.of(context).size.width*0.12,
+        width: MediaQuery.of(context).size.width*0.45,
+        child: TextFormField(
+          validator: (v){
+            if(v!.isEmpty){
+              return 'Field must not be empty';
+            }
+            return null;
+          },
+          onChanged: (v){
+            Provider.of<TextFieldProviders>(context, listen: false).lastName = v;
+          },
+          decoration: const InputDecoration(
+            errorStyle: TextStyle(fontSize: 0.01),
+            hintStyle: TextStyle(
+                fontSize: 12.5
+            ),
+            hintText: 'Last Name',
+          ),
+        ),
+      ),
+    ],
+  );
+}

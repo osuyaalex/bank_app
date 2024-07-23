@@ -1,8 +1,10 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/auth_and_storage.dart';
+import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/login%20pages/account_created.dart';
 import 'package:banking_app/login%20pages/phone_signup.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/utilities/snackbar.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 class SignupPage extends StatefulWidget {
@@ -13,27 +15,41 @@ class SignupPage extends StatefulWidget {
 }
 
 class _SignupPageState extends State<SignupPage> {
-  TextEditingController _fullName = TextEditingController();
+  TextEditingController _firstName = TextEditingController();
+  TextEditingController _lastName= TextEditingController();
   TextEditingController _email = TextEditingController();
   TextEditingController _password = TextEditingController();
-  late FocusNode _fullNameFocus;
+  late FocusNode _firstNameFocus;
+  late FocusNode _lastNameFocus;
   late FocusNode _emailFocus;
   late FocusNode _passwordFocus;
-  late Color _fullNameColor;
+  late Color _firstNameColor;
+  late Color _lastNameColor;
   late Color _emailColor;
   late Color _passwordColor;
   bool _terms = false;
   bool _isLoading = false;
   bool _obscureText = true;
   GlobalKey<FormState> _key = GlobalKey<FormState>();
-  FirebaseNetwork _firebaseNetwork = FirebaseNetwork();
+  Network _network = Network();
 
-  _fullNameFocusNode(){
-    _fullNameFocus = FocusNode();
-    _fullNameColor = Colors.grey.shade200;
-    _fullNameFocus.addListener((){
+  _firstNameFocusNode(){
+    _firstNameFocus = FocusNode();
+    _firstNameColor = Colors.grey.shade200;
+    _firstNameFocus.addListener((){
       setState(() {
-        _fullNameColor = _fullNameFocus.hasFocus
+        _firstNameColor = _firstNameFocus.hasFocus
+            ? Color(0xff5AA5E2).withOpacity(0.3)
+            : Colors.grey.shade200;
+      });
+    });
+  }
+  _lastNameFocusNode(){
+    _lastNameFocus = FocusNode();
+    _lastNameColor = Colors.grey.shade200;
+    _lastNameFocus.addListener((){
+      setState(() {
+        _lastNameColor = _lastNameFocus.hasFocus
             ? Color(0xff5AA5E2).withOpacity(0.3)
             : Colors.grey.shade200;
       });
@@ -65,7 +81,8 @@ class _SignupPageState extends State<SignupPage> {
   @override
   void initState() {
     super.initState();
-    _fullNameFocusNode();
+    _firstNameFocusNode();
+    _lastNameFocusNode();
     _emailFocusNode();
     _passwordFocusNode();
 
@@ -73,7 +90,8 @@ class _SignupPageState extends State<SignupPage> {
 
   @override
   void dispose() {
-    _fullNameFocus.dispose();
+    _firstNameFocus.dispose();
+    _lastNameFocus.dispose();
     _emailFocus.dispose();
     _passwordFocus.dispose();
     super.dispose();
@@ -115,8 +133,8 @@ class _SignupPageState extends State<SignupPage> {
                 SizedBox(
                   height: MediaQuery.of(context).size.width*0.12,
                   child: TextFormField(
-                    focusNode: _fullNameFocus,
-                    controller: _fullName,
+                    focusNode: _firstNameFocus,
+                    controller: _firstName,
                     validator: (v){
                       if(v!.isEmpty){
                         return 'Field must not be empty';
@@ -125,12 +143,59 @@ class _SignupPageState extends State<SignupPage> {
                     },
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: _fullNameColor,
+                      fillColor: _firstNameColor,
                       errorStyle: const TextStyle(fontSize: 0.01),
                       hintStyle: const TextStyle(
                           fontSize: 12.5
                       ),
-                      hintText: 'Full Name',
+                      hintText: 'First Name',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Color(0xff5AA5E2)
+                          )
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:  const BorderSide(
+                              color: Colors.transparent
+                          )
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: Colors.grey.shade400
+                          )
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 5,),
+                SizedBox(
+                  height: MediaQuery.of(context).size.width*0.12,
+                  child: TextFormField(
+                    focusNode: _lastNameFocus,
+                    controller: _lastName,
+                    validator: (v){
+                      if(v!.isEmpty){
+                        return 'Field must not be empty';
+                      }
+                      return null;
+                    },
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: _lastNameColor,
+                      errorStyle: const TextStyle(fontSize: 0.01),
+                      hintStyle: const TextStyle(
+                          fontSize: 12.5
+                      ),
+                      hintText: 'Last Name',
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide:  const BorderSide(
@@ -290,56 +355,87 @@ class _SignupPageState extends State<SignupPage> {
                   ],
                 ),
                 const SizedBox(height: 40,),
-                Button(
-                    buttonColor: Color(0xff5AA5E2),
-                    text: 'Sign up my Account',
-                    onPressed: ()async{
-                      if(_key.currentState!.validate()){
-                        if(_terms == true){
-                          setState(() {
-                            _isLoading = true;
-                          });
-                           _firebaseNetwork.signUpUsers(
-                              _fullName.text,
-                              _email.text,
-                              _password.text,
-                            context
-                          ).then((v){
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0),
+                  child: Button(
+                      buttonColor: Color(0xff5AA5E2),
+                      text: 'Sign up my Account',
+                      onPressed: ()async{
+                        if(_key.currentState!.validate()){
+                          if(_terms == true){
                             setState(() {
-                              _isLoading = false;
+                              _isLoading = true;
                             });
-                            if(v == 'Account created successfully'){
-                              Navigator.push(context, MaterialPageRoute(builder: (context){
-                                return const SignInPage();
-                              })) ;
-                            }else{
-                              snack(context, v!);
-                            }
-                          });
+                             _network.signUpUsers(
+                                _firstName.text,
+                                _lastName.text,
+                                _email.text,
+                                _password.text,
+                              context
+                            ).then((v){
+                              setState(() {
+                                _isLoading = false;
+                              });
+                              if(v == 'Account created successfully'){
+                                Navigator.push(context, MaterialPageRoute(builder: (context){
+                                  return const AccountCreated();
+                                })) ;
+                              }else{
+                                snack(context, v!);
+                              }
+                            });
+                          }
                         }
-                      }
-                    },
-                    textColor: Colors.white,
-                    width: MediaQuery.of(context).size.width,
-                    height: MediaQuery.of(context).size.width*0.14,
-                    minSize: false,
-                    textOrIndicator: _isLoading
+                      },
+                      textColor: Colors.white,
+                      width: MediaQuery.of(context).size.width,
+                      height: MediaQuery.of(context).size.width*0.14,
+                      minSize: false,
+                      textOrIndicator: _isLoading
+                  ),
                 ),
-                SizedBox(height: 5,),
                 Button(
                     buttonColor: Color(0xff1C1939),
-                    text: 'Sign up with Phone Number',
+                    text: 'Sign in with phone',
                     onPressed: (){
-                      Navigator.push(context, MaterialPageRoute(builder: (context){
-                        return const PhoneSignup();
-                      }));
+                     Navigator.push(context, MaterialPageRoute(builder: (context){
+                       return const PhoneSignup(mode:"signUp");
+                     }));
                     },
                     textColor: Colors.white,
                     width: MediaQuery.of(context).size.width,
                     height: MediaQuery.of(context).size.width*0.14,
                     minSize: false,
-                    textOrIndicator: false
-                )
+                    textOrIndicator:false
+                ),
+                const SizedBox(height: 15,),
+                RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                      text: 'Already have an account? -  ',
+                      style: const TextStyle(
+                          height: 1.5,
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w400,
+                          fontSize: 13
+                      ),
+                      children: <TextSpan>[
+                        TextSpan(
+                            text: 'Sign in',
+                            style: const TextStyle(
+                              color: Color(0xff5AA5E2),
+                            ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = (){
+                              Navigator.push(context, MaterialPageRoute(builder: (context){
+                                return const SignInPage();
+                              }));
+                              }
+                        ),
+                      ]
+                  ),
+
+                ),
               ],
             ),
           ),
