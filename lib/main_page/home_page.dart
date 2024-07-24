@@ -1,3 +1,4 @@
+import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/main_page/add_more_items_page.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
@@ -176,7 +177,7 @@ class _HomePageState extends State<HomePage> {
                       child: Column(
                         children: [
                           SizedBox(height: MediaQuery.of(context).size.width*0.12,),
-                          Text('${monthData['currency']} ${monthData['monthlySpend']}',
+                          Text('${monthData['currency']} ${_formatNumber(monthData['monthlySpend'])}',
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 17,
@@ -200,6 +201,50 @@ class _HomePageState extends State<HomePage> {
                 );
               }
             ),
+          ),
+          Positioned(
+              top: 35,
+              left: 10,
+              child: IconButton(
+                  onPressed: (){
+                    Navigator.pop(context);
+                  }, icon: const Icon(Icons.arrow_back, color: Colors.white,)
+              )
+          ),
+          Positioned(
+              top: 35,
+              right: 10,
+              child: IconButton(
+                  onPressed: (){
+                    showDialog(
+                        context: context,
+                        builder: (context){
+                          return AlertDialog(
+                            title: const Text("Are You Sure?"),
+                            content: const Text('Are you sure you want to sign out of '
+                                'this account?'),
+                            actions: [
+                              TextButton(
+                                  onPressed: ()async{
+                                    await FirebaseAuth.instance.signOut();
+                                    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context){
+                                      return const SignInPage();
+                                    }));
+                                  },
+                                  child: const Text("yes")
+                              ),
+                              TextButton(
+                                  onPressed: (){
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text("no")
+                              ),
+                            ],
+                          );
+                        }
+                    );
+                  }, icon: const Icon(Icons.exit_to_app, color: Colors.white,)
+              )
           ),
           Center(
             child: Column(
@@ -256,7 +301,8 @@ class _HomePageState extends State<HomePage> {
                                       itemDetails: listedItems,
                                       monthDetails: monthData,
                                     actualMonth: _actualMonthValue,
-                                    index: index
+                                    index: index,
+                                    edit: true,
                                   );
                                 }));
                               },
