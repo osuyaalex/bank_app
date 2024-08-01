@@ -1,0 +1,116 @@
+import 'package:banking_app/main_page/widget/progress_bar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:intl/intl.dart';
+
+import '../add_more_items_page.dart';
+import '../item_details.dart';
+
+class StreamWidget extends StatelessWidget {
+  final dynamic streamValue;
+  final String actualMonthValue;
+  const StreamWidget({super.key,required this.streamValue, required this.actualMonthValue});
+
+  @override
+  Widget build(BuildContext context) {
+    String formatNumber(double number) {
+      final formatter = NumberFormat('#,###.##');
+      return formatter.format(number);
+    }
+    return StreamBuilder<List<DocumentSnapshot>>(
+        stream: streamValue,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('No data available'));
+          }
+
+          List<DocumentSnapshot> documents = snapshot.data!;
+          // DocumentSnapshot document = documents.firstWhere((doc) => doc.id == _currentMonthDataNotifier.value, orElse: () => documents.last);
+          DocumentSnapshot document =documents.last;
+          Map<String, dynamic> monthData = document.data() as Map<String, dynamic>;
+
+          print(documents.last.id);
+          return ListView.builder(
+              itemCount: monthData['listItems'].length+1,
+              itemBuilder: (context, index){
+                if (index == monthData['listItems'].length){
+                  return Center(
+                    child: TextButton(
+                        onPressed: (){
+                          Navigator.push(context, MaterialPageRoute(builder: (context){
+                            return const AddMoreTrackItems();
+                          }));
+                        },
+                        child: const Text('Tap to add more items')
+                    ),
+                  );
+                }
+
+                var listedItems = monthData['listItems'][index];
+                print(monthData['listItems'].length);
+                double progress = 0;
+                double maxValue = double.parse(listedItems['budgetSet']);
+                double currentValue = listedItems['totalAmountSpent'];
+                progress = (maxValue > 0) ? (currentValue / maxValue) : 0.0;
+                progress = progress.isFinite ? progress : 0.0;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: GestureDetector(
+                    onTap: (){
+                      Navigator.push(context, MaterialPageRoute(builder: (context){
+                        return ItemDetails(
+                          itemDetails: listedItems,
+                          monthDetails: monthData,
+                          actualMonth: actualMonthValue,
+                          index: index,
+                          edit: true,
+                        );
+                      }));
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          color: Colors.white
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  SvgPicture.asset(listedItems['image'],height: 20,),
+                                  const SizedBox(width: 30,),
+                                  Text(listedItems['name'])
+
+                                ],
+                              ),
+                              Text('${monthData['currency']} ${formatNumber(listedItems['dailySpend'])}/day')
+                            ],
+                          ),
+                          const SizedBox(height: 10,),
+                          ProgressIndicatorWidget(
+                            currentValue: currentValue,
+                            maxValue: maxValue,
+                            progress: progress,
+                          ),
+                          const SizedBox(height: 15,),
+                          const Divider()
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
+          );
+        }
+    );
+  }
+}

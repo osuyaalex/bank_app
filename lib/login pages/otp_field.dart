@@ -1,6 +1,7 @@
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/network.dart';
 import 'package:banking_app/main_page/home_page.dart';
+import 'package:banking_app/main_page/summary.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -117,12 +118,12 @@ class _OTPFieldState extends State<OTPField> {
                           _isLoading = false;
                         });
                         if(widget.mode == "signUp"){
-                          Navigator.push(context, MaterialPageRoute(builder: (context){
+                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context){
                             return const AccountCreated();
                           }));
                         }else{
-                          Navigator.push(context, MaterialPageRoute(builder: (context){
-                            return const HomePage();
+                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context){
+                            return const Summary();
                           }));
                         }
                       });

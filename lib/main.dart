@@ -18,9 +18,15 @@ import 'firebase_options.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'main_page/summary.dart';
+
 
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     // Your daily spend reset logic
     await Network().resetDailySpend();
     return Future.value(true);
@@ -30,13 +36,6 @@ void main() async{
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Africa/Lagos'));
   WidgetsFlutterBinding.ensureInitialized();
-  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
-  Workmanager().registerPeriodicTask(
-    "1",
-    "resetDailySpendTask",
-    frequency: const Duration(hours: 24), // Adjust as needed
-    initialDelay: Duration(seconds: calculateInitialDelay()),
-  );
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -46,6 +45,13 @@ void main() async{
     appleProvider: AppleProvider.appAttest,
   );
   await FirebaseApi().initNotifications();
+  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
+  Workmanager().registerPeriodicTask(
+    "1",
+    "resetDailySpendTask",
+    frequency: const Duration(hours: 24), // Adjust as needed
+    initialDelay: Duration(seconds: calculateInitialDelay()),
+  );
 
   runApp( MultiProvider(
       providers: [
@@ -64,7 +70,7 @@ int calculateInitialDelay() {
 }
 _easyLoading(){
   EasyLoading.instance
-    ..indicatorType = EasyLoadingIndicatorType.doubleBounce
+    ..indicatorType = EasyLoadingIndicatorType.wave
     ..loadingStyle = EasyLoadingStyle.custom
     ..indicatorSize = 30.0
     ..radius = 50.0
@@ -98,6 +104,10 @@ class MyApp extends StatelessWidget {
         GoRoute(
             path: '/deeplink/home',
             builder: (_, __) => HomePage()
+        ),
+        GoRoute(
+            path: '/deeplink/summary',
+            builder: (_, __) => const Summary()
         ),
         GoRoute(
             path: '/deeplink/selectTrack',
