@@ -3,6 +3,7 @@ import 'package:banking_app/main_page/add_more_items_page.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/widget/progress_bar.dart';
+import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -24,11 +25,9 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic> _data ={};
   List<String> _currentMonthDocs = [];
   Map<String, dynamic> _monthData = {};
+  ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
   String _actualMonthValue = '';
   int _lastPage = 0;
-
-
-
 
   Future<void> _getAllCurrentMonthDocs() async {
     try {
@@ -37,17 +36,13 @@ class _HomePageState extends State<HomePage> {
         _currentMonthDocs.add(doc.id);
       }
       print(_currentMonthDocs);
-      // Sort the months to get the last month
       _currentMonthDocs.sort();
-      String lastMonth = _currentMonthDocs.isNotEmpty ? _currentMonthDocs.last : '';
-
-
       // Get the current month
       String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
       currentMonth = currentMonth.replaceAll(' ', '');
 
       // Compare and navigate if not equal
-      if (lastMonth != currentMonth) {
+      if (!_currentMonthDocs.contains(currentMonth)) {
         // Navigate to another page
         Navigator.push(
           context,
@@ -115,6 +110,34 @@ class _HomePageState extends State<HomePage> {
     _currentMonth = currentMonth.replaceAll(' ', '');
   }
 
+  int _getMonthIndex(String monthYear) {
+    const List<String> monthOrder = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    String month = monthYear.substring(0, monthYear.length - 4);
+    return monthOrder.indexOf(month);
+  }
+
+  int _getYear(String monthYear) {
+    return int.parse(monthYear.substring(monthYear.length - 4));
+  }
+
+  void _sortMonthYear(List<String> monthYearList) {
+    monthYearList.sort((a, b) {
+      int yearA = _getYear(a);
+      int yearB = _getYear(b);
+      int monthIndexA = _getMonthIndex(a);
+      int monthIndexB = _getMonthIndex(b);
+
+      if (yearA == yearB) {
+        return monthIndexA.compareTo(monthIndexB);
+      }
+      return yearA.compareTo(yearB);
+    });
+  }
+
   @override
   void initState() {
     // TODO: implement initState
@@ -124,6 +147,8 @@ class _HomePageState extends State<HomePage> {
   }
   @override
   Widget build(BuildContext context) {
+    _sortMonthYear(_currentMonthDocs);
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       body:_currentMonthDocs.isNotEmpty? Stack(
@@ -148,56 +173,59 @@ class _HomePageState extends State<HomePage> {
                   return const Center(child: Text('No data available'));
                 }
                 List<DocumentSnapshot> documents = snapshot.data!;
-                return CarouselSlider.builder(
-                  options: CarouselOptions(
-                      viewportFraction: 0.7,
-                      aspectRatio: 16/9,
-                      height: MediaQuery.of(context).size.width*0.43,
-                      autoPlay: false,
-                      initialPage: _lastPage,
-                      enableInfiniteScroll: false,
-                      enlargeCenterPage: true,
-                    onPageChanged: (index, reason) {
-                      setState(() {
-                       // _monthData = _data[_currentMonthDocs[index]] ?? {};
-                        _monthData = documents[index].data() as Map<String, dynamic>;
-                      });
-                    },
-                  ),
-                  itemCount: _currentMonthDocs.length,
-                    itemBuilder: (BuildContext context, int index, int realIndex) {
-                      String month = _currentMonthDocs[index];
-                      _actualMonthValue = month;
+                return ValueListenableBuilder<String>(
+                    valueListenable: _currentMonthDataNotifier,
+                    builder: (context, currentMonthData, child) {
+                    return CarouselSlider.builder(
+                      options: CarouselOptions(
+                          viewportFraction: 0.7,
+                          aspectRatio: 16/9,
+                          height: MediaQuery.of(context).size.width*0.43,
+                          autoPlay: false,
+                          initialPage: _lastPage,
+                          enableInfiniteScroll: false,
+                          enlargeCenterPage: true,
+                        onPageChanged: (index, reason) {
+                            _currentMonthDataNotifier.value = _currentMonthDocs[index];
+                              _monthData = documents[index].data() as Map<String, dynamic>;
 
-                      //Map<String, dynamic> monthData = _data[month] ?? {};
-                      DocumentSnapshot document = documents[index];
-                      Map<String, dynamic> monthData = document.data() as Map<String, dynamic>;
-
-                      return Center(
-                      child: Column(
-                        children: [
-                          SizedBox(height: MediaQuery.of(context).size.width*0.12,),
-                          Text('${monthData['currency']} ${_formatNumber(monthData['monthlySpend'])}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 17,
-                            color: Colors.white
-                          ),
-                          ),
-                           Padding(
-                            padding: EdgeInsets.only(top: 10.0),
-                            child:  Text( month == _currentMonth?
-                              'spent this month':monthData['currentMonthName'],
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white
-                            ),
-                            ),
-                          )
-                        ],
+                        },
                       ),
+                      itemCount: documents.length,
+                        itemBuilder: (BuildContext context, int index, int realIndex) {
+                          String month = _currentMonthDocs[index];
+                          _actualMonthValue = month;
+                          //Map<String, dynamic> monthData = _data[month] ?? {};
+                          DocumentSnapshot document = documents[index];
+                          Map<String, dynamic> monthData = document.data() as Map<String, dynamic>;
+
+                          return Center(
+                          child: Column(
+                            children: [
+                              SizedBox(height: MediaQuery.of(context).size.width*0.12,),
+                              Text('${monthData['currency']} ${_formatNumber(monthData['monthlySpend'])}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 17,
+                                color: Colors.white
+                              ),
+                              ),
+                               Padding(
+                                padding: EdgeInsets.only(top: 10.0),
+                                child:  Text( month == _currentMonth?
+                                  'spent this month':monthData['currentMonthName'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white
+                                ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     );
-                  },
+                  }
                 );
               }
             ),
@@ -254,93 +282,108 @@ class _HomePageState extends State<HomePage> {
                   height:MediaQuery.of(context).size.height*0.7,
                   width: MediaQuery.of(context).size.width*0.85,
                   child:
-                  StreamBuilder<List<DocumentSnapshot>>(
-                    stream: _combineStreams(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const Center(child: Text('No data available'));
-                      }
-
-                      List<DocumentSnapshot> documents = snapshot.data!;
-                      DocumentSnapshot document = documents.firstWhere((doc) => doc.id == _actualMonthValue, orElse: () => documents.first);
-                      Map<String, dynamic> monthData = document.data() as Map<String, dynamic>;
-                      return ListView.builder(
-                        itemCount: monthData['listItems'].length+1,
-                          itemBuilder: (context, index){
-                            if (index == monthData['listItems'].length){
-                              return Center(
-                                child: TextButton(
-                                    onPressed: (){
-                                      Navigator.push(context, MaterialPageRoute(builder: (context){
-                                        return const AddMoreTrackItems();
-                                      }));
-                                    },
-                                    child: const Text('Tap to add more items')
-                                ),
-                              );
+                  ValueListenableBuilder<String>(
+                      valueListenable: _currentMonthDataNotifier,
+                      builder: (context, docId, child) {
+                        if (docId == '') {
+                          return StreamWidget(
+                            streamValue: _combineStreams(),
+                              actualMonthValue: _actualMonthValue
+                          );
+                        }
+                      return StreamBuilder<DocumentSnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection("track_items")
+                              .doc(docId)
+                              .collection("monthUsers")
+                              .doc(FirebaseAuth.instance.currentUser!.uid)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
                             }
 
-                          var listedItems = monthData['listItems'][index];
-                          print(monthData['listItems'].length);
-                          double progress = 0;
-                          double maxValue = double.parse(listedItems['budgetSet']);
-                          double currentValue = listedItems['totalAmountSpent'];
-                            progress = (maxValue > 0) ? (currentValue / maxValue) : 0.0;
-                            progress = progress.isFinite ? progress : 0.0;
+                            if (!snapshot.hasData || !snapshot.data!.exists) {
+                              return const Center(child: Text('No data available'));
+                            }
 
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: GestureDetector(
-                              onTap: (){
-                                Navigator.push(context, MaterialPageRoute(builder: (context){
-                                  return ItemDetails(
-                                      itemDetails: listedItems,
-                                      monthDetails: monthData,
-                                    actualMonth: _actualMonthValue,
-                                    index: index,
-                                    edit: true,
-                                  );
-                                }));
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(18),
-                                  color: Colors.white
-                                ),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
+                            Map<String, dynamic> monthData = snapshot.data!.data() as Map<String, dynamic>;
+
+                            return ListView.builder(
+                                itemCount: monthData['listItems'].length+1,
+                                itemBuilder: (context, index){
+                                  if (index == monthData['listItems'].length){
+                                    return Center(
+                                      child: TextButton(
+                                          onPressed: (){
+                                            Navigator.push(context, MaterialPageRoute(builder: (context){
+                                              return const AddMoreTrackItems();
+                                            }));
+                                          },
+                                          child: const Text('Tap to add more items')
+                                      ),
+                                    );
+                                  }
+
+                                  var listedItems = monthData['listItems'][index];
+                                  print(monthData['listItems'].length);
+                                  double progress = 0;
+                                  double maxValue = double.parse(listedItems['budgetSet']);
+                                  double currentValue = listedItems['totalAmountSpent'];
+                                  progress = (maxValue > 0) ? (currentValue / maxValue) : 0.0;
+                                  progress = progress.isFinite ? progress : 0.0;
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8.0),
+                                    child: GestureDetector(
+                                      onTap: (){
+                                        Navigator.push(context, MaterialPageRoute(builder: (context){
+                                          return ItemDetails(
+                                            itemDetails: listedItems,
+                                            monthDetails: monthData,
+                                            actualMonth: _actualMonthValue,
+                                            index: index,
+                                            edit: true,
+                                          );
+                                        }));
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(18),
+                                            color: Colors.white
+                                        ),
+                                        child: Column(
                                           children: [
-                                            SvgPicture.asset(listedItems['image'],height: 20,),
-                                            const SizedBox(width: 30,),
-                                            Text(listedItems['name'])
-                      
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    SvgPicture.asset(listedItems['image'],height: 20,),
+                                                    const SizedBox(width: 30,),
+                                                    Text(listedItems['name'])
+
+                                                  ],
+                                                ),
+                                                Text('${monthData['currency']} ${_formatNumber(listedItems['dailySpend'])}/day')
+                                              ],
+                                            ),
+                                            const SizedBox(height: 10,),
+                                            ProgressIndicatorWidget(
+                                              currentValue: currentValue,
+                                              maxValue: maxValue,
+                                              progress: progress,
+                                            ),
+                                            const SizedBox(height: 15,),
+                                            const Divider()
                                           ],
                                         ),
-                                        Text('${monthData['currency']} ${_formatNumber(listedItems['dailySpend'])}/day')
-                                      ],
+                                      ),
                                     ),
-                                    const SizedBox(height: 10,),
-                                    ProgressIndicatorWidget(
-                                        currentValue: currentValue,
-                                      maxValue: maxValue,
-                                      progress: progress,
-                                    ),
-                                    const SizedBox(height: 15,),
-                                    const Divider()
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
+                                  );
+                                }
+                            );
                           }
                       );
                     }

@@ -289,25 +289,28 @@ class Network{
 
         for (var item in listItems) {
           double dailySpend = double.tryParse(item['dailySpend'].toString()) ?? 0.0;
-          double totalAmountSpent = double.tryParse(item['totalAmountSpent'].toString()) ?? 0.0;
 
-          // Add current dailySpend and timestamp to previousDailySpends
-          List<dynamic> previousDailySpends = item['previousDailySpends'] ?? [];
-          previousDailySpends.add({
-            'dailySpend': dailySpend,
-            'previousTime': item['lastResetTime'],
-          });
+          // Check if dailySpend is greater than 0
+          if (dailySpend > 0) {
+            double totalAmountSpent = double.tryParse(item['totalAmountSpent'].toString()) ?? 0.0;
 
-          // Update totalAmountSpent
-          monthlySpend += item['dailySpend'];
-          item['totalAmountSpent'] = totalAmountSpent + dailySpend;
-          // Reset dailySpend
-          item['dailySpend'] = 0.0;
-          // Update lastResetTime
-          item['lastResetTime'] = Timestamp.now();
-          // Update previousDailySpends
-          item['previousDailySpends'] = previousDailySpends;
+            // Add current dailySpend and timestamp to previousDailySpends
+            List<dynamic> previousDailySpends = item['previousDailySpends'] ?? [];
+            previousDailySpends.add({
+              'dailySpend': dailySpend,
+              'previousTime': item['lastResetTime'],
+            });
 
+            // Update totalAmountSpent
+            monthlySpend += dailySpend;
+            item['totalAmountSpent'] = totalAmountSpent + dailySpend;
+            // Reset dailySpend
+            item['dailySpend'] = 0.0;
+            // Update lastResetTime
+            item['lastResetTime'] = Timestamp.now();
+            // Update previousDailySpends
+            item['previousDailySpends'] = previousDailySpends;
+          }
         }
 
         // Update Firestore document
@@ -318,7 +321,7 @@ class Network{
             .doc(FirebaseAuth.instance.currentUser!.uid)
             .update({
           "listItems": listItems,
-          "monthlySpend":monthlySpend
+          "monthlySpend": monthlySpend
         });
       } else {
         print('Document does not exist');
@@ -327,6 +330,7 @@ class Network{
       print('Error resetting daily spend: $e');
     }
   }
+
 
 
   Future<CreateCustomer> createCustomer(
