@@ -124,12 +124,13 @@ class _SummaryState extends State<Summary> {
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 10.0),
-                        child: Text('${_data['currency']} ${_formatNumber(_data['monthlySpend'])}',
+                        child: _data['monthlySpend'] != null?
+                        Text('${_data['currency']} ${_formatNumber(_data['monthlySpend'])}',
                           style: const TextStyle(
                               fontSize: 40,
                             fontWeight: FontWeight.w500
                           ),
-                        ),
+                        ):Container(),
                       ),
                       SizedBox(
                         width: MediaQuery.of(context).size.width*0.7,

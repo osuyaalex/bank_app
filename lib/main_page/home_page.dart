@@ -26,7 +26,6 @@ class _HomePageState extends State<HomePage> {
   List<String> _currentMonthDocs = [];
   Map<String, dynamic> _monthData = {};
   ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
-  String _actualMonthValue = '';
   int _lastPage = 0;
 
   Future<void> _getAllCurrentMonthDocs() async {
@@ -148,6 +147,11 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     _sortMonthYear(_currentMonthDocs);
+    if(_currentMonthDocs.isNotEmpty){
+      setState(() {
+        _currentMonthDataNotifier.value = _currentMonthDocs.last;
+      });
+    }
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -194,7 +198,7 @@ class _HomePageState extends State<HomePage> {
                       itemCount: documents.length,
                         itemBuilder: (BuildContext context, int index, int realIndex) {
                           String month = _currentMonthDocs[index];
-                          _actualMonthValue = month;
+
                           //Map<String, dynamic> monthData = _data[month] ?? {};
                           DocumentSnapshot document = documents[index];
                           Map<String, dynamic> monthData = document.data() as Map<String, dynamic>;
@@ -288,7 +292,7 @@ class _HomePageState extends State<HomePage> {
                         if (docId == '') {
                           return StreamWidget(
                             streamValue: _combineStreams(),
-                              actualMonthValue: _actualMonthValue
+                              actualMonthValue: docId
                           );
                         }
                       return StreamBuilder<DocumentSnapshot>(
@@ -326,7 +330,6 @@ class _HomePageState extends State<HomePage> {
                                   }
 
                                   var listedItems = monthData['listItems'][index];
-                                  print(monthData['listItems'].length);
                                   double progress = 0;
                                   double maxValue = double.parse(listedItems['budgetSet']);
                                   double currentValue = listedItems['totalAmountSpent'];
@@ -341,7 +344,7 @@ class _HomePageState extends State<HomePage> {
                                           return ItemDetails(
                                             itemDetails: listedItems,
                                             monthDetails: monthData,
-                                            actualMonth: _actualMonthValue,
+                                            actualMonth: docId,
                                             index: index,
                                             edit: true,
                                           );

@@ -271,7 +271,6 @@ class Network{
   }
 
   Future<void> resetDailySpend() async {
-    print('ddddfehjgxnhjsyjyjzrhkjuksug');
     String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
     currentMonth = currentMonth.replaceAll(' ', '');
     try {

@@ -215,6 +215,7 @@ class _ItemDetailsState extends State<ItemDetails> {
     _getUserData();
     _textFieldFocusNode();
     _initializeItemDetails();
+    print(widget.actualMonth);
   }
 
   @override
