@@ -1,5 +1,5 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/login%20pages/account_created.dart';
 import 'package:banking_app/login%20pages/phone_signup.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
@@ -31,7 +31,7 @@ class _SignupPageState extends State<SignupPage> {
   bool _isLoading = false;
   bool _obscureText = true;
   GlobalKey<FormState> _key = GlobalKey<FormState>();
-  Network _network = Network();
+  AuthServices _network = AuthServices();
 
   _firstNameFocusNode(){
     _firstNameFocus = FocusNode();

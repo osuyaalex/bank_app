@@ -12,7 +12,20 @@
           "package_name": "com.alexosuya.banking_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "829190868345-3db06pia6p34opape5jmq9dasg8vd6ri.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.alexosuya.banking_app",
+            "certificate_hash": "16e72502979024048dae372e296b0e7c503ff1b1"
+          }
+        },
+        {
+          "client_id": "829190868345-sqvuvthgej76os8uvfrhaad05gf7mp7a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCqtd_2_DhOpx3BP32a8ULynbwuSRerQ64"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "829190868345-sqvuvthgej76os8uvfrhaad05gf7mp7a.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "829190868345-5fa0gm89u541ic9a9sasdkl9kf09ifia.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.bankingApp"
+              }
+            }
+          ]
         }
       }
     }

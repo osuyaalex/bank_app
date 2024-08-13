@@ -1,4 +1,4 @@
-import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/main_page/home_page.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
@@ -28,7 +28,7 @@ void callbackDispatcher() {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     // Your daily spend reset logic
-    await Network().resetDailySpend();
+    await AuthServices().resetDailySpend();
     return Future.value(true);
   });
 }

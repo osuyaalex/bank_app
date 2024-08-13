@@ -8,6 +8,7 @@
         android:maxSdkVersion="32"
         tools:targetApi="donut" />
 
+
     <application
         android:label="BankAl"
         android:name="${applicationName}"

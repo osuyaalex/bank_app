@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'package:banking_app/firebase%20network/google_service.dart';
 import 'package:banking_app/main_page/home_page.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/widget/generate_dots.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:intl/intl.dart';
@@ -96,11 +98,16 @@ class _SummaryState extends State<Summary> {
         surfaceTintColor: Colors.transparent,
         foregroundColor: Colors.transparent,
         elevation: 0,
-        title: const Center(
-          child: Text('Summary',
-          style: TextStyle(
-            color: Colors.black54
-          ),
+        title:  Center(
+          child: GestureDetector(
+            onTap: (){
+              GoogleService().authenticateAndFetchEmails();
+            },
+            child: Text('Summary',
+            style: TextStyle(
+              color: Colors.black54
+            ),
+            ),
           ),
         ),
       ),

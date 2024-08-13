@@ -1,5 +1,5 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/login%20pages/forgot_password.dart';
 import 'package:banking_app/login%20pages/signup_page.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -28,7 +28,7 @@ class _SignInPageState extends State<SignInPage> {
   bool _isLoading = false;
   bool _obscureText = true;
   final GlobalKey<FormState> _key = GlobalKey<FormState>();
-  final Network _network = Network();
+  final AuthServices _network = AuthServices();
   bool _switch = false;
   PhoneNumber? phone;
 
