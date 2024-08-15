@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:banking_app/firebase%20network/gemini_ai.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/abusiveexperiencereport/v1.dart';
 import 'package:googleapis/gmail/v1.dart' as gmail;
@@ -10,29 +11,63 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 import 'package:intl/intl.dart';
+
+import '../utilities/snackbar.dart';
 class GoogleService{
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
   );
 
-  firebaseData(String actualMonth,String messageId)async{
+  updateDailySpend(String messageId,String plainText, BuildContext context)async{
+    String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
+    currentMonth = currentMonth.replaceAll(' ', '');
     try{
       DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
           .collection("track_items")
-          .doc(actualMonth)
+          .doc(currentMonth)
           .collection("monthUsers")
           .doc(FirebaseAuth.instance.currentUser!.uid)
           .get();
       if (documentSnapshot.exists){
         Map<String, dynamic> data = documentSnapshot.data() as Map<String, dynamic>;
         List<dynamic> messageIds = data['messageId'];
+        List<dynamic> listItems = data['listItems'];
+        List<String> nameList = listItems.map((item) => item['name'] as String).toList();
         if(!messageIds.contains(messageId)){
-
+          messageIds.add(messageId);
+          await AiUse().useGeminiAi(plainText, nameList).then((v)async{
+            List<String> splitText = v!.split(',').map((s) => s.trim()).toList();
+            String amount = splitText[0];
+            String description = splitText[1];
+            double newDailySpend = double.parse(amount);
+            for (var item in listItems) {
+              if ((item['name'] as String).toLowerCase() == description.toLowerCase()) {
+                item['dailySpend'] += newDailySpend; // Update dailySpend
+                break; // Stop the loop once the item is found and updated
+              }
+            }
+            await FirebaseFirestore.instance
+                .collection("track_items")
+                .doc(currentMonth)
+                .collection("monthUsers")
+                .doc(FirebaseAuth.instance.currentUser!.uid)
+                .update({
+              'messageId': messageIds,
+              'listItems': listItems,
+            });
+            snack(context, '$description daily spend updated successfully');
+          });
         }
+
+      }else {
+        print('Document does not exist');
       }
-    }catch(e){}
+    }catch(e){
+      print('Error updating user biometric: $e');
+    }
   }
+  
 
   Future<GoogleSignInAccount?> signInUser() async {
     return await _googleSignIn.signIn();
@@ -61,7 +96,7 @@ class GoogleService{
     );
   }
 
-  Future<void> fetchEmailsForToday(gmail.GmailApi gmailApi) async {
+  Future<void> fetchEmailsForToday(gmail.GmailApi gmailApi, BuildContext context) async {
     String currentDate = DateFormat('yyyy/MM/dd').format(DateTime.now());
     final dateFormat = DateFormat('yyyy/MM/dd');
     String? pageToken;
@@ -113,9 +148,9 @@ class GoogleService{
               final document = html_parser.parse(decodedBody);
               final plainText = document.body?.text;
               final messageId = message.id;
+              await updateDailySpend(messageId!, plainText!, context);
               print('Found email with all three terms: $subject');
               print('message id is $messageId');
-              AiUse().useGeminiAi(plainText!);
               print('Received at: $dateTime');
 
             } else {
@@ -162,7 +197,7 @@ class GoogleService{
     return false;
   }
 
-  Future<void> authenticateAndFetchEmails(String actualMonth) async {
+  Future<void> authenticateAndFetchEmails(BuildContext context) async {
     try {
       final googleUser = await signInUser();
       if (googleUser == null) {
@@ -174,7 +209,7 @@ class GoogleService{
       final client = createAuthenticatedClient(credentials);
       final gmailApi = gmail.GmailApi(client);
 
-      await fetchEmailsForToday(gmailApi);
+      await fetchEmailsForToday(gmailApi,context);
     } catch (e) {
       print('Failed to authenticate or fetch emails: $e');
     }

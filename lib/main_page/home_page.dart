@@ -12,6 +12,8 @@ import 'package:flutter_svg/svg.dart';
 import 'package:intl/intl.dart';
 import 'package:async/async.dart';
 
+import '../firebase network/google_service.dart';
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -142,6 +144,7 @@ class _HomePageState extends State<HomePage> {
     // TODO: implement initState
     _getAllCurrentMonthDocs();
     _initializeCurrentMonth();
+    GoogleService().authenticateAndFetchEmails(context);
     super.initState();
   }
   @override

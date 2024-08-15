@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:banking_app/firebase%20network/google_service.dart';
 import 'package:banking_app/main_page/home_page.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
@@ -99,15 +98,10 @@ class _SummaryState extends State<Summary> {
         foregroundColor: Colors.transparent,
         elevation: 0,
         title:  Center(
-          child: GestureDetector(
-            onTap: (){
-              GoogleService().authenticateAndFetchEmails();
-            },
-            child: Text('Summary',
-            style: TextStyle(
-              color: Colors.black54
-            ),
-            ),
+          child: Text('Summary',
+          style: TextStyle(
+            color: Colors.black54
+          ),
           ),
         ),
       ),
