@@ -24,7 +24,19 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
   bool _isLoading = false;
   late FocusNode _itemFocus;
   late Color _itemColor;
-  List<Map<String, dynamic>> _selectedItem = [];
+  List<Map<String, dynamic>> _selectedItem = [
+    {
+      "image": "assets/images/inbox-svgrepo-com.svg",
+      "name": "Others",
+      "description": "",
+      "dailySpend": 0.0,
+      "budgetSet": "0",
+      "totalAmountSpent": 0.0,
+      "currentMonth": DateFormat.MMMM().format(DateTime.now()),
+      "previousDailySpends": [],
+      "lastResetTime": Timestamp.now()
+    }
+  ];
   List<dynamic> _loadItems = [];
   bool _switchContainer = false;
   String _currentMonthName = '';
@@ -305,6 +317,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                                       color: Color(0xff5AA5E2)),
                                 ),
                               ),
+                              keyword['name'] != "Others"?
                               GestureDetector(
                                 child: Icon(Icons.close, size: 14, color: Colors.black54,),
                                 onTap: () {
@@ -312,7 +325,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                                     _selectedItem.removeAt(index);
                                   });
                                 },
-                              ),
+                              ):SizedBox(),
                             ],
                           ),
                         ),
@@ -341,6 +354,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                           "monthlySpend": 0.0,
                           "currency": _currency().currencySymbol,
                           "currentMonthName": _currentMonthName,
+                          "messageId":[]
                         });
                       });
                      setState(() {

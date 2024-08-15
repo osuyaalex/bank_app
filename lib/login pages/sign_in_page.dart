@@ -85,23 +85,8 @@ class _SignInPageState extends State<SignInPage> {
         });
       }else{
         EasyLoading.show();
-        _network.signInUsersWithPhone(getPhoneNumber!)
-            .then((v){
-          if(v! == 'login Successful'){
-            EasyLoading.dismiss();
-            _network.authenticateUserWithBiometrics(
-                "Welcome Back!", context).then((v){
-              if(v!){
-                Navigator.push(context, MaterialPageRoute(builder: (context){
-                  return const Summary();
-                }));
-              }
-            });
-          }else{
-            EasyLoading.dismiss();
-            snack(context, v);
-          }
-        });
+        _network.phoneSignup(phone!.international,"login",context);
+
       }
     }else{
       snack(context, 'Your biometric credentials are not available at this time. Please '

@@ -1,0 +1,58 @@
+Future<List<gmail.MessagePart>> getEmailAttachments(gmail.GmailApi gmailApi, String messageId) async {
+    try {
+      final msg = await gmailApi.users.messages.get('me', messageId);
+      final parts = msg.payload?.parts ?? [];
+      final attachments = <gmail.MessagePart>[];
+
+      for (var part in parts) {
+        if (part.filename != null && part.body?.attachmentId != null) {
+          attachments.add(part);
+        }
+      }
+
+      return attachments;
+    } catch (e) {
+      print('Failed to get email attachments: $e');
+      return [];
+    }
+  }
+
+  Future<String> extractTextFromPdf(Uint8List pdfData) async {
+    final PdfDocument document = PdfDocument(inputBytes: pdfData);
+    final String content = PdfTextExtractor(document).extractText();
+    document.dispose();
+    return content;
+  }
+
+  Future<String?> extractTextFromImage(Uint8List imageData, http.Client client) async {
+    final visionApi = vision.VisionApi(client);
+    final request = vision.BatchAnnotateImagesRequest(
+      requests: [
+        vision.AnnotateImageRequest(
+          image: vision.Image(content: base64Encode(imageData)),
+          features: [
+            vision.Feature(type: 'TEXT_DETECTION'),
+          ],
+        ),
+      ],
+    );
+
+    try {
+      final response = await visionApi.images.annotate(request);
+      if (response.responses != null && response.responses!.isNotEmpty) {
+        final textAnnotations = response.responses!.first.textAnnotations;
+        if (textAnnotations != null && textAnnotations.isNotEmpty) {
+          return textAnnotations.first.description;
+        } else {
+          print('No text annotations found.');
+          return null;
+        }
+      } else {
+        print('No responses found from Vision API.');
+        return null;
+      }
+    } catch (e) {
+      print('Error extracting text from image: $e');
+      return null;
+    }
+  }
