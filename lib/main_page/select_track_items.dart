@@ -3,10 +3,13 @@ import 'dart:convert';
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/main_page/home_page.dart';
 import 'package:banking_app/main_page/widget/track_items_button.dart';
+import 'package:banking_app/utilities/snackbar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:staggered_grid_view_flutter/widgets/staggered_grid_view.dart';
@@ -21,10 +24,25 @@ class SelectTrackItems extends StatefulWidget {
 
 class _SelectTrackItemsState extends State<SelectTrackItems> {
   TextEditingController _items = TextEditingController();
+  TextEditingController _budget = TextEditingController();
   bool _isLoading = false;
   late FocusNode _itemFocus;
   late Color _itemColor;
-  List<Map<String, dynamic>> _selectedItem = [];
+  late FocusNode _budgetFocus;
+  late Color _budgetColor;
+  List<Map<String, dynamic>> _selectedItem = [
+    {
+      "image": "assets/images/inbox-svgrepo-com.svg",
+      "name": "Others",
+      "description": "",
+      "dailySpend": 0.0,
+      "budgetSet": "0",
+      "totalAmountSpent": 0.0,
+      "currentMonth": DateFormat.MMMM().format(DateTime.now()),
+      "previousDailySpends": [],
+      "lastResetTime": Timestamp.now()
+    }
+  ];
   List<dynamic> _loadItems = [];
   bool _switchContainer = false;
   String _currentMonthName = '';
@@ -36,6 +54,17 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
     _itemFocus.addListener((){
       setState(() {
         _itemColor = _itemFocus.hasFocus
+            ? Color(0xff5AA5E2).withOpacity(0.3)
+            : Colors.grey.shade200;
+      });
+    });
+  }
+  _trackBudgetFocusNode(){
+    _budgetFocus = FocusNode();
+    _budgetColor = Colors.grey.shade200;
+    _budgetFocus.addListener((){
+      setState(() {
+        _budgetColor = _budgetFocus.hasFocus
             ? Color(0xff5AA5E2).withOpacity(0.3)
             : Colors.grey.shade200;
       });
@@ -72,107 +101,238 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
     // TODO: implement initState
     super.initState();
     _trackFieldFocusNode();
+    _trackBudgetFocusNode();
     _loadItemsJson();
     _initializeCurrentMonth();
   }
   @override
   Widget build(BuildContext context) {
+    bool allBudgetsSet = _selectedItem.every((item) => item['budgetSet'] != "0");
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 30.0),
         child: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(height: MediaQuery.of(context).size.width*0.4,),
-              const Text('Track Items',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 30
-                ),
-              ),
-              const SizedBox(height: 30,),
-              SizedBox(
-                width: MediaQuery.of(context).size.width*0.7,
-                child: const Text('Select items you need to track daily for the month. ',
-                  textAlign: TextAlign.center,
+              Center(
+                child: const Text('Track Items',
                   style: TextStyle(
-                      height: 2,
-                      fontSize: 14.5,
-                      color: Colors.black54
+                      fontWeight: FontWeight.w600,
+                      fontSize: 30
                   ),
                 ),
               ),
-              SizedBox(height: MediaQuery.of(context).size.width*0.1,),
-              SizedBox(
-                height: MediaQuery.of(context).size.width*0.12,
-                child: TextFormField(
-                  focusNode: _itemFocus,
-                  controller: _items,
-                  validator: (v){
-                    if(v!.isEmpty){
-                      return 'Field must not be empty';
-                    }
-                    return null;
-                  },
-                  decoration: InputDecoration(
-                    suffixIcon: IconButton(
-                        onPressed: (){
-                         if(_items.text.isNotEmpty){
-                           setState(() {
-                             _selectedItem.add({'image':'',
-                               "name":_items.text,
-                               "description":"",
-                               "dailySpend":0.0,
-                               "budgetSet":"0",
-                               "totalAmountSpent":0.0,
-                               "currentMonth":_currentMonthName,
-                               "previousDailySpends":[],
-                               "lastResetTime":Timestamp.now()
-
-                             });
-                           });
-                         }
-                         _items.clear();
-                        },
-                        icon: const Icon(Icons.add)
+              const SizedBox(height: 30,),
+              Center(
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width*0.7,
+                  child: const Text('Select items you need to track daily for the month. ',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        height: 2,
+                        fontSize: 14.5,
+                        color: Colors.black54
                     ),
-                    filled: true,
-                    fillColor: _itemColor,
-                    errorStyle: const TextStyle(fontSize: 0.01),
-                    hintStyle: const TextStyle(
-                        fontSize: 12.5
-                    ),
-                    hintText: 'Didn\'t find items below? Add items manually',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:  const BorderSide(
-                            color: Colors.transparent
-                        )
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:  const BorderSide(
-                            color: Color(0xff5AA5E2)
-                        )
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:  const BorderSide(
-                            color: Colors.transparent
-                        )
-                    ),
-                    disabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                            color: Colors.grey.shade400
-                        )
-                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: MediaQuery.of(context).size.width*0.08,),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12.0),
+                child: Text('input items manually',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                     // fontSize: 20
                   ),
                 ),
               ),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).size.width*0.12,
+                    width: MediaQuery.of(context).size.width*0.45,
+                    child: TextFormField(
+                      focusNode: _itemFocus,
+                      controller: _items,
+                      validator: (v){
+                        if(v!.isEmpty){
+                          return 'Field must not be empty';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: _itemColor,
+                        errorStyle: const TextStyle(fontSize: 0.01),
+                        hintStyle: const TextStyle(
+                            fontSize: 12.5
+                        ),
+                        hintText: 'Didn\'t find items below? Add items manually',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Colors.transparent
+                            )
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Color(0xff5AA5E2)
+                            )
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Colors.transparent
+                            )
+                        ),
+                        disabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                                color: Colors.grey.shade400
+                            )
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: MediaQuery.of(context).size.width*0.12,
+                    width: MediaQuery.of(context).size.width*0.3,
+                    child: TextFormField(
+                      focusNode: _budgetFocus,
+                      controller: _budget,
+                      keyboardType: TextInputType.number,
+                      validator: (v){
+                        if(v!.isEmpty){
+                          return 'Field must not be empty';
+                        }
+                        return null;
+                      },
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        TextInputFormatter.withFunction(
+                              (oldValue, newValue) {
+                            String newText = newValue.text;
+
+                            // Remove any existing commas
+                            newText = newText.replaceAll(',', '');
+
+                            // Format the new text with commas
+                            String formattedText = NumberFormat.decimalPattern().format(int.parse(newText));
+
+                            // Return the updated value
+                            return TextEditingValue(
+                              text: formattedText,
+                              selection: TextSelection.collapsed(offset: formattedText.length),
+                            );
+                          },
+                        ),
+                      ],
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: _budgetColor,
+                        errorStyle: const TextStyle(fontSize: 0.01),
+                        hintStyle: const TextStyle(
+                            fontSize: 12.5
+                        ),
+                        hintText: 'Add budget',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Colors.transparent
+                            )
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Color(0xff5AA5E2)
+                            )
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Colors.transparent
+                            )
+                        ),
+                        disabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                                color: Colors.grey.shade400
+                            )
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 15,),
+              Center(
+                child: Button(
+                    buttonColor:
+                    Color(0xff5AA5E2),
+                    text: 'Add Track Item',
+                    onPressed: (){
+                      if(_items.text.isNotEmpty && _budget.text.isNotEmpty){
+                        setState(() {
+                          _selectedItem.add({'image':'',
+                            "name":_items.text,
+                            "description":"",
+                            "dailySpend":0.0,
+                            "budgetSet":_budget.text,
+                            "totalAmountSpent":0.0,
+                            "currentMonth":_currentMonthName,
+                            "previousDailySpends":[],
+                            "lastResetTime":Timestamp.now()
+                          });
+                        });
+                        _items.clear();
+                        _budget.clear();
+                      }else{
+                        snack(context, 'Write down an item and give it a budget');
+                      }
+                    }, textColor: Colors.white,
+                    width:MediaQuery.of(context).size.width*0.5,
+                    height:MediaQuery.of(context).size.width*0.1,
+                    minSize: false,
+                    textOrIndicator: false
+                ),
+              ),
+              SizedBox(height: 20,),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Divider(
+                      color: Colors.grey,
+                      thickness: 1,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Text(
+                      "OR",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(
+                      color: Colors.grey,
+                      thickness: 1,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Select preview items',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      // fontSize: 20
+                    ),
+                  ),
                   TextButton(
                       onPressed: (){
                         setState(() {
@@ -295,9 +455,10 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
                           child: Row(
                             children: [
+                              keyword['image'] == ""?Container():
                               SvgPicture.asset(keyword['image'], height: 16,),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                padding: const EdgeInsets.only(left: 8.0),
                                 child: Text(
                                   keyword['name'],
                                   style: const TextStyle(
@@ -305,6 +466,65 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                                       color: Color(0xff5AA5E2)),
                                 ),
                               ),
+                              keyword['budgetSet'] == "0"
+                                  ? SizedBox(
+                                width: 60, // Adjust the width of the TextField
+                                child: SizedBox(
+                                  height: MediaQuery.of(context).size.height*0.2,
+                                  child: TextField(
+                                    decoration: InputDecoration(
+                                      hintText: "Enter Budget",
+                                      hintStyle: TextStyle(
+                                        fontSize: 6
+                                      ),
+                                      contentPadding: EdgeInsets.symmetric(
+                                          vertical: 5, horizontal: 8),
+                                      isDense: true,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      TextInputFormatter.withFunction(
+                                            (oldValue, newValue) {
+                                          String newText = newValue.text;
+
+                                          // Remove any existing commas
+                                          newText = newText.replaceAll(',', '');
+
+                                          // Format the new text with commas
+                                          String formattedText = NumberFormat.decimalPattern().format(int.parse(newText));
+
+                                          // Return the updated value
+                                          return TextEditingValue(
+                                            text: formattedText,
+                                            selection: TextSelection.collapsed(offset: formattedText.length),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                    onSubmitted: (value) {
+                                      setState(() {
+                                        if (value.isNotEmpty) {
+                                          keyword['budgetSet'] = value;
+                                        }
+                                        print(keyword);
+                                      });
+                                    },
+                                  ),
+                                ),
+                              )
+                                  : Padding(
+                                padding:
+                                const EdgeInsets.symmetric(horizontal: 8.0),
+                                child: Text(
+                                  "\₦${keyword['budgetSet']}",
+                                  style: const TextStyle(
+                                      color: Colors.black54,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 12),
+                                ),
+                              ),
+                              keyword['name'] != "Others"?
                               GestureDetector(
                                 child: Icon(Icons.close, size: 14, color: Colors.black54,),
                                 onTap: () {
@@ -312,7 +532,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                                     _selectedItem.removeAt(index);
                                   });
                                 },
-                              ),
+                              ):SizedBox(),
                             ],
                           ),
                         ),
@@ -323,9 +543,9 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
               ):Container(),
              SizedBox(height: MediaQuery.of(context).size.width*0.2,),
               Button(
-                  buttonColor: Color(0xff5AA5E2),
+                  buttonColor: allBudgetsSet ? Color(0xff5AA5E2) : Colors.grey,
                   text: 'Get Started',
-                  onPressed: ()async{
+                  onPressed: allBudgetsSet?()async{
                     if(_selectedItem.isNotEmpty){
                       setState(() {
                         _isLoading = true;
@@ -341,6 +561,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                           "monthlySpend": 0.0,
                           "currency": _currency().currencySymbol,
                           "currentMonthName": _currentMonthName,
+                          "messageId":[]
                         });
                       });
                      setState(() {
@@ -350,7 +571,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                        return const HomePage();
                      }));
                     }
-                  },
+                  }:null,
                   textColor: Colors.white,
                   width:MediaQuery.of(context).size.width,
                   height:MediaQuery.of(context).size.width*0.14,

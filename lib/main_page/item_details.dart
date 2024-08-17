@@ -1,5 +1,5 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/firebase%20network/image_services.dart';
 import 'package:banking_app/main_page/widget/edit_items_buttons.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -215,6 +215,7 @@ class _ItemDetailsState extends State<ItemDetails> {
     _getUserData();
     _textFieldFocusNode();
     _initializeItemDetails();
+    print(widget.actualMonth);
   }
 
   @override
@@ -714,14 +715,14 @@ class _ItemDetailsState extends State<ItemDetails> {
                                   children: [
                                     TextButton(
                                         onPressed: ()async{
-                                          await Network().pickImages(ImageSource.gallery);
+                                          await ImageServices().pickImages(ImageSource.gallery);
                                           Navigator.pop(context);
                                         },
                                          child: Text('Gallery')
                                     ),
                                     TextButton(
                                         onPressed: ()async{
-                                          await Network().pickImages(ImageSource.camera);
+                                          await ImageServices().pickImages(ImageSource.camera);
                                           Navigator.pop(context);
                                         },
                                         child: Text('Camera')

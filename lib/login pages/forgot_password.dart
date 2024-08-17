@@ -1,5 +1,5 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:flutter/material.dart';
 
@@ -16,7 +16,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
   late Color _emailColor;
   bool _isLoading = false;
   final GlobalKey<FormState> _key = GlobalKey<FormState>();
-  final Network _network = Network();
+  final AuthServices _network = AuthServices();
 
 
 

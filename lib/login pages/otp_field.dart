@@ -1,5 +1,5 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/main_page/home_page.dart';
 import 'package:banking_app/main_page/summary.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -113,7 +113,7 @@ class _OTPFieldState extends State<OTPField> {
                       setState(() {
                         _isLoading = true;
                       });
-                      Network().signInWithPhoneNumber(widget.verificationId, _token!,widget.mode).then((v){
+                      AuthServices().signInWithPhoneNumber(widget.verificationId, _token!,widget.mode).then((v){
                         setState(() {
                           _isLoading = false;
                         });

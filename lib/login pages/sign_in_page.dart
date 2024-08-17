@@ -1,5 +1,5 @@
 import 'package:banking_app/elevated_button.dart';
-import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/login%20pages/forgot_password.dart';
 import 'package:banking_app/login%20pages/signup_page.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -28,7 +28,7 @@ class _SignInPageState extends State<SignInPage> {
   bool _isLoading = false;
   bool _obscureText = true;
   final GlobalKey<FormState> _key = GlobalKey<FormState>();
-  final Network _network = Network();
+  final AuthServices _network = AuthServices();
   bool _switch = false;
   PhoneNumber? phone;
 
@@ -85,23 +85,8 @@ class _SignInPageState extends State<SignInPage> {
         });
       }else{
         EasyLoading.show();
-        _network.signInUsersWithPhone(getPhoneNumber!)
-            .then((v){
-          if(v! == 'login Successful'){
-            EasyLoading.dismiss();
-            _network.authenticateUserWithBiometrics(
-                "Welcome Back!", context).then((v){
-              if(v!){
-                Navigator.push(context, MaterialPageRoute(builder: (context){
-                  return const Summary();
-                }));
-              }
-            });
-          }else{
-            EasyLoading.dismiss();
-            snack(context, v);
-          }
-        });
+        _network.phoneSignup(phone!.international,"login",context);
+
       }
     }else{
       snack(context, 'Your biometric credentials are not available at this time. Please '
@@ -385,7 +370,7 @@ class _SignInPageState extends State<SignInPage> {
                               setState(() {
                                 _isLoading = false;
                               });
-                              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context){
+                              Navigator.push(context, MaterialPageRoute(builder: (context){
                                 return const Summary();
                               }));
                             }else{

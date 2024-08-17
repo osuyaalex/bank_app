@@ -1,4 +1,4 @@
-import 'package:banking_app/firebase%20network/network.dart';
+import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/utilities/shot_snackbar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -23,7 +23,7 @@ class _TouchIDAuthorizationState extends State<TouchIDAuthorization> {
       await _firestore.collection('Users').doc(_auth.currentUser!.uid).update({
         'accessBiometric': true
       });
-      shortSnack(context,'User name updated successfully');
+
     } catch (e) {
       print('Error updating user biometric: $e');
     }
@@ -66,7 +66,7 @@ class _TouchIDAuthorizationState extends State<TouchIDAuthorization> {
                 text: 'Activate Now',
                 onPressed: (){
                   _userBiometrics().then((v){
-                    Network().authenticateUserWithBiometrics(
+                    AuthServices().authenticateUserWithBiometrics(
                         'Use Touch ID',
                         context).then((v){
                       if(v!){

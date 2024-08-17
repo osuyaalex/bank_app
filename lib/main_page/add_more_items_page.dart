@@ -6,12 +6,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:staggered_grid_view_flutter/widgets/staggered_grid_view.dart';
 import 'package:staggered_grid_view_flutter/widgets/staggered_tile.dart';
 
 import '../utilities/shot_snackbar.dart';
+import '../utilities/snackbar.dart';
 
 class AddMoreTrackItems extends StatefulWidget {
   const AddMoreTrackItems({super.key});
@@ -22,6 +24,8 @@ class AddMoreTrackItems extends StatefulWidget {
 
 class _AddMoreTrackItemsState extends State<AddMoreTrackItems> {
   TextEditingController _items = TextEditingController();
+  TextEditingController _budget = TextEditingController();
+
   bool _isLoading = false;
   late FocusNode _itemFocus;
   late Color _itemColor;
@@ -29,14 +33,28 @@ class _AddMoreTrackItemsState extends State<AddMoreTrackItems> {
   List<dynamic> _loadItems = [];
   bool _switchContainer = false;
   String _currentMonthName = '';
+  late FocusNode _budgetFocus;
+  late Color _budgetColor;
   List<dynamic> _listItems = [];
 
-  _emailFocusNode(){
+  _itemFocusNode(){
     _itemFocus = FocusNode();
     _itemColor = Colors.grey.shade200;
     _itemFocus.addListener((){
       setState(() {
         _itemColor = _itemFocus.hasFocus
+            ? Color(0xff5AA5E2).withOpacity(0.3)
+            : Colors.grey.shade200;
+      });
+    });
+  }
+
+  _trackBudgetFocusNode(){
+    _budgetFocus = FocusNode();
+    _budgetColor = Colors.grey.shade200;
+    _budgetFocus.addListener((){
+      setState(() {
+        _budgetColor = _budgetFocus.hasFocus
             ? Color(0xff5AA5E2).withOpacity(0.3)
             : Colors.grey.shade200;
       });
@@ -118,19 +136,23 @@ class _AddMoreTrackItemsState extends State<AddMoreTrackItems> {
   void initState() {
     // TODO: implement initState
     super.initState();
-    _emailFocusNode();
+    _itemFocusNode();
+    _trackBudgetFocusNode();
     _loadItemsJson();
     _allListItems();
   }
   @override
   Widget build(BuildContext context) {
     final listItemsNames = _listItems.map((item) => item['name']).toSet();
+    bool allBudgetsSet = _selectedItem.every((item) => item['budgetSet'] != "0");
+
     print(listItemsNames);
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 30.0),
         child: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(height: MediaQuery.of(context).size.width*0.4,),
               const Text('Add More Track Items',
@@ -153,76 +175,200 @@ class _AddMoreTrackItemsState extends State<AddMoreTrackItems> {
                 ),
               ),
               SizedBox(height: MediaQuery.of(context).size.width*0.1,),
-              SizedBox(
-                height: MediaQuery.of(context).size.width*0.12,
-                child: TextFormField(
-                  focusNode: _itemFocus,
-                  controller: _items,
-                  validator: (v){
-                    if(v!.isEmpty){
-                      return 'Field must not be empty';
-                    }
-                    return null;
-                  },
-                  decoration: InputDecoration(
-                    suffixIcon: IconButton(
-                        onPressed: (){
-                          if(_items.text.isNotEmpty){
-                            setState(() {
-                              _selectedItem.add({'image':'',
-                                "name":_items.text,
-                                "description":"",
-                                "dailySpend":0.0,
-                                "budgetSet":"0",
-                                "totalAmountSpent":0.0,
-                                "currentMonth":_currentMonthName,
-                                "previousDailySpends":FieldValue.arrayUnion([]),
-                                "lastResetTime":Timestamp.now()
-
-                              });
-                            });
-                          }
-                          _items.clear();
-                        },
-                        icon: const Icon(Icons.add)
-                    ),
-                    filled: true,
-                    fillColor: _itemColor,
-                    errorStyle: const TextStyle(fontSize: 0.01),
-                    hintStyle: const TextStyle(
-                        fontSize: 12.5
-                    ),
-                    hintText: 'Didn\'t find items below? Add items manually',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:  const BorderSide(
-                            color: Colors.transparent
-                        )
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:  const BorderSide(
-                            color: Color(0xff5AA5E2)
-                        )
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:  const BorderSide(
-                            color: Colors.transparent
-                        )
-                    ),
-                    disabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                            color: Colors.grey.shade400
-                        )
-                    ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12.0),
+                child: Text('input items manually',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    // fontSize: 20
                   ),
                 ),
               ),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).size.width*0.12,
+                    width: MediaQuery.of(context).size.width*0.45,
+                    child: TextFormField(
+                      focusNode: _itemFocus,
+                      controller: _items,
+                      validator: (v){
+                        if(v!.isEmpty){
+                          return 'Field must not be empty';
+                        }
+                        return null;
+                      },
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: _itemColor,
+                        errorStyle: const TextStyle(fontSize: 0.01),
+                        hintStyle: const TextStyle(
+                            fontSize: 12.5
+                        ),
+                        hintText: 'Didn\'t find items below? Add items manually',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Colors.transparent
+                            )
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Color(0xff5AA5E2)
+                            )
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Colors.transparent
+                            )
+                        ),
+                        disabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                                color: Colors.grey.shade400
+                            )
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: MediaQuery.of(context).size.width*0.12,
+                    width: MediaQuery.of(context).size.width*0.3,
+                    child: TextFormField(
+                      focusNode: _budgetFocus,
+                      controller: _budget,
+                      keyboardType: TextInputType.number,
+                      validator: (v){
+                        if(v!.isEmpty){
+                          return 'Field must not be empty';
+                        }
+                        return null;
+                      },
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        TextInputFormatter.withFunction(
+                              (oldValue, newValue) {
+                            String newText = newValue.text;
+
+                            // Remove any existing commas
+                            newText = newText.replaceAll(',', '');
+
+                            // Format the new text with commas
+                            String formattedText = NumberFormat.decimalPattern().format(int.parse(newText));
+
+                            // Return the updated value
+                            return TextEditingValue(
+                              text: formattedText,
+                              selection: TextSelection.collapsed(offset: formattedText.length),
+                            );
+                          },
+                        ),
+                      ],
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: _budgetColor,
+                        errorStyle: const TextStyle(fontSize: 0.01),
+                        hintStyle: const TextStyle(
+                            fontSize: 12.5
+                        ),
+                        hintText: 'Add budget',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Colors.transparent
+                            )
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Color(0xff5AA5E2)
+                            )
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:  const BorderSide(
+                                color: Colors.transparent
+                            )
+                        ),
+                        disabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                                color: Colors.grey.shade400
+                            )
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 15,),
+              Center(
+                child: Button(
+                    buttonColor:
+                    Color(0xff5AA5E2),
+                    text: 'Add Track Item',
+                    onPressed: (){
+                      if(_items.text.isNotEmpty && _budget.text.isNotEmpty){
+                        setState(() {
+                          _selectedItem.add({'image':'',
+                            "name":_items.text,
+                            "description":"",
+                            "dailySpend":0.0,
+                            "budgetSet":_budget.text,
+                            "totalAmountSpent":0.0,
+                            "currentMonth":_currentMonthName,
+                            "previousDailySpends":[],
+                            "lastResetTime":Timestamp.now()
+                          });
+                        });
+                        _items.clear();
+                        _budget.clear();
+                      }else{
+                        snack(context, 'Write down an item and give it a budget');
+                      }
+                    }, textColor: Colors.white,
+                    width:MediaQuery.of(context).size.width*0.5,
+                    height:MediaQuery.of(context).size.width*0.1,
+                    minSize: false,
+                    textOrIndicator: false
+                ),
+              ),
+              SizedBox(height: 20,),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Divider(
+                      color: Colors.grey,
+                      thickness: 1,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Text(
+                      "OR",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(
+                      color: Colors.grey,
+                      thickness: 1,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Select preview items',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      // fontSize: 20
+                    ),
+                  ),
                   TextButton(
                     onPressed: (){
                       setState(() {
@@ -348,6 +494,7 @@ class _AddMoreTrackItemsState extends State<AddMoreTrackItems> {
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
                           child: Row(
                             children: [
+                              keyword['image'] == ""?Container():
                               SvgPicture.asset(keyword['image'], height: 16,),
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -356,6 +503,64 @@ class _AddMoreTrackItemsState extends State<AddMoreTrackItems> {
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                       color: Color(0xff5AA5E2)),
+                                ),
+                              ),
+                              keyword['budgetSet'] == "0"
+                                  ? SizedBox(
+                                width: 60, // Adjust the width of the TextField
+                                child: SizedBox(
+                                  height: MediaQuery.of(context).size.height*0.2,
+                                  child: TextField(
+                                    decoration: InputDecoration(
+                                      hintText: "Enter Budget",
+                                      hintStyle: TextStyle(
+                                          fontSize: 6
+                                      ),
+                                      contentPadding: EdgeInsets.symmetric(
+                                          vertical: 5, horizontal: 8),
+                                      isDense: true,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      TextInputFormatter.withFunction(
+                                            (oldValue, newValue) {
+                                          String newText = newValue.text;
+
+                                          // Remove any existing commas
+                                          newText = newText.replaceAll(',', '');
+
+                                          // Format the new text with commas
+                                          String formattedText = NumberFormat.decimalPattern().format(int.parse(newText));
+
+                                          // Return the updated value
+                                          return TextEditingValue(
+                                            text: formattedText,
+                                            selection: TextSelection.collapsed(offset: formattedText.length),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                    onSubmitted: (value) {
+                                      setState(() {
+                                        if (value.isNotEmpty) {
+                                          keyword['budgetSet'] = value;
+                                        }
+                                        print(keyword);
+                                      });
+                                    },
+                                  ),
+                                ),
+                              )
+                                  : Padding(
+                                padding:
+                                const EdgeInsets.symmetric(horizontal: 8.0),
+                                child: Text(
+                                  "\₦${keyword['budgetSet']}",
+                                  style: const TextStyle(
+                                      color: Colors.black54,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 12),
                                 ),
                               ),
                               GestureDetector(
@@ -375,10 +580,10 @@ class _AddMoreTrackItemsState extends State<AddMoreTrackItems> {
                 ),
               ):Container(),
               SizedBox(height: MediaQuery.of(context).size.width*0.2,),
-              Button(
-                  buttonColor: Color(0xff5AA5E2),
+              _selectedItem.isNotEmpty?Button(
+                  buttonColor:  allBudgetsSet ? Color(0xff5AA5E2) : Colors.grey,
                   text: 'Continue',
-                  onPressed: ()async{
+                  onPressed: allBudgetsSet?()async{
                     if(_selectedItem.isNotEmpty){
                       setState(() {
                         _isLoading = true;
@@ -389,13 +594,13 @@ class _AddMoreTrackItemsState extends State<AddMoreTrackItems> {
                       });
 
                     }
-                  },
+                  }:null,
                   textColor: Colors.white,
                   width:MediaQuery.of(context).size.width,
                   height:MediaQuery.of(context).size.width*0.14,
                   minSize: false,
                   textOrIndicator: _isLoading
-              ),
+              ):Container(),
               const SizedBox(
                 height: 45,
               )
