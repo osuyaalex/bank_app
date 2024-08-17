@@ -23,7 +23,7 @@ class _TouchIDAuthorizationState extends State<TouchIDAuthorization> {
       await _firestore.collection('Users').doc(_auth.currentUser!.uid).update({
         'accessBiometric': true
       });
-      shortSnack(context,'User name updated successfully');
+
     } catch (e) {
       print('Error updating user biometric: $e');
     }

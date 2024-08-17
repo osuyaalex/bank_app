@@ -370,7 +370,7 @@ class _SignInPageState extends State<SignInPage> {
                               setState(() {
                                 _isLoading = false;
                               });
-                              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context){
+                              Navigator.push(context, MaterialPageRoute(builder: (context){
                                 return const Summary();
                               }));
                             }else{

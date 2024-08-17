@@ -4,7 +4,7 @@ class Button extends StatelessWidget {
   final Color buttonColor;
   final String text;
   final Color textColor;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final double width;
   final double height;
   final bool minSize;

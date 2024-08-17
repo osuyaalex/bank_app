@@ -334,7 +334,7 @@ class _HomePageState extends State<HomePage> {
 
                                   var listedItems = monthData['listItems'][index];
                                   double progress = 0;
-                                  double maxValue = double.parse(listedItems['budgetSet']);
+                                  double maxValue = double.parse(listedItems['budgetSet'].replaceAll(',', ''));
                                   double currentValue = listedItems['totalAmountSpent'];
                                   progress = (maxValue > 0) ? (currentValue / maxValue) : 0.0;
                                   progress = progress.isFinite ? progress : 0.0;
