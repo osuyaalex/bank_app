@@ -4,6 +4,7 @@ import 'package:banking_app/main_page/home_page.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/widget/generate_dots.dart';
+import 'package:banking_app/main_page/widget/skeleton.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -143,27 +144,33 @@ class _SummaryState extends State<Summary> {
                           color: Colors.black54
                         ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10.0),
-                          child: _data['monthlySpend'] != null?
-                          Text('${_data['currency']} ${_formatNumber(_data['monthlySpend'])}',
-                            style: const TextStyle(
-                                fontSize: 40,
-                              fontWeight: FontWeight.w500
+                        _data['monthlySpend'] != null?
+                        Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10.0),
+                              child:
+                              Text('${_data['currency']} ${_formatNumber(_data['monthlySpend'])}',
+                                style: const TextStyle(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.w500
+                                ),
+                              ),
                             ),
-                          ):Container(),
-                        ),
-                        SizedBox(
-                          width: MediaQuery.of(context).size.width*0.7,
-                          child: Text(_message,
-                          textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              height: 1.4,
-                              color: Colors.black54,
-                              fontSize: 12
+                            SizedBox(
+                              width: MediaQuery.of(context).size.width*0.7,
+                              child: Text(_message,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    height: 1.4,
+                                    color: Colors.black54,
+                                    fontSize: 12
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
+                          ],
+                        ):SummarySkeleton(),
+
                         const SizedBox(height: 17,),
                         Button(
                             buttonColor: const Color(0xff5AA5E2),
@@ -203,6 +210,7 @@ class _SummaryState extends State<Summary> {
                           ],
                         ),
                         const SizedBox(height: 15,),
+                        _data['monthlySpend'] != null?
                         SizedBox(
                           height: MediaQuery.of(context).size.height*0.27,
                           child: ListView.builder(
@@ -270,7 +278,7 @@ class _SummaryState extends State<Summary> {
                               );
                               }
                           ),
-                        )
+                        ):SummaryListSkeleton()
                       ],
                     ),
                   ),

@@ -353,7 +353,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                             "currentMonth":_currentMonthName,
                             "previousDailySpends":[],
                             "lastResetTime":Timestamp.now(),
-                            "workedOn": false
+                            "workedOn": true
                           });
                         });
                         _items.clear();
