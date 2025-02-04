@@ -1,0 +1,118 @@
+[
+  {
+    "name": "Books",
+    "image": "assets/images/books-svgrepo-com.svg"
+  },
+  {
+    "name": "Breakfast",
+    "image": "assets/images/breakfast-svgrepo-com.svg"
+  },
+  {
+    "name": "Subscriptions",
+    "image": "assets/images/browser-subscribe-svgrepo-com.svg"
+  },
+  {
+    "name": "Clothing",
+    "image": "assets/images/clothing-men-svgrepo-com.svg"
+  },
+  {
+    "name": "Coffee",
+    "image": "assets/images/coffee-svgrepo-com.svg"
+  },
+  {
+    "name": "Utilities",
+    "image": "assets/images/construction-utilities-svgrepo-com.svg"
+  },
+  {
+    "name": "Dinner",
+    "image": "assets/images/dinner-svgrepo-com.svg"
+  },
+  {
+    "name": "Education",
+    "image": "assets/images/education-school-study-sticker-8-svgrepo-com.svg"
+  },
+  {
+    "name": "Entertainment",
+    "image": "assets/images/entertainment-svgrepo-com.svg"
+  },
+  {
+    "name": "Groceries",
+    "image": "assets/images/groceries-svgrepo-com.svg"
+  },
+  {
+    "name": "Healthcare",
+    "image": "assets/images/healthcare-hospital-medical-25-svgrepo-com.svg"
+  },
+  {
+    "name": "Insurance",
+    "image": "assets/images/insurance-umbrella-svgrepo-com.svg"
+  },
+  {
+    "name": "Internet",
+    "image": "assets/images/internet-svgrepo-com.svg"
+  },
+  {
+    "name": "Lunch",
+    "image": "assets/images/lunch-svgrepo-com.svg"
+  },
+  {
+    "name": "Gym Membership",
+    "image": "assets/images/man-lifting-weights-medium-dark-skin-tone-svgrepo-com.svg"
+  },
+  {
+    "name": "Car Fuel",
+    "image": "assets/images/map-car-fuel-svgrepo-com.svg"
+  },
+  {
+    "name": "Mobile Phone",
+    "image": "assets/images/mobile-phone-svgrepo-com.svg"
+  },
+  {
+    "name": "Movies",
+    "image": "assets/images/movies-cinema-svgrepo-com.svg"
+  },
+  {
+    "name": "Pet Supplies",
+    "image": "assets/images/pet-shop-svgrepo-com.svg"
+  },
+  {
+    "name": "Rent",
+    "image": "assets/images/rent-svgrepo-com.svg"
+  },
+  {
+    "name": "Snacks",
+    "image": "assets/images/snacks-popcorn-svgrepo-com.svg"
+  },
+  {
+    "name": "Travel",
+    "image": "assets/images/travel-bag-svgrepo-com.svg"
+  },
+  {
+    "name": "Savings",
+    "image": "assets/images/savings-svgrepo-com.svg"
+  },
+  {
+    "name": "Public Transport",
+    "image": "assets/images/trolleybus-transport-svgrepo-com.svg"
+  },
+  {
+    "name": "Personal Care",
+    "image": "assets/images/toiletries-svgrepo-com.svg"
+  },
+  {
+    "name": "Gifts",
+    "image": "assets/images/gifts-svgrepo-com.svg"
+  },
+  {
+    "name": "Charity",
+    "image": "assets/images/charity-svgrepo-com.svg"
+  },
+  {
+    "name": "Investments",
+    "image": "assets/images/financial-svgrepo-com.svg"
+  },
+  {
+    "name": "Miscellaneous",
+    "image": "assets/images/clipboard-miscellaneous-svgrepo-com.svg"
+  }
+]

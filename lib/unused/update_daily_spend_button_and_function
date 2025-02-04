@@ -1,0 +1,152 @@
+EditItemsButtons(
+                        key: ValueKey(1),
+                        tap: _expandedIndex == 1,
+                        svg: 'assets/money-svgrepo-com.svg',
+                        text: 'Edit Spend',
+                        onTap: () => toggleContainer(1),
+                        expandedContent: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Center(
+                                  child:  Text('Update Item Daily Spend',
+                                    style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20,),
+                                const Text('Daily Spend',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w600
+                                  ),
+                                ),
+                                TextFormField(
+                                  readOnly: widget.edit?false:true,
+                                  controller: _dailySpend,
+                                  keyboardType: TextInputType.number,
+                                ),
+                                _dailySpend.text.isNotEmpty?
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12.0),
+                                  child: Button(
+                                      buttonColor: const Color(0xff5AA5E2),
+                                      text: 'Update',
+                                      onPressed: (){
+                                        EasyLoading.show();
+                                        _updateDailySpend(_dailySpend.text);
+                                        EasyLoading.dismiss();
+                                      },
+                                      textColor: Colors.white,
+                                      width: 100,
+                                      height: 35,
+                                      minSize: true,
+                                      textOrIndicator: false),
+                                ):const SizedBox(),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 10.0),
+                                  child: Text('Why should I update my Daily Spend?',
+                                    style: TextStyle(
+                                        decoration: TextDecoration.underline,
+                                        fontWeight: FontWeight.w600
+                                    ),
+                                  ),
+                                ),
+                                RichText(
+                                  textAlign: TextAlign.start,
+                                  text: const TextSpan(
+                                      text: 'At the end of each day, your  ',
+                                      style: TextStyle(
+                                          height: 1.5,
+                                          fontSize: 13,
+                                          color: Colors.black
+                                      ),
+                                      children: <TextSpan>[
+                                        TextSpan(
+                                          text: 'Daily Spend ',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: 'will be added to the ',
+                                        ),
+                                        TextSpan(
+                                          text: 'TotalAmount Spent for this item. ',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: 'The sum of the total amounts spent on all'
+                                              ' items will contribute to the ',
+                                        ),
+                                        TextSpan(
+                                          text: 'Total Monthly Spend.',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600
+                                          ),
+                                        ),
+                                      ]
+                                  ),
+
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        shouldShrink: _expandedIndex != null && _expandedIndex != 1,
+                        opacity: _opacity,
+                      ),
+
+
+
+
+
+                      //function
+
+                      _updateDailySpend(String value) async {
+                          try {
+                            DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
+                                .collection("track_items")
+                                .doc(widget.actualMonth)
+                                .collection("monthUsers")
+                                .doc(FirebaseAuth.instance.currentUser!.uid)
+                                .get();
+
+                            if (documentSnapshot.exists) {
+                              Map<String, dynamic> data = documentSnapshot.data() as Map<String, dynamic>;
+                              List<dynamic> listItems = data['listItems'];
+
+                              // Convert value to a number
+                              double newDailySpend = double.tryParse(value) ?? 0.0;
+
+                              // Get the current dailySpend
+                              double currentDailySpend = double.tryParse(listItems[widget.index]['dailySpend'].toString()) ?? 0.0;
+                              // Update the totalAmountSpent
+                              double updatedDailySpend = currentDailySpend + newDailySpend;
+                              listItems[widget.index]['dailySpend'] = updatedDailySpend;
+
+                              // Update Firestore document
+                              await FirebaseFirestore.instance
+                                  .collection("track_items")
+                                  .doc(widget.actualMonth)
+                                  .collection("monthUsers")
+                                  .doc(FirebaseAuth.instance.currentUser!.uid)
+                                  .update({
+                                "listItems": listItems,
+
+                              });
+
+                              snack(context, '${widget.itemDetails['name']} daily spend updated successfully');
+                              Navigator.pop(context);
+                            } else {
+                              print('Document does not exist');
+                            }
+                          } catch (e) {
+                            print('Error updating user biometric: $e');
+                          }
+                        }
