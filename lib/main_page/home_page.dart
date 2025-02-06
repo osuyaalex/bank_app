@@ -620,7 +620,7 @@ class _HomePageState extends State<HomePage> {
                                               currentValue: currentValue,
                                               maxValue: maxValue,
                                               progress: progress,
-                                              currency: listedItems['currency'],
+                                              currency: '${monthData['currency']} ',
                                             ),
                                             const SizedBox(height: 15,),
                                             const Divider()
