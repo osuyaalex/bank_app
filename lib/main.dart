@@ -14,7 +14,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:workmanager/workmanager.dart';
 import 'firebase network/sms_service.dart';
 import 'firebase_notifications.dart';
 import 'firebase_options.dart';
@@ -22,25 +21,25 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'main_page/summary.dart';
 
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
-  currentMonth = currentMonth.replaceAll(' ', '');
-  Workmanager().executeTask((task, inputData) async {
-    WidgetsFlutterBinding.ensureInitialized();
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    // Your daily spend reset logic
-    if (task == "resetDailySpendTask"){
-      await DailyResets().resetDailySpend(currentMonth);
-     // await DailyResets().clearDailyMessageIds();
-    }else if(task == "trackDailySpend"){
-      SmsService().getSmsMessages();
-    }
-    return Future.value(true);
-  });
-}
+// @pragma('vm:entry-point')
+// void callbackDispatcher() {
+//   String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
+//   currentMonth = currentMonth.replaceAll(' ', '');
+//   Workmanager().executeTask((task, inputData) async {
+//     WidgetsFlutterBinding.ensureInitialized();
+//     await Firebase.initializeApp(
+//       options: DefaultFirebaseOptions.currentPlatform,
+//     );
+//     // Your daily spend reset logic
+//     if (task == "resetDailySpendTask"){
+//      await DailyResets().resetDailySpend(currentMonth);
+//      // await DailyResets().clearDailyMessageIds();
+//     }else if(task == "trackDailySpend"){
+//       SmsService().getSmsMessages();
+//     }
+//     return Future.value(true);
+//   });
+// }
 void main() async{
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Africa/Lagos'));
@@ -54,21 +53,24 @@ void main() async{
     appleProvider: AppleProvider.appAttest,
   );
   await FirebaseApi().initNotifications();
-  Workmanager().initialize(callbackDispatcher,isInDebugMode: false);
-  Workmanager().registerPeriodicTask(
-    "daily_spend_reset",
-    "resetDailySpendTask",
-    frequency: const Duration(hours: 24), // Adjust as needed
-    initialDelay: Duration(seconds: calculateInitialDelay()),
-    //existingWorkPolicy: ExistingWorkPolicy.keep,
-  );
-  Workmanager().registerPeriodicTask(
-    "track_daily_spend",
-    "trackDailySpend",
-    frequency: const Duration(hours: 2),
-    initialDelay: const Duration(minutes: 1),
-   // existingWorkPolicy: ExistingWorkPolicy.keep,
-  );
+  DailyResets().checkAndResetIfNeeded();
+  final smsService = SmsService();
+  smsService.listenForIncomingSms();
+  // Workmanager().initialize(callbackDispatcher,isInDebugMode: false);
+  // Workmanager().registerPeriodicTask(
+  //   "daily_spend_reset",
+  //   "resetDailySpendTask",
+  //   frequency: const Duration(hours: 24), // Adjust as needed
+  //   initialDelay: Duration(seconds: calculateInitialDelay()),
+  //   //existingWorkPolicy: ExistingWorkPolicy.keep,
+  // );
+  // Workmanager().registerPeriodicTask(
+  //   "track_daily_spend",
+  //   "trackDailySpend",
+  //   frequency: const Duration(hours: 2),
+  //   initialDelay: const Duration(minutes: 1),
+  //  // existingWorkPolicy: ExistingWorkPolicy.keep,
+  // );
 
   runApp( MultiProvider(
       providers: [
@@ -80,12 +82,12 @@ void main() async{
   _easyLoading();
 
 }
-int calculateInitialDelay() {
-  final now = DateTime.now();
-  final nextMidnight = DateTime(now.year, now.month, now.day + 1);
-  final difference = nextMidnight.difference(now);
-  return difference.inSeconds - 60; // Schedule to run at 11:59 PM local time
-}
+// int calculateInitialDelay() {
+//   final now = DateTime.now();
+//   final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+//   final difference = nextMidnight.difference(now);
+//   return difference.inSeconds - 60; // Schedule to run at 11:59 PM local time
+// }
 _easyLoading(){
   EasyLoading.instance
     ..indicatorType = EasyLoadingIndicatorType.wave
@@ -132,10 +134,10 @@ class MyApp extends StatelessWidget {
             path: '/deeplink/selectTrack',
             builder: (_, __) => const SelectTrackItems()
         ),
-        GoRoute(
-            path: '/deeplink/noPassword',
-            builder: (_, __) => const NoPasswordSignIn()
-        ),
+        // GoRoute(
+        //     path: '/deeplink/noPassword',
+        //     builder: (_, __) => const NoPasswordSignIn()
+        // ),
       ],
       // redirect: (BuildContext context, GoRouterState state) async {
       //   final User? user = FirebaseAuth.instance.currentUser;

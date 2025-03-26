@@ -9,7 +9,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:intl/intl.dart';
 import '../elevated_button.dart';
@@ -83,19 +82,19 @@ class _SummaryState extends State<Summary> {
     return '';
   }
 
-   getSmsMessages() async {
-     var status = await Permission.sms.status;
-     if (!status.isGranted) {
-       status = await Permission.sms.request();
-     }else if(status.isGranted){
-       print('object');
-       final smsQuery = SmsQuery();
-       List<SmsMessage> messages = await smsQuery.getAllSms;
-       messages.forEach((message) {
-         print('Sender: ${message.sender}, Body: ${message.body}');
-       });
-     }
-  }
+  //  getSmsMessages() async {
+  //    var status = await Permission.sms.status;
+  //    if (!status.isGranted) {
+  //      status = await Permission.sms.request();
+  //    }else if(status.isGranted){
+  //      print('object');
+  //      final smsQuery = SmsQuery();
+  //      List<SmsMessage> messages = await smsQuery.getAllSms;
+  //      messages.forEach((message) {
+  //        print('Sender: ${message.sender}, Body: ${message.body}');
+  //      });
+  //    }
+  // }
 
   @override
   void initState() {

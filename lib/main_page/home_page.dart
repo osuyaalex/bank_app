@@ -5,6 +5,7 @@ import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/main_page/add_more_items_page.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
+import 'package:banking_app/main_page/setttings_page.dart';
 import 'package:banking_app/main_page/widget/progress_bar.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -434,6 +435,18 @@ class _HomePageState extends State<HomePage> {
                     Navigator.pop(context);
                   }, icon: const Icon(Icons.arrow_back, color: Colors.white,)
               )
+          ),
+          Positioned(
+            top: 35,
+            right: 80,
+            child: IconButton(
+                onPressed: (){
+                  Navigator.push(context, MaterialPageRoute(builder: (context){
+                    return SettingsPage();
+                  }));
+                },
+                icon: Icon(Icons.settings,color: Colors.white,)
+            ),
           ),
           Positioned(
             top: 35,

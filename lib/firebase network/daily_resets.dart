@@ -80,4 +80,28 @@ class DailyResets{
       print('Error clearing daily message IDs: $e');
     }
   }
+
+  Future<void> checkAndResetIfNeeded() async {
+    String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
+    currentMonth = currentMonth.replaceAll(' ', '');
+    final prefs = await SharedPreferences.getInstance();
+    final lastResetStr = prefs.getString('lastResetTime');
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    if (lastResetStr != null) {
+      final lastReset = DateTime.parse(lastResetStr);
+      final lastResetDay = DateTime(lastReset.year, lastReset.month, lastReset.day);
+
+      if (lastResetDay.isBefore(today)) {
+        // It's a new day, perform reset
+        await DailyResets().resetDailySpend(currentMonth);
+        await prefs.setString('lastResetTime', now.toIso8601String());
+      }
+    } else {
+      // First time, just set the timestamp
+      await prefs.setString('lastResetTime', now.toIso8601String());
+    }
+  }
 }

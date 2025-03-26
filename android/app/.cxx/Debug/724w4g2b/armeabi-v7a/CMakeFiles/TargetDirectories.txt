@@ -1,0 +1,2 @@
+/Users/mac/StudioProjects/banking_app/android/app/.cxx/Debug/724w4g2b/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/mac/StudioProjects/banking_app/android/app/.cxx/Debug/724w4g2b/armeabi-v7a/CMakeFiles/rebuild_cache.dir
