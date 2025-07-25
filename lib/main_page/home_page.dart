@@ -313,6 +313,7 @@ class _HomePageState extends State<HomePage> {
     // TODO: implement initState
     _getAllCurrentMonthDocs();
     _initializeCurrentMonth();
+    SmsService().listenForIncomingSms();
     Future.delayed(Duration(seconds: 2),(){
       SmsService().getSmsMessages().then((v){
         if(v is bool && v){
@@ -334,6 +335,7 @@ class _HomePageState extends State<HomePage> {
         }
       });
     });
+
     super.initState();
   }
   @override

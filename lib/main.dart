@@ -54,8 +54,6 @@ void main() async{
   );
   await FirebaseApi().initNotifications();
   DailyResets().checkAndResetIfNeeded();
-  final smsService = SmsService();
-  smsService.listenForIncomingSms();
   // Workmanager().initialize(callbackDispatcher,isInDebugMode: false);
   // Workmanager().registerPeriodicTask(
   //   "daily_spend_reset",
@@ -185,7 +183,7 @@ class MyApp extends StatelessWidget {
         ),
 
       ),
-      builder: EasyLoading.init(),
+      builder: EasyLoading.init()
     );
   }
 }

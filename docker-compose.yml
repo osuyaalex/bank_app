@@ -1,0 +1,15 @@
+services:
+  flutter:
+    build: .
+    volumes:
+      - .:/app
+      - ~/.gradle:/root/.gradle
+      - ~/.android:/root/.android
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    network_mode: host
+    privileged: true
+    environment:
+      - ANDROID_SDK_ROOT=/opt/android-sdk-linux
+    tty: true
+    stdin_open: true

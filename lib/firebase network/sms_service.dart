@@ -174,6 +174,7 @@ class SmsService{
     }
     return shouldBreak;
   }
+
   void listenForIncomingSms() {
     telephony.listenIncomingSms(
       onNewMessage: (SmsMessage message) {
