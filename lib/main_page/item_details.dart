@@ -1,6 +1,7 @@
+import 'package:banking_app/main_page/widget/category_breakdown.dart';
+import 'package:banking_app/data/models.dart';
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/image_services.dart';
-import 'package:banking_app/main_page/prevoius_spends.dart';
 import 'package:banking_app/main_page/widget/edit_items_buttons.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -337,7 +338,7 @@ class _ItemDetailsState extends State<ItemDetails> {
                                     )
                                   ],
                                 ),
-                                Text('${widget.monthDetails['currency']} ${_formatNumberInDouble(widget.itemDetails['totalAmountSpent'])}',
+                                Text('${widget.monthDetails['currency']} ${_formatNumberInDouble((widget.itemDetails['totalAmountSpent'] as num?)?.toDouble() ?? 0)}',
                                   style: const TextStyle(
                                       fontSize: 17,
                                       fontWeight: FontWeight.w600
@@ -640,86 +641,29 @@ class _ItemDetailsState extends State<ItemDetails> {
                     ),
                   ),
                   const SizedBox(height: 17,),
-                  const Text('Review your past daily expenses to track your spending habits',
+                  const Text('Where this month\'s spending went, and when',
                   style: TextStyle(
                     color: Colors.black,
                   ),
                   ),
-                  const SizedBox(height: 20,),
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Time',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600
-                      ),
-                      ),
-                      Text('Daily Spend',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600
-                        ),
-                      )
-                    ],
+                  const SizedBox(height: 12,),
+                  // Replaces the previousDailySpends table, which was fed by
+                  // the nightly reset job and stopped growing when that was
+                  // retired. Same intent, but built from the transaction
+                  // records so it stays live -- and each entry can be moved or
+                  // corrected here rather than only read.
+                  CategoryBreakdown(
+                    categoryId: slugifyCategory(widget.itemDetails['name']),
+                    categoryName: widget.itemDetails['name'],
+                    currency: widget.monthDetails['currency']?.toString() ?? '',
+                    legacyTotal:
+                        (widget.itemDetails['totalAmountSpent'] as num?)
+                                ?.toDouble() ??
+                            0,
                   ),
                   SingleChildScrollView(
                     child: Column(
                       children: [
-                        ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount:  widget.itemDetails['previousDailySpends'].length > 3 ? 3 :
-                            widget.itemDetails['previousDailySpends'].length,
-                            itemBuilder: (context, index){
-                              var dailySpendHistory = widget.itemDetails['previousDailySpends'][index];
-                              // Convert Timestamp to DateTime
-                              DateTime utcDateTime;
-                              if (dailySpendHistory['previousTime'] is Timestamp) {
-                                Timestamp timestamp = dailySpendHistory['previousTime'] as Timestamp;
-                                utcDateTime = timestamp.toDate().toUtc();
-                              } else {
-                                // Handle unexpected type or missing data
-                                utcDateTime = DateTime.now().toUtc();
-                              }
-                              // Convert UTC to WAT (UTC+1)
-                              DateTime watDateTime = utcDateTime.add(Duration(hours: 1));
-                              DateTime now = DateTime.now().toUtc().add(Duration(hours: 1));
-              
-                              bool isYesterday(DateTime dateTime, DateTime now) {
-                                DateTime startOfToday = DateTime(now.year, now.month, now.day);
-                                DateTime startOfYesterday = startOfToday.subtract(Duration(days: 1));
-                                DateTime endOfYesterday = startOfToday.subtract(Duration(seconds: 1));
-              
-                                return dateTime.isAfter(startOfYesterday) && dateTime.isBefore(endOfYesterday);
-                              }
-                              String formattedDate = DateFormat('MMMM d, yyyy \'at\' h:mm').format(watDateTime);
-              
-              
-                              return Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(isYesterday(watDateTime, now)?
-                                  "Yesterday":formattedDate.toString()
-                                  ),
-                                  Text('${widget.monthDetails['currency']} ${_formatNumberInDouble(dailySpendHistory['dailySpend'])}')
-                                ],
-                              );
-                            }
-                        ),
-                        SizedBox(height: 15,),
-                        widget.itemDetails['previousDailySpends'].isEmpty ||
-                            widget.itemDetails['previousDailySpends'] == null ?
-                        Container():
-                        TextButton(
-                            onPressed: (){
-                              Navigator.push(context, MaterialPageRoute(builder: (context){
-                                return PreviousSpends(
-                                  itemDetails: widget.itemDetails,
-                                  monthDetails: widget.monthDetails,
-                                );
-                              }));
-                            },
-                            child: Text('See All')
-                        ),
                         SizedBox(height: 25,),
                         widget.itemDetails['name'] != 'Others'?
                         TextButton(

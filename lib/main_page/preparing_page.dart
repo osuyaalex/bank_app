@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/migration.dart';
+import '../data/migration_gate.dart';
 import '../data/sms_inbox.dart';
 import 'widget/category_picker.dart';
 
@@ -61,6 +62,9 @@ class _PreparingPageState extends State<PreparingPage>
           ownerName: user.displayName,
         );
         candidates = report.batchTagCandidates.length;
+        // This path returns straight to the app without passing back through
+        // the gate, so the same maintenance has to happen here.
+        await MigrationGate.runMaintenance(user.uid);
       }
     } catch (e) {
       // Never trap the user here: the app works exactly as before if this

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../data/models.dart';
 import '../data/spend_repository.dart';
 import 'widget/category_picker.dart';
+import 'widget/category_setup_sheet.dart';
 
 /// Transactions the app could not file on its own, waiting for an answer.
 ///
@@ -76,11 +77,12 @@ class _PendingPageState extends State<PendingPage> {
       if (category.id.isEmpty) return;
 
       if (!_tracked.contains(category.name)) {
-        final start = await _confirmStartTracking(category.name);
-        if (start == true) {
-          await _repo.startTracking(name: category.name);
-          if (mounted) setState(() => _tracked.add(category.name));
-        }
+        // Backing out of the budget sheet cancels the whole action. Labelling
+        // into a category the user never finished setting up would take this
+        // transaction off the list and file the money somewhere with nothing
+        // on screen to show it.
+        final started = await _startTracking(category);
+        if (!started) return;
       }
 
       await _repo.labelTransaction(
@@ -93,63 +95,33 @@ class _PendingPageState extends State<PendingPage> {
     await _load();
   }
 
-  Future<bool?> _confirmStartTracking(String name) => showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text("You're not tracking $name"),
-          content: Text(
-            'This will be remembered, but it will not show up this month '
-            'unless you track $name. Start tracking it now?',
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Not now')),
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Start tracking')),
-          ],
-        ),
-      );
+  /// Asks for a monthly budget before a category starts being tracked.
+  ///
+  /// Required, not optional: a category with no budget cannot be measured
+  /// against anything, and the details screen shows it as unset.
+  Future<bool> _startTracking(Category category) async {
+    final setup = await showCategorySetupSheet(
+      context,
+      currency: _currency,
+      fixedName: category.name,
+    );
+    if (setup == null) return false;
+    await _repo.startTracking(
+      name: category.name,
+      budget: setup.budget,
+      image: category.image ?? '',
+    );
+    if (mounted) setState(() => _tracked.add(category.name));
+    return true;
+  }
 
   Future<Category?> _createCategory() async {
-    final nameField = TextEditingController();
-    final budgetField = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('New category'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-                controller: nameField,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Name')),
-            TextField(
-                controller: budgetField,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                    labelText: 'Monthly budget (optional)')),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Add')),
-        ],
-      ),
-    );
-    final name = nameField.text.trim();
-    if (ok != true || name.isEmpty) return null;
+    final setup = await showCategorySetupSheet(context, currency: _currency);
+    if (setup == null) return null;
 
     final category = await _repo.startTracking(
-      name: name,
-      budget: budgetField.text.trim().isEmpty ? '0' : budgetField.text.trim(),
+      name: setup.name,
+      budget: setup.budget,
     );
     if (mounted) {
       setState(() {

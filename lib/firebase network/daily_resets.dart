@@ -5,6 +5,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class DailyResets{
   Future<void> resetDailySpend(String month) async {
+    // Retired. This existed to snapshot dailySpend before zeroing it, because
+    // the old schema kept only running totals. Month figures are now derived
+    // from transaction records, so rolling anything up here would double-count
+    // it. Left as a no-op rather than deleted while the new path beds in.
+    return;
+
+    // ignore: dead_code
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setString('testing', 'testingApproved');
     try {

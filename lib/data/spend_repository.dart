@@ -101,7 +101,10 @@ class SpendRepository {
   /// category would be invisible until the cutover.
   Future<Category> startTracking({
     required String name,
-    String budget = '0',
+    // Required, with no default. A category without a budget cannot be
+    // measured against anything, and the details screen renders it as unset.
+    // Defaulting this to '0' is how budgetless categories got created before.
+    required String budget,
     String image = '',
   }) async {
     final category = Category.fromName(name, image: image);
@@ -230,7 +233,7 @@ class SpendRepository {
 
     if (amount == 0) return; // already answered elsewhere
 
-    await _addToLegacyDailySpend(categoryName, amount);
+    await rebuildCurrentMonthTotals();
 
     if (alsoRemember && counterpartyKey != null) {
       await _counterparties.doc(counterpartyDocId(counterpartyKey)).set({
@@ -242,35 +245,404 @@ class SpendRepository {
     }
   }
 
-  /// Mirrors a label into the legacy list the app still renders from.
-  ///
-  /// Without this the user answers a prompt and nothing on screen changes,
-  /// which reads as the feature being broken. Matched on category *name*,
-  /// since that is all the old schema records.
-  Future<void> _addToLegacyDailySpend(String categoryName, double amount) async {
-    await db.runTransaction((tx) async {
-      final snap = await tx.get(_legacyMonth);
-      final items = List<dynamic>.from(snap.data()?['listItems'] ?? const []);
-      var touched = false;
-      for (final item in items) {
-        if (item is Map &&
-            item['name'].toString().toLowerCase() ==
-                categoryName.toLowerCase()) {
-          item['dailySpend'] =
-              ((item['dailySpend'] as num?)?.toDouble() ?? 0) + amount;
-          touched = true;
-          break;
-        }
-      }
-      // Not tracked this month: the tag is still remembered, but there is
-      // nowhere on screen for the money to go.
-      if (touched) tx.update(_legacyMonth, {'listItems': items});
-    });
-  }
-
   /// How many counterparties are still worth putting in front of the user.
   Future<int> pendingTagCount({int limit = 20}) async =>
       batchTagCandidates(await loadCounterparties(), limit: limit).length;
+
+  /// Recomputes this month's totals from the transaction records.
+  ///
+  /// This is the cutover. Totals are **derived**, never accumulated: the
+  /// records are the single source of truth and the legacy document becomes a
+  /// projection of them. Double-counting stops being a bug that can happen --
+  /// running this twice produces the same answer, because it is a sum rather
+  /// than an increment.
+  ///
+  /// It also retires the daily reset. `dailySpend` was maintained by a nightly
+  /// job that zeroed it and rolled it into `totalAmountSpent`; both are now
+  /// filtered out of the same records, so a missed or repeated run cannot skew
+  /// anything.
+  ///
+  /// Deliberately current-month only. Closed months hold totals copied at
+  /// migration and have no transaction records, so rebuilding them from an
+  /// empty set would erase history the user has already seen.
+  Future<double> rebuildCurrentMonthTotals() async {
+    final key = monthKeyOf(DateTime.now());
+    final snap =
+        await monthRef(key).collection('transactions').get();
+
+    final now = DateTime.now();
+    final byCategory = <String, double>{};
+    final todayByCategory = <String, double>{};
+    var monthTotal = 0.0;
+
+    for (final d in snap.docs) {
+      final m = d.data();
+      if (m['status'] != TxnStatus.labeled.name) continue;
+      final categoryId = m['categoryId'] as String?;
+      if (categoryId == null) continue;
+
+      final amount = (m['amount'] as num?)?.toDouble() ?? 0;
+      byCategory[categoryId] = (byCategory[categoryId] ?? 0) + amount;
+      monthTotal += amount;
+
+      final when = DateTime.tryParse(m['occurredAt'] ?? '');
+      if (when != null &&
+          when.year == now.year &&
+          when.month == now.month &&
+          when.day == now.day) {
+        todayByCategory[categoryId] =
+            (todayByCategory[categoryId] ?? 0) + amount;
+      }
+    }
+
+    await db.runTransaction((tx) async {
+      final legacy = await tx.get(_legacyMonth);
+      if (!legacy.exists) return;
+      final items = List<dynamic>.from(legacy.data()?['listItems'] ?? const []);
+      for (final item in items) {
+        if (item is! Map || item['name'] == null) continue;
+        final id = slugifyCategory(item['name'].toString());
+        // totalAmountSpent is now the whole month, today included -- it is no
+        // longer "what the reset has rolled up so far".
+        item['totalAmountSpent'] = byCategory[id] ?? 0.0;
+        item['dailySpend'] = todayByCategory[id] ?? 0.0;
+      }
+      tx.update(_legacyMonth,
+          {'listItems': items, 'monthlySpend': monthTotal});
+    });
+
+    await monthRef(key).set({'spend': byCategory}, SetOptions(merge: true));
+    return monthTotal;
+  }
+
+  /// Labelled transactions filed under [categoryId] this month, newest first.
+  ///
+  /// Queried on `categoryId` alone and filtered in memory: adding `status`
+  /// would require a composite index, which is a console step this avoids.
+  Future<List<TransactionRecord>> transactionsForCategory(
+    String categoryId, {
+    String? monthKey,
+  }) async {
+    final snap = await monthRef(monthKey ?? monthKeyOf(DateTime.now()))
+        .collection('transactions')
+        .where('categoryId', isEqualTo: categoryId)
+        .get();
+
+    final rows = <TransactionRecord>[];
+    for (final d in snap.docs) {
+      final m = d.data();
+      if (m['status'] != TxnStatus.labeled.name) continue;
+      rows.add(TransactionRecord(
+        smsId: d.id,
+        bank: m['bank'] ?? '',
+        kind: AlertKind.debit,
+        channel: TxnChannel.values.firstWhere((v) => v.name == m['channel'],
+            orElse: () => TxnChannel.unknown),
+        status: TxnStatus.labeled,
+        amount: (m['amount'] as num?)?.toDouble(),
+        occurredAt: DateTime.tryParse(m['occurredAt'] ?? ''),
+        narration: m['narration'] ?? '',
+        counterpartyKey: m['counterpartyKey'],
+        categoryId: categoryId,
+      ));
+    }
+    rows.sort((a, b) =>
+        (b.occurredAt ?? DateTime(0)).compareTo(a.occurredAt ?? DateTime(0)));
+    return rows;
+  }
+
+  /// Who fed a category this month, and how much each accounted for.
+  Future<List<({String key, int count, double total})>> contributorsTo(
+    String categoryId, {
+    String? monthKey,
+  }) async {
+    final txns = await transactionsForCategory(categoryId, monthKey: monthKey);
+    final count = <String, int>{}, total = <String, double>{};
+    for (final t in txns) {
+      final k = t.counterpartyKey ?? t.narration;
+      count[k] = (count[k] ?? 0) + 1;
+      total[k] = (total[k] ?? 0) + (t.amount ?? 0);
+    }
+    final rows = [
+      for (final k in count.keys)
+        (key: k, count: count[k]!, total: total[k]!),
+    ]..sort((a, b) => b.total.compareTo(a.total));
+    return rows;
+  }
+
+  /// Moves a counterparty from one category to another.
+  ///
+  /// [moveHistory] distinguishes the two things a user can mean. False means
+  /// "from now on it's X": only the map changes, and spending already recorded
+  /// stays where it was. True means "this was always X": the current month's
+  /// transactions move across too. Closed months are never rewritten -- those
+  /// are numbers the user has already seen.
+  Future<int> switchCounterparty({
+    required String key,
+    required String toCategoryId,
+    required String toCategoryName,
+    required bool moveHistory,
+    String? monthKey,
+  }) async {
+    await _counterparties.doc(counterpartyDocId(key)).set({
+      'key': key,
+      'categoryId': toCategoryId,
+      'disposition': Disposition.tracked.name,
+      // A deliberate switch is a fresh decision, so the correction counter
+      // starts again rather than counting toward the give-up threshold.
+      'overrideCount': 0,
+    }, SetOptions(merge: true));
+    _map = null;
+
+    if (!moveHistory) return 0;
+
+    final mKey = monthKey ?? monthKeyOf(DateTime.now());
+    final month = monthRef(mKey);
+    final entry = (await counterparties())[key];
+    final keys = <String>{key, ...?entry?.aliases}.take(30).toList();
+
+    final snap = await month
+        .collection('transactions')
+        .where('counterpartyKey', whereIn: keys)
+        .get();
+
+    final moving = snap.docs
+        .where((d) => d.data()['status'] == TxnStatus.labeled.name)
+        .where((d) => d.data()['categoryId'] != toCategoryId)
+        .toList();
+    if (moving.isEmpty) return 0;
+
+    final batch = db.batch();
+    final out = <String, double>{};
+    var movedTotal = 0.0;
+
+    for (final d in moving) {
+      final amount = (d.data()['amount'] as num?)?.toDouble() ?? 0;
+      final from = d.data()['categoryId'] as String?;
+      if (from != null) out[from] = (out[from] ?? 0) + amount;
+      movedTotal += amount;
+      batch.update(d.reference, {'categoryId': toCategoryId});
+    }
+
+    batch.set(
+        month,
+        {
+          'spend': {
+            for (final e in out.entries) e.key: FieldValue.increment(-e.value),
+            toCategoryId: FieldValue.increment(movedTotal),
+          }
+        },
+        SetOptions(merge: true));
+
+    await batch.commit();
+
+    await rebuildCurrentMonthTotals();
+    return moving.length;
+  }
+
+  /// Refiles one transaction, and remembers that the map got it wrong.
+  ///
+  /// Repeated corrections for the same counterparty push it back to
+  /// [Disposition.ask]: if the user keeps overruling a mapping, guessing
+  /// silently is worse than asking.
+  Future<void> correctTransaction({
+    required TransactionRecord txn,
+    required String toCategoryId,
+    required String toCategoryName,
+    String? monthKey,
+  }) async {
+    if (txn.categoryId == toCategoryId) return;
+    final month = monthRef(monthKey ?? monthKeyOf(DateTime.now()));
+    final amount = txn.amount ?? 0;
+
+    final batch = db.batch();
+    batch.update(month.collection('transactions').doc(txn.smsId), {
+      'categoryId': toCategoryId,
+      'source': LabelSource.user.name,
+    });
+    batch.set(
+        month,
+        {
+          'spend': {
+            if (txn.categoryId != null)
+              txn.categoryId!: FieldValue.increment(-amount),
+            toCategoryId: FieldValue.increment(amount),
+          }
+        },
+        SetOptions(merge: true));
+    await batch.commit();
+
+    await rebuildCurrentMonthTotals();
+
+    final key = txn.counterpartyKey;
+    if (key == null) return;
+    final entry = resolveKey(await counterparties(), key);
+    if (entry == null) return;
+
+    final overrides = entry.overrideCount + 1;
+    await _counterparties.doc(counterpartyDocId(entry.key)).set({
+      'overrideCount': overrides,
+      if (overrides >= CounterpartyEntry.overrideLimit)
+        'disposition': Disposition.ask.name,
+    }, SetOptions(merge: true));
+    _map = null;
+  }
+
+  /// The figures behind the daily digest.
+  ///
+  /// Read at the moment the notification fires rather than when it was
+  /// scheduled, so it reports the day it is actually sent.
+  Future<({double spent, double budget, int pending, double unsorted})>
+      dailyDigest() async {
+    final legacy = (await _legacyMonth.get()).data();
+    final items = legacy?['listItems'];
+
+    var budget = 0.0;
+    if (items is List) {
+      for (final item in items) {
+        if (item is! Map) continue;
+        budget += double.tryParse(item['budgetSet']
+                    ?.toString()
+                    .replaceAll(RegExp(r'[^0-9.]'), '') ??
+                '') ??
+            0;
+      }
+    }
+
+    final pending = await pendingTransactions();
+    return (
+      spent: (legacy?['monthlySpend'] as num?)?.toDouble() ?? 0,
+      budget: budget,
+      pending: pending.length,
+      unsorted: pending.fold<double>(0, (s, t) => s + (t.amount ?? 0)),
+    );
+  }
+
+  /// Gives a budget to any tracked category that has none.
+  ///
+  /// One-off cleanup for categories created before a budget was required.
+  /// `budgetSet: "0"` leaves them half-configured -- the details screen shows
+  /// "No budget set for this item" and refuses to open its sections.
+  ///
+  /// The figure is derived from what has actually been spent rather than
+  /// picked at random, so it starts somewhere plausible; the user can edit it
+  /// in the normal place.
+  Future<String> backfillMissingBudgets() async {
+    final snap = await _legacyMonth.get();
+    if (!snap.exists) return 'no month document';
+
+    final items = List<dynamic>.from(snap.data()?['listItems'] ?? const []);
+    final fixed = <String>[];
+
+    for (final item in items) {
+      if (item is! Map) continue;
+      final current = item['budgetSet']?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '';
+      if (current.isNotEmpty && (int.tryParse(current) ?? 0) > 0) continue;
+
+      final spent = (item['totalAmountSpent'] as num?)?.toDouble() ?? 0;
+      // Round up to the next 5,000, with a 10,000 floor, so a category that
+      // has already been spent against does not start over budget.
+      final target = spent <= 0
+          ? 20000
+          : ((spent * 1.2) / 5000).ceil() * 5000;
+      final budget = target < 10000 ? 10000 : target;
+
+      item['budgetSet'] = NumberFormat('#,###').format(budget);
+      fixed.add('${item['name']}=${item['budgetSet']}');
+    }
+
+    if (fixed.isEmpty) return 'all categories already have budgets';
+    await _legacyMonth.update({'listItems': items});
+
+    // Keep the new schema's copy in step.
+    final budgets = <String, double>{};
+    for (final item in items) {
+      if (item is! Map || item['name'] == null) continue;
+      budgets[slugifyCategory(item['name'].toString())] = double.tryParse(
+              item['budgetSet'].toString().replaceAll(RegExp(r'[^0-9.]'), '')) ??
+          0;
+    }
+    await monthRef(monthKeyOf(DateTime.now()))
+        .set({'budgets': budgets}, SetOptions(merge: true));
+
+    return 'set budgets: ${fixed.join(', ')}';
+  }
+
+  /// Undoes labels that point at a category which is not being tracked.
+  ///
+  /// Backing out of the budget sheet used to label the transaction anyway, so
+  /// it left the sorting list and was credited to a category with no entry in
+  /// the month -- the amount then appeared nowhere at all. This finds those,
+  /// puts them back to pending, and takes the amount off the category total.
+  ///
+  /// Counterparties pointing at the same category are reset to
+  /// [Disposition.ask] as well; otherwise the next transaction from them would
+  /// silently repeat the whole thing.
+  ///
+  /// Returns a short summary for logging.
+  Future<String> repairOrphanedLabels({String? monthKey}) async {
+    final key = monthKey ?? monthKeyOf(DateTime.now());
+    final month = monthRef(key);
+
+    final trackedNames = (await trackedCategoryNames())
+        .map((n) => n.toLowerCase())
+        .toSet();
+    final trackedIds = {
+      for (final c in await loadCategories())
+        if (trackedNames.contains(c.name.toLowerCase())) c.id,
+    };
+
+    final snap = await month
+        .collection('transactions')
+        .where('status', isEqualTo: TxnStatus.labeled.name)
+        .get();
+
+    final orphaned = snap.docs.where((d) {
+      final id = d.data()['categoryId'];
+      return id != null && !trackedIds.contains(id);
+    }).toList();
+
+    if (orphaned.isEmpty) return 'nothing to repair';
+
+    final batch = db.batch();
+    final refunds = <String, double>{};
+    final keysToReset = <String>{};
+
+    for (final d in orphaned) {
+      final data = d.data();
+      final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+      final categoryId = data['categoryId'] as String;
+      refunds[categoryId] = (refunds[categoryId] ?? 0) + amount;
+      if (data['counterpartyKey'] != null) {
+        keysToReset.add(data['counterpartyKey'] as String);
+      }
+      batch.update(d.reference, {
+        'status': TxnStatus.pending.name,
+        'categoryId': null,
+        'source': null,
+      });
+    }
+
+    batch.set(
+        month,
+        {
+          'spend': refunds
+              .map((k, v) => MapEntry(k, FieldValue.increment(-v))),
+        },
+        SetOptions(merge: true));
+
+    for (final k in keysToReset) {
+      batch.set(_counterparties.doc(counterpartyDocId(k)), {
+        'categoryId': null,
+        'disposition': Disposition.ask.name,
+      }, SetOptions(merge: true));
+    }
+
+    await batch.commit();
+    _map = null;
+    return 'restored ${orphaned.length} transactions, '
+        'reset ${keysToReset.length} counterparties';
+  }
 
   /// Records that the user has saved or skipped the batch-tag screen, so it
   /// is not shown again on every launch.
@@ -413,15 +785,9 @@ class SpendRepository {
 
     await batch.commit();
 
-    // Mirror into the legacy list the app renders from, or the user answers
-    // and sees nothing change.
-    if (increments.isNotEmpty) {
-      final names = {for (final c in await loadCategories()) c.id: c.name};
-      for (final e in increments.entries) {
-        final name = names[e.key];
-        if (name != null) await _addToLegacyDailySpend(name, e.value);
-      }
-    }
+    // Totals are derived from the records, so the screens pick this up
+    // without anything being nudged by hand.
+    await rebuildCurrentMonthTotals();
 
     return pending.length;
   }

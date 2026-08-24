@@ -17,6 +17,8 @@ import 'package:provider/provider.dart';
 import 'package:workmanager/workmanager.dart';
 import 'firebase network/sms_service.dart';
 import 'firebase_notifications.dart';
+import 'data/pending_notifications.dart';
+import 'data/spend_repository.dart';
 import 'firebase_options.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -40,6 +42,23 @@ void callbackDispatcher() {
      // await DailyResets().clearDailyMessageIds();
     }else if(task == "trackDailySpend"){
       SmsService().getSmsMessages();
+    }else if(task == "dailyDigestTask"){
+      // Computed when it fires, not when it was scheduled, so the figures are
+      // the day's own rather than yesterday's.
+      try {
+        await PendingNotifications.ensureInitialized();
+        final repo = SpendRepository();
+        final digest = await repo.dailyDigest();
+        await PendingNotifications.showDigest(
+          spent: digest.spent,
+          budget: digest.budget,
+          pending: digest.pending,
+          unsorted: digest.unsorted,
+          currency: await repo.currencySymbol(),
+        );
+      } catch (e) {
+        print('Daily digest failed: $e');
+      }
     }
     return Future.value(true);
   });
@@ -58,13 +77,13 @@ void main() async{
   );
   await FirebaseApi().initNotifications();
   Workmanager().initialize(callbackDispatcher);
-  Workmanager().registerPeriodicTask(
-    "daily_spend_reset",
-    "resetDailySpendTask",
-    frequency: const Duration(hours: 24), // Adjust as needed
-    initialDelay: Duration(seconds: calculateInitialDelay()),
-    //existingWorkPolicy: ExistingWorkPolicy.keep,
-  );
+  // The daily reset is retired. It existed to snapshot dailySpend before
+  // zeroing it, because the old schema had no per-transaction records to
+  // derive from. Totals are now recomputed from those records, so a job that
+  // mutates them can only introduce drift -- a missed run lost a day, a
+  // repeated run counted one twice. Cancelled rather than merely unregistered,
+  // so devices that already scheduled it stop running it.
+  Workmanager().cancelByUniqueName("daily_spend_reset");
   Workmanager().registerPeriodicTask(
     "track_daily_spend",
     "trackDailySpend",

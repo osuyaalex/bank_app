@@ -59,10 +59,15 @@ class EditItemsButtons extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 23),
-                Text(text,
-                style: const TextStyle(
-                  fontSize: 12
-                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ),
               ],
             ),

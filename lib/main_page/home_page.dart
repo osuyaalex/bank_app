@@ -1,3 +1,4 @@
+import 'package:banking_app/data/pending_notifications.dart';
 import 'package:banking_app/data/spend_repository.dart';
 import 'package:go_router/go_router.dart';
 import 'package:banking_app/firebase%20network/daily_resets.dart';
@@ -179,9 +180,11 @@ class _HomePageState extends State<HomePage> {
     // Prompt user to pick a time
     TimeOfDay? selectedTime = await _selectTime(context);
     if (selectedTime != null) {
-      await FirebaseApi().scheduleDailyNotification(selectedTime);
+      // A daily digest with the month's real figures, replacing the fixed-text
+      // reminder that used to say "This is your scheduled notification".
+      await PendingNotifications.scheduleDigest(selectedTime);
       String formattedTime = formatTimeOfDay(selectedTime);
-        snack(context, 'Notification Successfully set to $formattedTime');
+        snack(context, 'Daily summary set for $formattedTime');
     }
   }
   _scheduleNotificationAlert()async{
@@ -249,12 +252,6 @@ class _HomePageState extends State<HomePage> {
         }
     );
   }
-  Future<bool?>_getNotify()async{
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    bool? notify = prefs.getBool('setNotify')??false;
-    return notify;
-  }
-
   _manuallyUpdateDailySpend() async {
     try {
       DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
@@ -328,17 +325,21 @@ class _HomePageState extends State<HomePage> {
     Future.delayed(Duration(seconds: 2),(){
       SmsService().getSmsMessages().then((v){
         _loadNeedsSorting();
+        // The scan rebuilds this month's totals when it finishes, so re-read
+        // rather than keep showing what was loaded before it ran.
+        _getAllCurrentMonthDocs();
         if(v is bool && v){
          if(mounted){
            setState(() {
              _shouldBreak = true;
            });
          }
-          _getNotify().then((v){
-            if(v == false){
-              _scheduleNotificationAlert();
-            }
-          });
+          // The one-time "schedule a notification" prompt is gone. It set a
+          // daily reminder whose text was placeholder boilerplate, from a time
+          // when nothing else told the user anything. Unrecognised
+          // transactions now prompt as they arrive, with the real amount and
+          // who it went to, so a fixed-time reminder saying nothing would only
+          // get in the way.
         }else if(v == 'SMS permission denied.'){
           setState(() {
             _shouldBreak =true;
@@ -599,7 +600,12 @@ class _HomePageState extends State<HomePage> {
                                   var listedItems = monthData['listItems'][index];
                                   double progress = 0;
                                   double maxValue = double.parse(listedItems['budgetSet'].replaceAll(',', ''));
-                                  double currentValue = listedItems['totalAmountSpent'];
+                                  // The whole month, today included: totals are
+                                  // now derived from the transaction records
+                                  // rather than rolled up nightly, so this no
+                                  // longer needs dailySpend added to it.
+                                  double currentValue =
+                                      (listedItems['totalAmountSpent'] as num?)?.toDouble() ?? 0;
                                   progress = (maxValue > 0) ? (currentValue / maxValue) : 0.0;
                                   progress = progress.isFinite ? progress : 0.0;
 
@@ -644,7 +650,6 @@ class _HomePageState extends State<HomePage> {
 
                                                   ],
                                                 ),
-                                                Text('${monthData['currency']} ${_formatNumber(listedItems['dailySpend'])}/day')
                                               ],
                                             ),
                                             const SizedBox(height: 10,),

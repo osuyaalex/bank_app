@@ -7,7 +7,6 @@ import '../data/models.dart';
 import '../data/pending_notifications.dart';
 import '../data/spend_repository.dart';
 import '../parsing/bank_alert.dart';
-import 'google_service.dart';
 
 class SmsService{
   Future<dynamic>getSmsMessages() async {
@@ -62,19 +61,22 @@ class SmsService{
         if (smsBody != null) {
           switch (classifyAlert(smsBody)) {
             case AlertKind.debit:
-              // Shadow mode: the parser runs alongside the Gemini path and
-              // only reports. Behaviour is unchanged until M4 switches over.
+              // Gemini is no longer in this path. It used to categorise the
+              // message and increment the legacy totals directly, but those
+              // fields are now derived from the transaction records and
+              // overwritten moments later -- so its answer was discarded after
+              // being rendered, which showed up as figures changing on screen.
+              // The parser gets the amount and the counterparty map gets the
+              // category; anything unrecognised becomes a prompt instead of a
+              // guess.
               final parsed = parseAlert(message.sender ?? '', smsBody);
-              await updateDailySpend(
-                message.id!.toString(),
-                smsBody.toLowerCase(),
-                parsed: parsed,
-                repo: repo,
+              final mirrored = await repo.mirrorLegacyWrite(
+                smsId: message.id!.toString(),
+                alert: parsed,
               );
               print('Debit alert from ${message.sender} at $dateTime');
               // Nothing else tells the user an unrecognised transaction is
               // waiting, so ask while they still remember what it was.
-              final mirrored = lastMirrored;
               if (mirrored != null && mirrored.status == TxnStatus.pending) {
                 await PendingNotifications.show(
                   mirrored,
@@ -105,7 +107,16 @@ class SmsService{
           break;
         }
       }
+
+      // Totals are derived from the records, so refresh them once the scan
+      // has written whatever it found.
+      try {
+        await repo.rebuildCurrentMonthTotals();
+      } catch (e) {
+        print('Totals rebuild after scan failed: $e');
+      }
     }
+
     return shouldBreak;
   }
 

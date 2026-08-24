@@ -4,6 +4,7 @@ import '../data/migration_plan.dart';
 import '../data/models.dart';
 import '../data/spend_repository.dart';
 import 'widget/category_picker.dart';
+import 'widget/category_setup_sheet.dart';
 
 const _brand = brandBlue;
 
@@ -32,6 +33,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
   /// else is remembered, but its money will not show up until the category is
   /// actually being tracked -- so the user is told and offered the fix.
   Set<String> _tracked = {};
+  String _currency = '';
 
   List<CounterpartyEntry> _rows = [];
   final Map<String, CategoryChoice> _choices = {};
@@ -48,6 +50,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
   Future<void> _load() async {
     final categories = await _repo.loadCategories();
     final tracked = await _repo.trackedCategoryNames();
+    final currency = await _repo.currencySymbol();
     final map = await _repo.loadCounterparties();
 
     // Self-transfers the migration proposed come first and arrive already
@@ -64,6 +67,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
       _categories = categories.where((c) => c.active).toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       _tracked = tracked;
+      _currency = currency;
       _rows = [...proposed, ...batchTagCandidates(map, limit: widget.limit)];
       _loading = false;
     });
@@ -268,12 +272,10 @@ class _BatchTagPageState extends State<BatchTagPage> {
       final category = _categories.firstWhere((c) => c.id == chosen.categoryId,
           orElse: () => const Category(id: '', name: ''));
       if (category.name.isNotEmpty && !_tracked.contains(category.name)) {
-        final start = await _confirmStartTracking(category.name);
-        if (start == true) {
-          await _repo.startTracking(
-              name: category.name, image: category.image ?? '');
-          if (mounted) setState(() => _tracked.add(category.name));
-        }
+        // Backing out of the budget sheet cancels the tag too, rather than
+        // pointing this counterparty at a category with no budget.
+        final started = await _startTracking(category);
+        if (!started) return;
       }
     }
 
@@ -289,63 +291,33 @@ class _BatchTagPageState extends State<BatchTagPage> {
     if (mounted) setState(() => _choices[e.key] = chosen);
   }
 
-  Future<bool?> _confirmStartTracking(String name) => showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text("You're not tracking $name"),
-          content: Text(
-            'This will be remembered, but it will not show up this month '
-            'unless you track $name. Start tracking it now?',
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Not now')),
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Start tracking')),
-          ],
-        ),
-      );
+  /// Asks for a monthly budget before a category starts being tracked.
+  ///
+  /// Required, not optional: a category with no budget cannot be measured
+  /// against anything, and the details screen shows it as unset.
+  Future<bool> _startTracking(Category category) async {
+    final setup = await showCategorySetupSheet(
+      context,
+      currency: _currency,
+      fixedName: category.name,
+    );
+    if (setup == null) return false;
+    await _repo.startTracking(
+      name: category.name,
+      budget: setup.budget,
+      image: category.image ?? '',
+    );
+    if (mounted) setState(() => _tracked.add(category.name));
+    return true;
+  }
 
   Future<Category?> _createCategory() async {
-    final nameField = TextEditingController();
-    final budgetField = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('New category'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-                controller: nameField,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Name')),
-            TextField(
-                controller: budgetField,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                    labelText: 'Monthly budget (optional)')),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Add')),
-        ],
-      ),
-    );
-    final name = nameField.text.trim();
-    if (ok != true || name.isEmpty) return null;
+    final setup = await showCategorySetupSheet(context, currency: _currency);
+    if (setup == null) return null;
 
     final category = await _repo.startTracking(
-      name: name,
-      budget: budgetField.text.trim().isEmpty ? '0' : budgetField.text.trim(),
+      name: setup.name,
+      budget: setup.budget,
     );
     if (mounted) {
       setState(() {
@@ -422,43 +394,4 @@ class _BatchTagPageState extends State<BatchTagPage> {
     );
   }
 
-  Widget _saveBar() {
-    final done = _choices.length;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              done == 0 ? 'Nothing tagged yet' : '$done of ${_rows.length} tagged',
-              style: const TextStyle(color: Colors.black54, fontSize: 13),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: _saving || done == 0 ? null : _save,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _brand,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: _saving
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
-                : const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
 }

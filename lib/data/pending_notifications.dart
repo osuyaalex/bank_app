@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:workmanager/workmanager.dart';
 import 'package:intl/intl.dart';
 
 import '../firebase_options.dart';
@@ -72,6 +74,103 @@ class PendingNotifications {
     );
   }
 
+  /// The daily digest: where the month stands, and what still needs an answer.
+  ///
+  /// Deliberately specific. The reminder this replaced said "This is your
+  /// scheduled notification", which told the user nothing and trained them to
+  /// swipe it away.
+  /// Schedules the digest for [time], replacing any previous schedule.
+  ///
+  /// A workmanager task rather than a scheduled notification: the text has to
+  /// be computed when it fires, and a scheduled notification fixes its content
+  /// at the moment it is set.
+  static Future<void> scheduleDigest(TimeOfDay time) async {
+    await Workmanager().cancelByUniqueName(_digestTask);
+
+    final now = DateTime.now();
+    var first = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+    if (!first.isAfter(now)) first = first.add(const Duration(days: 1));
+
+    await Workmanager().registerPeriodicTask(
+      _digestTask,
+      'dailyDigestTask',
+      frequency: const Duration(hours: 24),
+      initialDelay: first.difference(now),
+    );
+  }
+
+  static Future<void> cancelDigest() =>
+      Workmanager().cancelByUniqueName(_digestTask);
+
+  static const _digestTask = 'daily_digest';
+
+  /// Initialises the plugin if it has not been already.
+  ///
+  /// The digest is raised from a background isolate, where nothing the app
+  /// normally sets up has run. Calling this twice is harmless.
+  static Future<void> ensureInitialized() async {
+    const android = AndroidInitializationSettings('@drawable/bankal');
+    const settings = InitializationSettings(android: android);
+    await _plugin.initialize(settings,
+        onDidReceiveBackgroundNotificationResponse: handleBackground);
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(const AndroidNotificationChannel(
+          channelId,
+          'Transactions to sort',
+          description:
+              'Asks what a new transaction was, so it can be tracked',
+          importance: Importance.high,
+        ));
+  }
+
+  static Future<void> showDigest({
+    required double spent,
+    required double budget,
+    required int pending,
+    required double unsorted,
+    required String currency,
+  }) async {
+    final money = NumberFormat('#,##0');
+    final title = '$currency${money.format(spent)} spent this month';
+
+    final String body;
+    if (pending > 0) {
+      body = '$pending transaction${pending == 1 ? '' : 's'} still to sort '
+          '($currency${money.format(unsorted)}). Tap to sort them.';
+    } else if (budget <= 0) {
+      body = 'No budget set yet. Tap to see where it went.';
+    } else if (spent > budget) {
+      body = "That's $currency${money.format(spent - budget)} over your "
+          '$currency${money.format(budget)} budget.';
+    } else {
+      body = '$currency${money.format(budget - spent)} left of your '
+          '$currency${money.format(budget)} budget.';
+    }
+
+    await _plugin.show(
+      _digestId,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          'Transactions to sort',
+          channelDescription:
+              'Asks what a new transaction was, so it can be tracked',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          styleInformation: BigTextStyleInformation(body),
+        ),
+      ),
+      payload: jsonEncode({'type': _marker, 'digest': true}),
+    );
+  }
+
+  /// Fixed id so a new digest replaces yesterday's rather than stacking.
+  static const _digestId = 900001;
+
   static bool ownsPayload(String? payload) {
     if (payload == null) return false;
     try {
@@ -87,6 +186,10 @@ class PendingNotifications {
     final data = jsonDecode(response.payload!) as Map<String, dynamic>;
     final action = response.actionId;
 
+    if (data['digest'] == true) {
+      openPendingList = true;
+      return;
+    }
     if (action == null || action == 'more') {
       openPendingList = true;
       return;

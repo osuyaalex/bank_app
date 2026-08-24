@@ -113,6 +113,11 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
     // After the first frame, so the migration never delays this screen.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await MigrationGate.maybeRun(context);
+      // Maintenance rewrites this month's totals, and the figures on screen
+      // were read before it ran. Without this, Summary keeps showing the
+      // pre-rebuild number while Home -- which loads later -- shows the new
+      // one, and the two disagree.
+      if (mounted) await _getTrackItems();
       if (mounted) await _loadSortCounts();
       // A notification tap cannot navigate on its own -- the UI may not exist
       // yet when it fires -- so it leaves a flag for the first screen to act on.

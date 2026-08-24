@@ -20,6 +20,39 @@ class MigrationGate {
   ///
   /// [SchemaMigration] is itself idempotent, so a second run would be
   /// harmless -- this guard exists to avoid re-reading the whole SMS inbox.
+  /// One-off repairs plus a totals refresh.
+  ///
+  /// Safe to call on every launch and from either entry point: the repairs are
+  /// version-guarded and the rebuild is a sum, so repeating it changes nothing.
+  static Future<void> runMaintenance(String uid) async {
+    await _repairOnce(uid);
+    try {
+      final total =
+          await SpendRepository(uid: uid).rebuildCurrentMonthTotals();
+      print('TOTALS: rebuilt, month total=$total');
+    } catch (e) {
+      print('TOTALS rebuild failed: $e');
+    }
+  }
+
+  /// Version of the orphaned-label repair that has already run.
+  static const _repairVersion = 2;
+
+  static Future<void> _repairOnce(String uid) async {
+    final doc = FirebaseFirestore.instance.collection('Users').doc(uid);
+    final done = (await doc.get()).data()?['repairVersion'] ?? 0;
+    if (done >= _repairVersion) return;
+    try {
+      final repo = SpendRepository(uid: uid);
+      print('REPAIR: ${await repo.repairOrphanedLabels()}');
+      print('REPAIR: ${await repo.backfillMissingBudgets()}');
+      await doc.set({'repairVersion': _repairVersion}, SetOptions(merge: true));
+    } catch (e) {
+      // Leave the marker unset so it retries next launch.
+      print('REPAIR failed: $e');
+    }
+  }
+
   /// True once the user has saved or skipped the batch-tag screen.
   static Future<bool> _batchTagSettled(String uid) async {
     final snap =
@@ -71,10 +104,17 @@ class MigrationGate {
       // The screen is offered until the user deals with it once. Gating on a
       // fresh migration alone would mean anyone who tapped Skip -- or who
       // migrated before the screen existed -- never saw it again.
+      // Maintenance first. These have nothing to do with the batch screen,
+      // so they must not sit behind its early returns -- a user who has
+      // dismissed it would never get repaired data or refreshed totals.
+      await runMaintenance(user.uid);
+
       if (await _batchTagSettled(user.uid)) return;
       final candidates = report.alreadyMigrated
           ? await SpendRepository(uid: user.uid).pendingTagCount()
           : report.batchTagCandidates.length;
+      // One-time repair for transactions labelled into a category the user
+      // never finished setting up. Runs once per device, then never again.
       print('MIGRATION: batch-tag candidates=$candidates');
       if (candidates == 0) return;
       if (!context.mounted) return;
