@@ -2,6 +2,11 @@ import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../data/sms_inbox.dart';
+import '../data/models.dart';
+import '../data/pending_notifications.dart';
+import '../data/spend_repository.dart';
+import '../parsing/bank_alert.dart';
 import 'google_service.dart';
 
 class SmsService{
@@ -30,8 +35,12 @@ class SmsService{
       print('Access to SMS granted.');
 
       // Retrieve all SMS messages
-      final smsQuery = SmsQuery();
-      List<SmsMessage> messages = await smsQuery.getAllSms;
+      // One repository per scan so the counterparty map is read once.
+      final repo = SpendRepository();
+      // Not getAllSms: since flutter_sms_inbox 1.0.5 that silently returns
+      // only the 200 most recent messages across inbox, sent and drafts.
+      // This scan only cares about today's incoming alerts.
+      List<SmsMessage> messages = await SmsInbox.readRecent();
       messages.sort((a, b) => b.date!.compareTo(a.date!));
       // Flag to track whether we should break out of the loop
       shouldBreak = false;
@@ -48,27 +57,43 @@ class SmsService{
           break;
         }
 
-        // Process the SMS body and perform keyword filtering
+        // Process the SMS body
         String? smsBody = message.body;
         if (smsBody != null) {
-          // Convert SMS body to lowercase for case-insensitive comparison
-          String decodedBody = smsBody.toLowerCase();
-
-          // Check if the message contains the specified terms
-          if ((decodedBody.contains('debit') || decodedBody.contains('dr')) &&
-              (decodedBody.contains('acc') || decodedBody.contains('acct'))
-              //&& decodedBody.contains('desc')
-          ) {
-            // Log message details
-            await updateDailySpend(message.id!.toString(), decodedBody);
-            print('Found SMS with specified terms:');
-            print('Sender: ${message.sender}');
-            print('Body: $decodedBody');
-            print('Received at: $dateTime');
-
-          } else {
-            print('SMS does not contain the required terms.');
-            print('Received at: $dateTime');
+          switch (classifyAlert(smsBody)) {
+            case AlertKind.debit:
+              // Shadow mode: the parser runs alongside the Gemini path and
+              // only reports. Behaviour is unchanged until M4 switches over.
+              final parsed = parseAlert(message.sender ?? '', smsBody);
+              await updateDailySpend(
+                message.id!.toString(),
+                smsBody.toLowerCase(),
+                parsed: parsed,
+                repo: repo,
+              );
+              print('Debit alert from ${message.sender} at $dateTime');
+              // Nothing else tells the user an unrecognised transaction is
+              // waiting, so ask while they still remember what it was.
+              final mirrored = lastMirrored;
+              if (mirrored != null && mirrored.status == TxnStatus.pending) {
+                await PendingNotifications.show(
+                  mirrored,
+                  quickPicks: await repo.quickPickCategories(),
+                  currencySymbol: await repo.currencySymbol(),
+                );
+              }
+              break;
+            case AlertKind.credit:
+              // Money received is not spending. M3 will store these with a
+              // direction so the running balance stays continuous.
+              print('Skipping credit alert at $dateTime');
+              break;
+            case AlertKind.charge:
+              print('Skipping bank charge at $dateTime');
+              break;
+            case AlertKind.other:
+              print('Not a transaction alert. Received at: $dateTime');
+              break;
           }
         } else {
           print('SMS body is empty.');

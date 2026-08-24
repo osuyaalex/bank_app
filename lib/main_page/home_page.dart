@@ -1,3 +1,5 @@
+import 'package:banking_app/data/spend_repository.dart';
+import 'package:go_router/go_router.dart';
 import 'package:banking_app/firebase%20network/daily_resets.dart';
 import 'package:banking_app/firebase%20network/sms_service.dart';
 import 'package:banking_app/firebase_notifications.dart';
@@ -25,6 +27,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  int _needsSorting = 0;
   String _currentMonth = '';
   Map<String, dynamic> _data ={};
   List<String> _currentMonthDocs = [];
@@ -307,13 +310,24 @@ class _HomePageState extends State<HomePage> {
   // }
 
 
+  Future<void> _loadNeedsSorting() async {
+    try {
+      final count = await SpendRepository().pendingCount();
+      if (mounted) setState(() => _needsSorting = count);
+    } catch (_) {
+      // Only a badge; never let it break the screen.
+    }
+  }
+
   @override
   void initState() {
     // TODO: implement initState
     _getAllCurrentMonthDocs();
     _initializeCurrentMonth();
+    _loadNeedsSorting();
     Future.delayed(Duration(seconds: 2),(){
       SmsService().getSmsMessages().then((v){
+        _loadNeedsSorting();
         if(v is bool && v){
          if(mounted){
            setState(() {
@@ -442,6 +456,24 @@ class _HomePageState extends State<HomePage> {
                   onPressed: _scheduleNotificationAlert,
                   icon: Icon(Icons.edit_notifications_outlined,color: Colors.white,)
               ),
+          ),
+          // Transactions the app could not file on its own.
+          Positioned(
+            top: 35,
+            right: 80,
+            child: IconButton(
+              onPressed: () async {
+                await context.push('/pending');
+                await _loadNeedsSorting();
+              },
+              icon: _needsSorting > 0
+                  ? Badge(
+                      label: Text('$_needsSorting'),
+                      child: const Icon(Icons.inbox_outlined,
+                          color: Colors.white),
+                    )
+                  : const Icon(Icons.inbox_outlined, color: Colors.white),
+            ),
           ),
           Positioned(
               top: 35,
@@ -620,7 +652,7 @@ class _HomePageState extends State<HomePage> {
                                               currentValue: currentValue,
                                               maxValue: maxValue,
                                               progress: progress,
-                                              currency: listedItems['currency'],
+                                              currency: monthData['currency'],
                                             ),
                                             const SizedBox(height: 15,),
                                             const Divider()

@@ -4,7 +4,10 @@ class AiUse{
 
   Future<String?> useGeminiAi(String subject, List nameList)async{
     final model = GenerativeModel(
-      model: 'gemini-1.5-flash-latest',
+      // gemini-1.5-flash-latest was retired by Google and every call now
+      // fails. The `-latest` alias tracks forward so this does not silently
+      // break again the next time a model is withdrawn.
+      model: 'gemini-flash-lite-latest',
       apiKey: 'AIzaSyCEzlGzqgSeFyELQaMrOp8ZtSQtgIPAsRs',
     );
 
@@ -39,19 +42,26 @@ class AiUse{
       return regex.hasMatch(response);
     }
 
-    do {
-      final response = await model.generateContent(content);
-      responseText = response.text?.trim();
+    // Bounded retries. An unbounded loop here bills a Gemini call per
+    // iteration, forever, whenever the model returns something the validator
+    // rejects -- and it runs inside a background task where nobody sees it.
+    const maxAttempts = 3;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final response = await model.generateContent(content);
+        responseText = response.text?.trim();
 
-      if (responseText != null && isValidResponse(responseText)) {
-        // Correct format, exit loop
-        break;
-      } else {
-        print('Invalid response format, retrying...');
+        if (responseText != null && isValidResponse(responseText)) {
+          print('The Gemini AI response is: $responseText');
+          return responseText;
+        }
+        print('Invalid response format (attempt $attempt/$maxAttempts).');
+      } catch (e) {
+        print('Gemini call failed (attempt $attempt/$maxAttempts): $e');
       }
-    } while (true);
+    }
 
-    print('The Gemini AI response is: $responseText');
-    return responseText;
+    // Caller decides what to do with an uncategorised message.
+    return null;
   }
 }

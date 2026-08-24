@@ -1,6 +1,9 @@
 import 'dart:convert';
 
 import 'package:banking_app/firebase%20network/gemini_ai.dart';
+import 'package:banking_app/data/models.dart';
+import 'package:banking_app/data/spend_repository.dart';
+import 'package:banking_app/parsing/bank_alert.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -15,7 +18,35 @@ import 'package:intl/intl.dart';
 import '../utilities/snackbar.dart';
 
 
-updateDailySpend(String messageId,String plainText,)async{
+/// Logs how the deterministic parser compares with what Gemini returned.
+///
+/// Reporting only -- nothing here changes the numbers written to Firestore.
+/// The point is to build confidence on real traffic before M4 makes the
+/// parser authoritative.
+void _reportShadow(String messageId, double geminiAmount, BankAlert? parsed) {
+  if (parsed == null) {
+    print('SHADOW no-parse msg=$messageId');
+    return;
+  }
+  final parsedAmount = parsed.amount;
+  if (parsedAmount == null) {
+    print('SHADOW no-amount msg=$messageId narration="${parsed.narration}"');
+  } else if ((parsedAmount - geminiAmount).abs() > 0.01) {
+    print('SHADOW MISMATCH msg=$messageId gemini=$geminiAmount '
+        'parser=$parsedAmount narration="${parsed.narration}"');
+  } else {
+    print('SHADOW ok msg=$messageId amount=$parsedAmount '
+        'channel=${parsed.channel.name} key=${parsed.counterpartyKey}');
+  }
+}
+
+/// Set by [updateDailySpend] to the record the mirror write produced, so the
+/// caller can prompt about it without threading a return value through the
+/// legacy code path.
+TransactionRecord? lastMirrored;
+
+updateDailySpend(String messageId,String plainText,{BankAlert? parsed, SpendRepository? repo})async{
+  lastMirrored = null;
 
   String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
   currentMonth = currentMonth.replaceAll(' ', '');
@@ -33,28 +64,39 @@ updateDailySpend(String messageId,String plainText,)async{
       List<String> nameList = listItems.map((item) => item['name'] as String).toList();
       if(!messageIds.contains(messageId)){
         messageIds.add(messageId);
-        await AiUse().useGeminiAi(plainText, nameList).then((v)async{
-          List<String> splitText = v!.split(',').map((s) => s.trim()).toList();
-          String amount = splitText[0];
-          String description = splitText[1];
-          print('firebase amount is ${amount}, and description is $description');
-          double newDailySpend = double.parse(amount);
-          for (var item in listItems) {
-            if ((item['name'] as String).toLowerCase() == description.toLowerCase()) {
-              item['dailySpend'] += newDailySpend; // Update dailySpend
-              break; // Stop the loop once the item is found and updated
-            }
+        final aiResult = await AiUse().useGeminiAi(plainText, nameList);
+        if (aiResult == null) {
+          // Nothing is written, so messageId is not persisted either and a
+          // later scan can retry this message.
+          print('Could not categorise message $messageId; leaving it for a retry.');
+          return;
+        }
+        List<String> splitText = aiResult.split(',').map((s) => s.trim()).toList();
+        String amount = splitText[0];
+        String description = splitText[1];
+        print('firebase amount is ${amount}, and description is $description');
+        double newDailySpend = double.parse(amount);
+        _reportShadow(messageId, newDailySpend, parsed);
+        for (var item in listItems) {
+          if ((item['name'] as String).toLowerCase() == description.toLowerCase()) {
+            item['dailySpend'] += newDailySpend; // Update dailySpend
+            break; // Stop the loop once the item is found and updated
           }
-          await FirebaseFirestore.instance
-              .collection("track_items")
-              .doc(currentMonth)
-              .collection("monthUsers")
-              .doc(FirebaseAuth.instance.currentUser!.uid)
-              .update({
-            'messageId': messageIds,
-            'listItems': listItems,
-          });
+        }
+        await FirebaseFirestore.instance
+            .collection("track_items")
+            .doc(currentMonth)
+            .collection("monthUsers")
+            .doc(FirebaseAuth.instance.currentUser!.uid)
+            .update({
+          'messageId': messageIds,
+          'listItems': listItems,
         });
+
+        // Dual-write. track_items above remains the source of truth for this
+        // release; the mirror below is what the next release will read from.
+        lastMirrored = await (repo ?? SpendRepository())
+            .mirrorLegacyWrite(smsId: messageId, alert: parsed);
       }
 
     }else {

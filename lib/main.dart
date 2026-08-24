@@ -20,6 +20,9 @@ import 'firebase_notifications.dart';
 import 'firebase_options.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'main_page/batch_tag_page.dart';
+import 'main_page/pending_page.dart';
+import 'main_page/preparing_page.dart';
 import 'main_page/summary.dart';
 
 @pragma('vm:entry-point')
@@ -54,7 +57,7 @@ void main() async{
     appleProvider: AppleProvider.appAttest,
   );
   await FirebaseApi().initNotifications();
-  Workmanager().initialize(callbackDispatcher,isInDebugMode: false);
+  Workmanager().initialize(callbackDispatcher);
   Workmanager().registerPeriodicTask(
     "daily_spend_reset",
     "resetDailySpendTask",
@@ -135,6 +138,18 @@ class MyApp extends StatelessWidget {
         GoRoute(
             path: '/deeplink/noPassword',
             builder: (_, __) => const NoPasswordSignIn()
+        ),
+        GoRoute(
+            path: '/batchTag',
+            builder: (_, __) => const BatchTagPage()
+        ),
+        GoRoute(
+            path: '/pending',
+            builder: (_, __) => const PendingPage()
+        ),
+        GoRoute(
+            path: '/preparing',
+            builder: (_, __) => const PreparingPage()
         ),
       ],
       // redirect: (BuildContext context, GoRouterState state) async {

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import 'data/pending_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -26,6 +28,10 @@ class FirebaseApi{
 
 
 
+  AndroidFlutterLocalNotificationsPlugin? get platformChannel =>
+      localNotifications.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+
   Future initLocalNotification()async{
     const ios = DarwinInitializationSettings();
     const android = AndroidInitializationSettings("@drawable/bankal");
@@ -34,14 +40,31 @@ class FirebaseApi{
         setting,
         onDidReceiveNotificationResponse: (NotificationResponse response){
           final String? payload = response.payload;
-          if (payload != null) {
-            final message = RemoteMessage.fromMap(jsonDecode(payload));
-            handleBackgroundMessage(message);
+          if (payload == null) return;
+          // "Sort this transaction" prompts carry their own payload shape and
+          // must not be decoded as FCM messages.
+          if (PendingNotifications.ownsPayload(payload)) {
+            PendingNotifications.handle(response);
+            return;
           }
-        }
+          final message = RemoteMessage.fromMap(jsonDecode(payload));
+          handleBackgroundMessage(message);
+        },
+        onDidReceiveBackgroundNotificationResponse:
+            PendingNotifications.handleBackground,
     );
-    final platform = localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    await platform?.createNotificationChannel(androidChannel);
+    await platformChannel?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        PendingNotifications.channelId,
+        'Transactions to sort',
+        description:
+            'Asks what a new transaction was, so it can be tracked',
+        importance: Importance.high,
+      ),
+    );
+    await platformChannel?.createNotificationChannel(androidChannel);
+    // Android 13+ will not show anything without this, and the app targets 36.
+    await platformChannel?.requestNotificationsPermission();
   }
 
   Future initPushNotification()async{
