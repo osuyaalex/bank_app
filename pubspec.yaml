@@ -16,10 +16,10 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+3
+version: 2.03.1+16
 
 environment:
-  sdk: '>=3.4.3 <4.0.0'
+  sdk: '>=3.10.0 <4.0.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -39,7 +39,7 @@ dependencies:
   cloud_firestore: ^5.0.1
   firebase_auth: ^5.1.0
   firebase_storage: ^12.0.1
-  google_fonts: ^6.2.1
+  google_fonts: ^8.2.1
   flutter_easyloading: ^3.0.5
   phone_form_field: ^8.1.0
   firebase_app_check: ^0.3.0+1
@@ -48,7 +48,7 @@ dependencies:
   flutter_svg: ^2.0.5
   local_auth: ^2.2.0
   html: ^0.15.4
-  intl: ^0.19.0
+  intl: ^0.20.2
   shared_preferences: ^2.2.3
   http: ^1.2.1
   provider: ^6.1.2
@@ -64,19 +64,19 @@ dependencies:
   image: ^4.2.0
   flutter_image_compress: ^2.0.4
   async: ^2.11.0
-  workmanager: ^0.5.2
+  workmanager: ^0.10.9
   googleapis: ^13.2.0
   googleapis_auth: ^1.6.0
   oauth2: ^2.0.2
   google_sign_in: ^6.2.1
-  syncfusion_flutter_pdf: ^26.2.9
+  syncfusion_flutter_pdf: ^28.2.4
   google_generative_ai: ^0.4.4
-  flutter_sms_inbox: ^1.0.3
+  flutter_sms_inbox: ^1.0.5
   permission_handler: ^11.3.1
   rxdart: ^0.28.0
   geolocator: ^12.0.0
   geocoding: ^3.0.0
-  uni_links2: ^0.6.0+2
+  app_links: ^7.0.0
   shimmer: ^3.0.0
 
 

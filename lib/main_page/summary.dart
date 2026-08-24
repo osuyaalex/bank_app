@@ -12,6 +12,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
+import '../data/pending_notifications.dart';
+import '../data/spend_repository.dart';
+import '../data/migration_gate.dart';
 import '../elevated_button.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -24,8 +28,10 @@ class Summary extends StatefulWidget {
   State<Summary> createState() => _SummaryState();
 }
 
-class _SummaryState extends State<Summary> {
+class _SummaryState extends State<Summary> with WidgetsBindingObserver {
   Map<String, dynamic> _data ={};
+  int _pendingCount = 0;
+  int _untaggedCount = 0;
   String _message = '';
   List _itemsByDescendOrder = [];
   String _currentMonth = '';
@@ -103,8 +109,86 @@ class _SummaryState extends State<Summary> {
     super.initState();
     _getTrackItems();
 
-
+    WidgetsBinding.instance.addObserver(this);
+    // After the first frame, so the migration never delays this screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await MigrationGate.maybeRun(context);
+      if (mounted) await _loadSortCounts();
+      // A notification tap cannot navigate on its own -- the UI may not exist
+      // yet when it fires -- so it leaves a flag for the first screen to act on.
+      if (PendingNotifications.openPendingList && mounted) {
+        PendingNotifications.openPendingList = false;
+        if (context.mounted) await context.push('/pending');
+        if (mounted) await _loadSortCounts();
+      }
+    });
   }
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Transactions can be answered from a notification while the app is in
+    // the background, so the count is refreshed on return.
+    if (state == AppLifecycleState.resumed) _loadSortCounts();
+  }
+
+  Future<void> _loadSortCounts() async {
+    try {
+      final repo = SpendRepository();
+      final pending = await repo.pendingCount();
+      final untagged = await repo.pendingTagCount();
+      if (!mounted) return;
+      setState(() {
+        _pendingCount = pending;
+        _untaggedCount = untagged;
+      });
+    } catch (_) {
+      // The banner is an extra; never let it break the screen.
+    }
+  }
+
+  Widget _sortBanner() {
+    if (_pendingCount == 0 && _untaggedCount == 0) return const SizedBox.shrink();
+    final needsSorting = _pendingCount > 0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () async {
+          await context.push(needsSorting ? '/pending' : '/batchTag');
+          await _loadSortCounts();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xff5AA5E2).withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.help_outline, color: Color(0xff5AA5E2), size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  needsSorting
+                      ? '$_pendingCount transaction${_pendingCount == 1 ? '' : 's'} need sorting'
+                      : '$_untaggedCount more places to sort',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.black38),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -192,6 +276,7 @@ class _SummaryState extends State<Summary> {
                     ),
                   ),
                 ),
+                _sortBanner(),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14.0,vertical: 19),
                   child: SizedBox(

@@ -1,0 +1,63 @@
+rules_version = '2';
+
+// Firestore rules for bank_app.
+//
+// Every document in this app belongs to exactly one signed-in user, and no
+// screen queries across users, so the model is simply: you reach your own
+// data and nothing else.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // ---------------------------------------------------------------------
+    // Users/{uid}
+    //
+    // The profile document, and the parent of the per-user tracking tree:
+    //   Users/{uid}/categories/{categoryId}
+    //   Users/{uid}/counterparties/{key}
+    //   Users/{uid}/months/{YYYY-MM}
+    //   Users/{uid}/months/{YYYY-MM}/transactions/{smsId}
+    //
+    // The recursive wildcard covers those subcollections and anything added
+    // later, all under the same owner check.
+    // ---------------------------------------------------------------------
+    match /Users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /{document=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // track_items/{month}  (legacy)
+    //
+    // A month is a shared parent document holding every user's data beneath
+    // it, so the parent itself cannot be owner-scoped. It carries nothing but
+    // a `dummy` placeholder that exists so the subcollection has a parent, and
+    // writes are restricted to exactly that field -- a signed-in user can
+    // create the month, and can do nothing else to it.
+    //
+    // The real data lives one level down and is owner-only.
+    // ---------------------------------------------------------------------
+    match /track_items/{month} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+                            && request.resource.data.keys().hasOnly(['dummy']);
+      allow delete: if false;
+
+      match /monthUsers/{uid} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // Anything not matched above is denied.
+  }
+}

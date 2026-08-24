@@ -1,0 +1,101 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import 'migration.dart';
+import 'sms_inbox.dart';
+import 'spend_repository.dart';
+
+/// Runs the schema migration once, then offers the batch-tag screen.
+///
+/// Called after the user is signed in and the first screen has rendered, so
+/// nothing here sits on the critical path of a cold start.
+class MigrationGate {
+  MigrationGate._();
+
+  static bool _started = false;
+
+  /// At most once per app session.
+  ///
+  /// [SchemaMigration] is itself idempotent, so a second run would be
+  /// harmless -- this guard exists to avoid re-reading the whole SMS inbox.
+  /// True once the user has saved or skipped the batch-tag screen.
+  static Future<bool> _batchTagSettled(String uid) async {
+    final snap =
+        await FirebaseFirestore.instance.collection('Users').doc(uid).get();
+    return snap.data()?['batchTagSeen'] == true;
+  }
+
+  static Future<void> maybeRun(BuildContext context) async {
+    if (_started) return;
+    _started = true;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print('MIGRATION: no signed-in user, skipping');
+      return;
+    }
+
+    try {
+      // A first migration takes the better part of a minute. Rather than doing
+      // it behind the summary -- where the user can tap into screens whose
+      // data is being rewritten -- hand over to a screen that holds the
+      // foreground and runs it there.
+      final migration =
+          SchemaMigration(FirebaseFirestore.instance, user.uid);
+      if (await migration.needsMigration()) {
+        if (!context.mounted) return;
+        await context.push('/preparing');
+        return;
+      }
+
+      print('MIGRATION: start uid=${user.uid}');
+      final sw = Stopwatch()..start();
+      final inbox = await SmsInbox.readForMigration();
+      print('MIGRATION: inbox=${inbox?.length ?? "unavailable"} '
+          'in ${sw.elapsedMilliseconds}ms');
+
+      final report =
+          await SchemaMigration(FirebaseFirestore.instance, user.uid).run(
+        inbox: inbox,
+        ownerName: user.displayName,
+      );
+      print('MIGRATION: done in ${sw.elapsedMilliseconds}ms '
+          'alreadyMigrated=${report.alreadyMigrated} '
+          'awaitingInbox=${report.awaitingInbox} '
+          'months=${report.legacyMonths} '
+          'counterparties=${report.counterparties} '
+          'candidates=${report.batchTagCandidates.length}');
+
+      // The screen is offered until the user deals with it once. Gating on a
+      // fresh migration alone would mean anyone who tapped Skip -- or who
+      // migrated before the screen existed -- never saw it again.
+      if (await _batchTagSettled(user.uid)) return;
+      final candidates = report.alreadyMigrated
+          ? await SpendRepository(uid: user.uid).pendingTagCount()
+          : report.batchTagCandidates.length;
+      print('MIGRATION: batch-tag candidates=$candidates');
+      if (candidates == 0) return;
+      if (!context.mounted) return;
+
+      // Awaited: the caller refreshes its counts once this returns, and
+      // without the await it would read them while the screen is still open
+      // and show the pre-tagging figure.
+      await GoRouter.of(context).push('/batchTag');
+    } catch (e) {
+      // A migration failure must never stop the user reaching their data.
+      // track_items is untouched and still authoritative, so the app works
+      // exactly as before; the next launch will retry from where it stopped.
+      // ignore: avoid_print
+      print('MIGRATION FAILED: $e');
+    }
+  }
+
+  /// Reads the inbox for backfill.
+  ///
+  /// Deliberately does not *request* the SMS permission. The app asks for it
+  /// in its own flow, and hijacking that with a prompt the user cannot place
+  /// would be worse than migrating without history: categories and past totals
+  /// still move across, only the counterparty seeding is skipped.
+}

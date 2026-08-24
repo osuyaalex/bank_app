@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uni_links2/uni_links.dart';
+import 'package:app_links/app_links.dart';
 
 
 class NoPasswordSignIn extends StatefulWidget {
@@ -18,6 +18,7 @@ class _NoPasswordSignInState extends State<NoPasswordSignIn> {
   String? _email;
   String? _userEmail;
   StreamSubscription? _sub;
+  final AppLinks _appLinks = AppLinks();
 
 
   void registerWithEmail(BuildContext context, String email) async {
@@ -67,7 +68,7 @@ class _NoPasswordSignInState extends State<NoPasswordSignIn> {
 
   Future<void> _handleInitialUri() async {
     try {
-      final Uri? initialUri = await getInitialUri();
+      final Uri? initialUri = await _appLinks.getInitialLink();
       if (initialUri != null && FirebaseAuth.instance.isSignInWithEmailLink(initialUri.toString())) {
         String email = _userEmail!; // Retrieve or prompt for the email
     signInWithEmailLink(email, initialUri.toString());
@@ -83,8 +84,8 @@ class _NoPasswordSignInState extends State<NoPasswordSignIn> {
   void initState() {
     super.initState();
     getUserEmail().then((v) {
-      _sub = uriLinkStream.listen((Uri? uri) {
-        if (uri != null && FirebaseAuth.instance.isSignInWithEmailLink(uri.toString())) {
+      _sub = _appLinks.uriLinkStream.listen((Uri uri) {
+        if (FirebaseAuth.instance.isSignInWithEmailLink(uri.toString())) {
           String email = _userEmail!; // Retrieve or prompt the user for the email
         signInWithEmailLink(email, uri.toString());
       }
