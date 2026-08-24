@@ -44,3 +44,7 @@ app.*.map.json
 
 # Android Gradle build output
 /android/build/
+
+# Local-only scratch, never for the repo
+/.claude/
+/claude_stuff/
