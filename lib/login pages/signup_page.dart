@@ -1,7 +1,6 @@
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/login%20pages/account_created.dart';
-import 'package:banking_app/login%20pages/phone_signup.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -137,7 +136,8 @@ class _SignupPageState extends State<SignupPage> {
       key: _key,
       child: Scaffold(
         body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 30.0),
+          padding: EdgeInsets.fromLTRB(
+              30, 0, 30, 24 + MediaQuery.of(context).padding.bottom),
           child: SingleChildScrollView(
             child: Column(
               children: [
@@ -450,20 +450,6 @@ class _SignupPageState extends State<SignupPage> {
                       minSize: false,
                       textOrIndicator: _isLoading
                   ),
-                ),
-                Button(
-                    buttonColor: Color(0xff1C1939),
-                    text: 'Sign in with phone',
-                    onPressed: (){
-                     Navigator.push(context, MaterialPageRoute(builder: (context){
-                       return const PhoneSignup(mode:"signUp");
-                     }));
-                    },
-                    textColor: Colors.white,
-                    width: MediaQuery.of(context).size.width,
-                    height: MediaQuery.of(context).size.width*0.14,
-                    minSize: false,
-                    textOrIndicator:false
                 ),
                 const SizedBox(height: 15,),
                 RichText(

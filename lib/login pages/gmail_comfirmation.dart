@@ -4,7 +4,6 @@ import 'package:flutter_svg/svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../elevated_button.dart';
-import '../main_page/summary.dart';
 
 class GmailConfirmation extends StatefulWidget {
   final String mode;
@@ -20,7 +19,8 @@ class _GmailConfirmationState extends State<GmailConfirmation> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 30.0),
+        padding: EdgeInsets.fromLTRB(
+              30, 0, 30, 24 + MediaQuery.of(context).padding.bottom),
         child: Column(
           children: [
             SizedBox(height: MediaQuery.of(context).size.width*0.3,),
@@ -89,9 +89,7 @@ class _GmailConfirmationState extends State<GmailConfirmation> {
                 text: 'Grant',
                 onPressed: (){
                   if(widget.mode == "login"){
-                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                      return const Summary();
-                    }));
+                    GoRouter.of(context).go('/root');
                   }else{
                     // Signup hands back to the launch gate, which runs the
                     // scan and then the batch screen.

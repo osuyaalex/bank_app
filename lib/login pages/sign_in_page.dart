@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/login%20pages/forgot_password.dart';
@@ -7,10 +8,8 @@ import 'package:banking_app/utilities/snackbar.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
-import 'package:phone_form_field/phone_form_field.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../main_page/summary.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
@@ -30,8 +29,6 @@ class _SignInPageState extends State<SignInPage> {
   bool _obscureText = true;
   final GlobalKey<FormState> _key = GlobalKey<FormState>();
   final AuthServices _network = AuthServices();
-  bool _switch = false;
-  PhoneNumber? phone;
   bool? _doNotShowGmail;
 
 
@@ -59,39 +56,54 @@ class _SignInPageState extends State<SignInPage> {
     });
   }
 
-  _fingerprintSignUp()async{
-    final prefs =await SharedPreferences.getInstance();
-    String? getEmail =  prefs.getString('email');
-    String? getPassword =  prefs.getString('password');
-    String? getPhoneNumber = prefs.getString('phoneNumber');
-    if(getEmail != null || getPassword != null || getPhoneNumber != null){
-      if(getEmail != null){
-        EasyLoading.show();
-        _network.signInUsersWithEmailAndPassword(getEmail, getPassword!)
-            .then((v){
-              if(v! == 'login Successful'){
-                EasyLoading.dismiss();
-                _network.authenticateUserWithBiometrics(
-                    "Welcome Back!", context).then((v){
-                      if(v!){
-                        Navigator.push(context, MaterialPageRoute(builder: (context){
-                          return const Summary();
-                        }));
-                      }
-                });
-              }else{
-                EasyLoading.dismiss();
-                snack(context, v);
-              }
-        });
-      }else{
-        EasyLoading.show();
-        _network.phoneSignup(phone!.international,"login",context);
+  /// Signs in with the saved credentials once biometrics confirm the user.
+  ///
+  /// Rewritten for two reasons. It used to force-unwrap the result of both the
+  /// sign-in and the biometric prompt, so a network failure or a cancelled
+  /// fingerprint crashed rather than returned the user to the form. And on
+  /// success it pushed the summary directly, which skipped the launch gate --
+  /// the route that decides between the scan, the batch screen and the app.
+  Future<void> _fingerprintSignUp() async {
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('email');
+    final password = prefs.getString('password');
 
+    if (email == null || password == null) {
+      if (mounted) {
+        snack(context,
+            'Sign in with your email and password once, and you can use '
+            'your fingerprint after that.');
       }
-    }else{
-      snack(context, 'Your biometric credentials are not available at this time. Please '
-          'log in using your email and password');
+      return;
+    }
+
+    if (!await AuthServices().biometricsAvailable()) {
+      if (mounted) {
+        snack(context, 'This phone has no fingerprint set up.');
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    // Prove who it is *before* spending a network round trip on the sign-in.
+    final verified = await _network.authenticateUserWithBiometrics(
+        'Welcome back', context);
+    if (!verified || !mounted) return;
+
+    EasyLoading.show();
+    try {
+      final result =
+          await _network.signInUsersWithEmailAndPassword(email, password);
+      EasyLoading.dismiss();
+      if (!mounted) return;
+      if (result == 'login Successful') {
+        GoRouter.of(context).go('/root');
+      } else {
+        snack(context, result ?? 'Could not sign you in. Try again.');
+      }
+    } catch (e) {
+      EasyLoading.dismiss();
+      if (mounted) snack(context, 'Could not sign you in. Try again.');
     }
   }
 
@@ -123,7 +135,8 @@ class _SignInPageState extends State<SignInPage> {
       key: _key,
       child: Scaffold(
         body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 30.0),
+          padding: EdgeInsets.fromLTRB(
+              30, 0, 30, 24 + MediaQuery.of(context).padding.bottom),
           child: SingleChildScrollView(
             child: Column(
               children: [
@@ -150,45 +163,8 @@ class _SignInPageState extends State<SignInPage> {
                 SizedBox(
                   height: MediaQuery.of(context).size.width*0.17,
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    const Text('With Email',
-                      style: TextStyle(
-                          color: Colors.grey,
-                        fontWeight: FontWeight.w600
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: Switch(
-                          trackColor: WidgetStatePropertyAll(const Color(0xff5AA5E2).withOpacity(0.5)),
-                          thumbColor: WidgetStatePropertyAll(const Color(0xff5AA5E2)),
-                          trackOutlineWidth: WidgetStatePropertyAll(0),
-                          trackOutlineColor: WidgetStatePropertyAll(Colors.transparent),
-                          value: _switch,
-                          onChanged: (v){
-                            setState(() {
-                              _switch = v;
-                              if(_switch == false){
-                                phone = null;
-                              }else{
-                                _email = null;
-                              }
-                            });
-                          }
-                      ),
-                    ),
-                    const Text('With Phone',
-                      style: TextStyle(
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w600
-                      ),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 15,),
-                _switch == false?SizedBox(
+                SizedBox(
                   height: MediaQuery.of(context).size.width*0.12,
                   child: TextFormField(
                     focusNode: _emailFocus,
@@ -233,68 +209,9 @@ class _SignInPageState extends State<SignInPage> {
                       ),
                     ),
                   ),
-                ):SizedBox(
-                  height: MediaQuery.of(context).size.width*0.12,
-                  child: PhoneFormField(
-                    key: const Key('phone-field'),
-                    controller: null,
-                    initialValue: null,
-                    shouldFormat: true,
-                    defaultCountry: IsoCode.NG,
-                    decoration:  InputDecoration(
-                      filled: true,
-                      fillColor: Colors.grey.shade200,
-                      errorStyle: const TextStyle(fontSize: 0.01),
-                      contentPadding: const EdgeInsets.only(top: 5),
-                      hintStyle: const TextStyle(
-                          fontSize: 12.5
-                      ),
-                      hintText: "Enter Phone Number",
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(7),
-                          borderSide:  const BorderSide(
-                              color: Colors.transparent
-                          )
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(7),
-                          borderSide:  BorderSide(
-                              color: Colors.grey.shade400
-                          )
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(7),
-                          borderSide:  const BorderSide(
-                              color: Colors.transparent
-                          )
-                      ),
-                      disabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(7),
-                          borderSide: BorderSide(
-                              color: Colors.grey.shade400
-                          )
-                      ),
-                    ),
-                    validator: PhoneValidator.required(),
-                    isCountryChipPersistent: true,
-                    isCountrySelectionEnabled: true,
-                    countrySelectorNavigator: const CountrySelectorNavigator.bottomSheet(),
-                    showFlagInInput: true,
-                    flagSize: 16,
-                    autofillHints: const [AutofillHints.telephoneNumber],
-                    enabled: true,
-                    autofocus: false,
-
-                    onChanged: (PhoneNumber? p)async{
-                      setState(() {
-                        phone = p;
-                      });
-                    },
-                    // ... + other textfield params
-                  ),
                 ),
                 const SizedBox(height: 5,),
-                _switch == false?SizedBox(
+                SizedBox(
                   height: MediaQuery.of(context).size.width*0.12,
                   child: TextFormField(
                     focusNode: _passwordFocus,
@@ -348,9 +265,9 @@ class _SignInPageState extends State<SignInPage> {
                       ),
                     ),
                   ),
-                ):Container(),
+                ),
                 const SizedBox(height: 15,),
-                _switch == false?Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
@@ -362,9 +279,9 @@ class _SignInPageState extends State<SignInPage> {
                         child: const Text('Forgot Password')
                     )
                   ],
-                ):Container(),
+                ),
                 const SizedBox(height: 40,),
-                _switch == false?Button(
+                Button(
                     buttonColor: const Color(0xff5AA5E2),
                     text: 'Sign in my Account',
                     onPressed: ()async{
@@ -380,9 +297,8 @@ class _SignInPageState extends State<SignInPage> {
                                 _isLoading = false;
                               });
                               if(_doNotShowGmail == true){
-                                Navigator.push(context, MaterialPageRoute(builder: (context){
-                                  return const Summary();
-                                }));
+                                // The launch gate decides where to land.
+                                GoRouter.of(context).go('/root');
                               }else{
                                 Navigator.push(context, MaterialPageRoute(builder: (context){
                                   return const GmailConfirmation(mode: 'login');
@@ -400,20 +316,6 @@ class _SignInPageState extends State<SignInPage> {
                     },
                     textColor: Colors.white,
                     width: MediaQuery.of(context).size.width,
-                    height: MediaQuery.of(context).size.width*0.14,
-                    minSize: false,
-                    textOrIndicator: _isLoading
-                ):
-                Button(
-                    buttonColor: const Color(0xff1C1939),
-                    text: 'Sign in my Account',
-                    onPressed: (){
-                      if(_key.currentState!.validate()){
-                        _network.phoneSignup(phone!.international,"login",context);
-                      }
-                    },
-                    textColor: Colors.white,
-                    width: double.infinity,
                     height: MediaQuery.of(context).size.width*0.14,
                     minSize: false,
                     textOrIndicator: _isLoading

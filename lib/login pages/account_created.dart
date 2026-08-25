@@ -12,7 +12,8 @@ class AccountCreated extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 30.0),
+        padding: EdgeInsets.fromLTRB(
+              30, 0, 30, 24 + MediaQuery.of(context).padding.bottom),
         child: Column(
           children: [
             SizedBox(height: MediaQuery.of(context).size.width*0.3,),

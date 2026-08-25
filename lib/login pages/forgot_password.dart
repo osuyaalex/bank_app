@@ -51,7 +51,8 @@ class _ForgotPasswordState extends State<ForgotPassword> {
       key: _key,
       child: Scaffold(
         body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 30.0),
+          padding: EdgeInsets.fromLTRB(
+              30, 0, 30, 24 + MediaQuery.of(context).padding.bottom),
           child: Column(
             children: [
               SizedBox(

@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth/error_codes.dart' as local_auth_error;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../login pages/otp_field.dart';
 
 
 
@@ -79,69 +78,6 @@ class AuthServices{
     return auth.currentUser;
   }
   
-  Future<void> phoneSignup(String phoneNumber,String mode, BuildContext context)async{
-    await auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber, // The user's phone number
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        // Auto-retrieve or instant verification
-        //await auth.signInWithCredential(credential);
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        // Handle error
-        snack(context, e.message!);
-        print(e.message);
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        // Save verificationId for later use
-
-        Navigator.push(context, MaterialPageRoute(builder: (context){
-          return  OTPField(verificationId: verificationId, phoneNo: phoneNumber,mode: mode,);
-        }));
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
-        // Auto-resolution timed out
-      },
-    );
-  }
-
-  Future<String?> signInWithPhoneNumber(String verificationId, String token, String mode) async {
-
-    try{
-    // Create a PhoneAuthCredential with the code
-    PhoneAuthCredential credential = PhoneAuthProvider.credential(
-      verificationId: verificationId,
-      smsCode: token,
-    );
-    // Sign in the user with the credential
-      UserCredential userCredential = await auth.signInWithCredential(credential);
-      User? user = userCredential.user;
-      if(mode == "signUp"){
-        if(user != null){
-          await firestore.collection('Users').doc(user.uid).set({
-            "firstName": null,
-            "lastName":null,
-            "email": null,
-            "image":null,
-            'createdAt': FieldValue.serverTimestamp(),
-            'accessBiometric': false,
-            "phoneNumber":user.phoneNumber,
-          });
-        }
-      }else{}
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('phoneNumber', user!.phoneNumber!);
-      return null;
-    }on FirebaseAuthException catch (e){
-      return e.message!;
-    }
-    catch(e){
-      return e.toString();
-    }
-
-  }
-
-
-
   Future<String?> forgotPassword({required String email}) async {
     try {
       await auth.sendPasswordResetEmail(email: email);
@@ -153,30 +89,56 @@ class AuthServices{
     }
   }
 
-  //Future<String?> loginInUsers(String email,)
-
-
-
-
-  Future<bool?> authenticateUserWithBiometrics(String localizedReason,  BuildContext context) async {
-    bool isAuthorized = false;
+  /// Whether this device can prompt for biometrics at all.
+  ///
+  /// Asked before offering to turn them on. Without it the setup screen
+  /// invites everyone to "Activate Now" and the ones with no sensor, or no
+  /// fingerprint enrolled, get a failure they cannot act on.
+  Future<bool> biometricsAvailable() async {
     try {
-      isAuthorized = await _localAuthentication.authenticate(
-          localizedReason: localizedReason,
-          options: const AuthenticationOptions(
-              biometricOnly: true,
-              stickyAuth: true
-          )
-
-      );
-    } on PlatformException catch (exception) {
-      if (exception.code == local_auth_error.notAvailable ||
-          exception.code == local_auth_error.passcodeNotSet ||
-          exception.code == local_auth_error.notEnrolled) {
-        snack(context, exception.message!);
-      }
+      if (!await _localAuthentication.isDeviceSupported()) return false;
+      return await _localAuthentication.canCheckBiometrics ||
+          (await _localAuthentication.getAvailableBiometrics()).isNotEmpty;
+    } catch (_) {
+      return false;
     }
-    return isAuthorized;
+  }
+
+  /// Prompts for biometrics, falling back to the device passcode.
+  ///
+  /// `biometricOnly` was true, which refuses the device PIN or pattern. On a
+  /// phone whose sensor is broken, or belonging to someone who never enrolled
+  /// a fingerprint, that is an unlock with no way through -- and since only
+  /// three error codes were reported, every other failure returned false in
+  /// silence and the button simply did nothing.
+  Future<bool> authenticateUserWithBiometrics(
+      String localizedReason, BuildContext context) async {
+    try {
+      return await _localAuthentication.authenticate(
+        localizedReason: localizedReason,
+        options: const AuthenticationOptions(
+          // Lets the device passcode stand in, which is what makes this
+          // usable on a phone with no working sensor.
+          biometricOnly: false,
+          stickyAuth: true,
+          useErrorDialogs: true,
+        ),
+      );
+    } on PlatformException catch (e) {
+      // Cancelling is a decision, not an error worth shouting about.
+      const quiet = {
+        'auth_in_progress',
+        local_auth_error.notAvailable,
+        local_auth_error.notEnrolled,
+        local_auth_error.passcodeNotSet,
+      };
+      if (context.mounted && !quiet.contains(e.code)) {
+        snack(context, e.message ?? 'Could not verify it is you. Try again.');
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
 

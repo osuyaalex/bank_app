@@ -21,113 +21,139 @@ class _TouchIDAuthorizationState extends State<TouchIDAuthorization> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   bool? _doNotShowGmail;
 
+  /// Null until checked, so the button is not offered before we know.
+  bool? _available;
+  bool _busy = false;
+
   Future<void> _userBiometrics() async {
     try {
-      await _firestore.collection('Users').doc(_auth.currentUser!.uid).update({
-        'accessBiometric': true
-      });
-
+      await _firestore.collection('Users').doc(_auth.currentUser!.uid).set(
+          {'accessBiometric': true}, SetOptions(merge: true));
     } catch (e) {
+      // ignore: avoid_print
       print('Error updating user biometric: $e');
+    }
+  }
+
+  /// Turns biometrics on, but only once the user has actually proved they
+  /// work.
+  ///
+  /// The order used to be reversed: the flag was written first and the prompt
+  /// shown after, so cancelling the prompt -- or failing it -- still left the
+  /// account marked as biometric-enabled, and the next sign-in demanded a
+  /// fingerprint the user had just declined to give.
+  Future<void> _activate() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final ok = await AuthServices()
+          .authenticateUserWithBiometrics('Confirm it is you', context);
+      if (!ok) return;
+      await _userBiometrics();
+      if (mounted) _continue();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _continue() {
+    if (_doNotShowGmail == true) {
+      // Hands back to the launch gate, which decides between the scan and the
+      // batch screen. Pushing a setup screen from here is what sent new users
+      // to the old track-items page instead.
+      GoRouter.of(context).go('/root');
+    } else {
+      Navigator.push(context, MaterialPageRoute(builder: (context) {
+        return const GmailConfirmation(mode: 'signup');
+      }));
     }
   }
 
   _getShowGmail()async{
     SharedPreferences prefs = await SharedPreferences.getInstance();
     bool? doNotShowGmail = prefs.getBool('doNotShowGmail');
+    if (!mounted) return;
     setState(() {
       _doNotShowGmail = doNotShowGmail;
     });
+  }
+
+  Future<void> _checkAvailability() async {
+    final available = await AuthServices().biometricsAvailable();
+    if (!mounted) return;
+    setState(() => _available = available);
   }
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
     _getShowGmail();
+    _checkAvailability();
   }
   @override
   Widget build(BuildContext context) {
+    final unavailable = _available == false;
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 30.0),
-        child: Column(
-          children: [
-            SizedBox(height: MediaQuery.of(context).size.width*0.3,),
-            SvgPicture.asset('assets/Finger ID Access.svg'),
-            SizedBox(height: MediaQuery.of(context).size.width*0.2,),
-            SizedBox(
-              width: MediaQuery.of(context).size.width*0.7,
-              child: const Text('Use Touch ID to authorise payments',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700
+      // SafeArea, and a real gap beneath the last button. Without them the
+      // "Skip This" button sat flush against the bottom edge, underneath the
+      // gesture bar on a phone that has one.
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(30, 0, 30, 24),
+          child: Column(
+            children: [
+              SizedBox(height: MediaQuery.of(context).size.width * 0.22),
+              Flexible(child: SvgPicture.asset('assets/Finger ID Access.svg')),
+              SizedBox(height: MediaQuery.of(context).size.width * 0.14),
+              SizedBox(
+                width: MediaQuery.of(context).size.width * 0.75,
+                child: Text(
+                  unavailable
+                      ? 'Biometric unlock is not set up on this phone'
+                      : 'Unlock the app with your fingerprint',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.w700),
                 ),
               ),
-            ),
-            SizedBox(height: 15,),
-            SizedBox(width: MediaQuery.of(context).size.width*0.7,
-              child: const Text('Activate touch ID so you Don’t need '
-                  'to confirm your PIN every time you'
-                  'want to send money',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    height: 1.6,
-                    color: Colors.black54
+              const SizedBox(height: 15),
+              SizedBox(
+                width: MediaQuery.of(context).size.width * 0.78,
+                child: Text(
+                  unavailable
+                      ? 'Add a fingerprint or screen lock in your phone '
+                          'settings and you can turn this on later.'
+                      // The old copy talked about confirming a PIN before
+                      // sending money. This app does neither.
+                      : 'Turn this on and you will not have to type your '
+                          'password every time you open the app.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(height: 1.6, color: Colors.black54),
                 ),
               ),
-            ),
-            Expanded(child: Container()),
-            Button(
-                buttonColor: const Color(0xff5AA5E2),
-                text: 'Activate Now',
-                onPressed: (){
-                  _userBiometrics().then((v){
-                    AuthServices().authenticateUserWithBiometrics(
-                        'Use Touch ID',
-                        context).then((v){
-                      if(v!){
-                        if(_doNotShowGmail == true){
-                          // Hands back to the launch gate, which decides
-                          // between the scan and the batch screen. Pushing a
-                          // setup screen from here is what sent new users to
-                          // the old track-items page instead.
-                          GoRouter.of(context).go('/root');
-                        }else{
-                          Navigator.push(context, MaterialPageRoute(builder: (context){
-                            return const GmailConfirmation(mode: 'signup');
-                          }));
-                        }
-                      }
-                    });
-                  });
-                },
-                textColor: Colors.white,
-                width: MediaQuery.of(context).size.width,
-                height: MediaQuery.of(context).size.width*0.14,
-                minSize: false,
-                textOrIndicator: false
-            ),
-            const SizedBox(height: 15),
-            Button(
-                buttonColor: Color(0xff1C1939),
-                text: 'Skip This',
-                onPressed: (){
-                  if(_doNotShowGmail == true){
-                    GoRouter.of(context).go('/root');
-                  }else{
-                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                      return const GmailConfirmation(mode: 'signup');
-                    }));
-                  }
-                },
-                textColor: Colors.white,
-                width: MediaQuery.of(context).size.width,
-                height: MediaQuery.of(context).size.width*0.14,
-                minSize: false,
-                textOrIndicator: false
-            ),
-          ],
+              Expanded(child: Container()),
+              if (!unavailable)
+                Button(
+                    buttonColor: const Color(0xff5AA5E2),
+                    text: 'Activate Now',
+                    onPressed: _busy ? null : _activate,
+                    textColor: Colors.white,
+                    width: MediaQuery.of(context).size.width,
+                    height: MediaQuery.of(context).size.width * 0.14,
+                    minSize: false,
+                    textOrIndicator: _busy),
+              if (!unavailable) const SizedBox(height: 12),
+              Button(
+                  buttonColor: const Color(0xff1C1939),
+                  text: unavailable ? 'Continue' : 'Skip This',
+                  onPressed: _busy ? null : _continue,
+                  textColor: Colors.white,
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.width * 0.14,
+                  minSize: false,
+                  textOrIndicator: false),
+            ],
+          ),
         ),
       ),
     );
