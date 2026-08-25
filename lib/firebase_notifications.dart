@@ -95,32 +95,6 @@ class FirebaseApi{
   }
 
   //daily notifs start here
-  Future<void> scheduleDailyNotification(TimeOfDay timeOfDay) async {
-    print('Current time zone: ${tz.local}');
-    const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      'daily_notification_channel_id',
-      'daily_notification_channel_name',
-      channelDescription: 'Daily notification channel',
-      importance: Importance.max,
-      priority: Priority.high,
-      showWhen: false,
-    );
-
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-    );
-
-    await localNotifications.zonedSchedule(
-      0,
-      'Daily Notification',
-      'This is your scheduled notification.',
-      _nextInstanceOfUserTime(timeOfDay), // Use the user's selected time
-      platformChannelSpecifics,
-      androidScheduleMode: AndroidScheduleMode.inexact,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
-  }
 
   tz.TZDateTime _nextInstanceOfUserTime(TimeOfDay timeOfDay) {
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);

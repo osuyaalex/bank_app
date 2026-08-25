@@ -1,3 +1,4 @@
+import 'widget/scanning_view.dart';
 import 'package:banking_app/data/pending_notifications.dart';
 import 'package:banking_app/data/spend_repository.dart';
 import 'package:go_router/go_router.dart';
@@ -36,7 +37,9 @@ class _HomePageState extends State<HomePage> {
   ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
   ValueNotifier<bool> _updateDailySpend = ValueNotifier<bool>(false);
   int _lastPage = 0;
-  bool _shouldBreak = false;
+  /// Held true until the first scan finishes, so the page renders once with
+  /// settled figures instead of drawing, then jumping when the scan lands.
+  bool _preparing = true;
 
   Future<void> _getAllCurrentMonthDocs() async {
     try {
@@ -319,39 +322,42 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     // TODO: implement initState
-    _getAllCurrentMonthDocs();
     _initializeCurrentMonth();
-    _loadNeedsSorting();
-    Future.delayed(Duration(seconds: 2),(){
-      SmsService().getSmsMessages().then((v){
-        _loadNeedsSorting();
-        // The scan rebuilds this month's totals when it finishes, so re-read
-        // rather than keep showing what was loaded before it ran.
-        _getAllCurrentMonthDocs();
-        if(v is bool && v){
-         if(mounted){
-           setState(() {
-             _shouldBreak = true;
-           });
-         }
-          // The one-time "schedule a notification" prompt is gone. It set a
-          // daily reminder whose text was placeholder boilerplate, from a time
-          // when nothing else told the user anything. Unrecognised
-          // transactions now prompt as they arrive, with the real amount and
-          // who it went to, so a fixed-time reminder saying nothing would only
-          // get in the way.
-        }else if(v == 'SMS permission denied.'){
-          setState(() {
-            _shouldBreak =true;
-          });
-          snack(context, 'Your SMS is required for the tracking process. Please enable SMS permissions in the app settings.');
-        }
-      });
-    });
+    _prepare();
     super.initState();
+  }
+
+  /// Everything that has to settle before the page is worth showing.
+  ///
+  /// The scan rewrites this month's totals, so drawing first and scanning
+  /// afterwards meant the figures changed under the user a second or two in.
+  /// The two-second delay that used to sit in front of it is gone -- it was
+  /// pure waiting.
+  Future<void> _prepare() async {
+    String? scanResult;
+    try {
+      scanResult = await SmsService().getSmsMessages();
+    } catch (e) {
+      print('SMS scan failed: $e');
+    }
+
+    await _getAllCurrentMonthDocs();
+    await _loadNeedsSorting();
+
+    if (!mounted) return;
+    setState(() {
+      _preparing = false;
+    });
+
+    if (scanResult == 'SMS permission denied.') {
+      snack(context,
+          'Your SMS is required for the tracking process. Please enable SMS permissions in the app settings.');
+    }
   }
   @override
   Widget build(BuildContext context) {
+    if (_preparing) return const ScanningView();
+
     _sortMonthYear(_currentMonthDocs);
     if(_currentMonthDocs.isNotEmpty){
       setState(() {
@@ -510,18 +516,6 @@ class _HomePageState extends State<HomePage> {
                     );
                   }, icon: const Icon(Icons.exit_to_app, color: Colors.white,)
               )
-          ),
-          Positioned(
-            bottom: MediaQuery.of(context).size.height*0.7,
-              left: 30,
-              child: _shouldBreak == false?
-                  Text('Calculating Daily Spend...',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    fontSize: 11
-                  ),
-                  ):Container()
           ),
           ValueListenableBuilder(
             valueListenable: _updateDailySpend,
