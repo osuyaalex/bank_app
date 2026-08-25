@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:banking_app/parsing/bank_alert.dart';
+import 'package:banking_app/parsing/merchant_dictionary.dart';
 
 /// Real Zenith alert bodies (account digits altered).
 const _transfer = '''
@@ -35,6 +36,7 @@ CR Amt:5,000.00
 Bal:5,442.92''';
 
 void main() {
+  _dictionaryAndNormalisation();
   group('classifyAlert', () {
     test('outgoing transfer is a debit', () {
       expect(classifyAlert(_transfer), AlertKind.debit);
@@ -229,6 +231,53 @@ void main() {
         expect(normaliseCounterparty('OMOLOLA CHRISTIANAH'), 'OMOLOLA CHRISTIANAH');
         expect(normaliseCounterparty('Chowdeck'), 'CHOWDECK');
       });
+    });
+  });
+}
+
+void _dictionaryAndNormalisation() {
+  group('terminal references', () {
+    test('a merchant with a trailing terminal id keys to the merchant', () {
+      // Chowdeck arrived under 54 different keys because the bank appends a
+      // reference per purchase, so a tag never matched the next transaction.
+      expect(normaliseCounterparty('CHOWDE T5904386'), 'CHOWDE');
+      expect(normaliseCounterparty('CHOWDE T5869997'), 'CHOWDE');
+    });
+
+    test('digits inside a real name are kept', () {
+      expect(normaliseCounterparty('9MOBILE NIGERIA'), '9MOBILE NIGERIA');
+    });
+
+    test('a purely numeric merchant stays distinct rather than vanishing', () {
+      expect(normaliseCounterparty('18791357748'), '18791357748');
+    });
+  });
+
+  group('merchant dictionary', () {
+    test('a known merchant maps to a category the user tracks', () {
+      expect(suggestCategoryName('NETFLIXCOM', ['Subscriptions', 'food']),
+          'Subscriptions');
+      expect(suggestCategoryName('PSK*CHOWDECK', ['food', 'Books']), 'food');
+    });
+
+    test('nothing is suggested for a category the user does not track', () {
+      // Guessing one they do not have would file money out of sight.
+      expect(suggestCategoryName('NETFLIXCOM', ['food', 'Transport']), isNull);
+    });
+
+    test('an unknown merchant suggests nothing', () {
+      expect(suggestCategoryName('ABUBAKAR ALIYU', ['food']), isNull);
+      expect(suggestCategoryName('18791357748', ['food']), isNull);
+    });
+
+    test('the longest matching pattern wins', () {
+      expect(conceptsFor('JUMIA FOOD LEKKI').first, 'food');
+      expect(conceptsFor('JUMIA ONLINE').first, 'shopping');
+    });
+
+    test('a loosely named category still matches', () {
+      expect(suggestCategoryName('GOOGLE SPOTIFY', ['Food & Drinks', 'My Subscriptions']),
+          'My Subscriptions');
     });
   });
 }

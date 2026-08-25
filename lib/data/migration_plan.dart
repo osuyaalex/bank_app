@@ -99,6 +99,9 @@ Map<String, CounterpartyEntry> seedCounterparties(
 
     out[key] = CounterpartyEntry(
       key: key,
+      isMerchant: (existing?.isMerchant ?? false) ||
+          a.channel == TxnChannel.pos ||
+          a.channel == TxnChannel.web,
       disposition: existing?.disposition ?? proposed,
       txCount: (existing?.txCount ?? 0) + 1,
       lastSeen: (existing?.lastSeen == null ||
@@ -139,6 +142,7 @@ List<CounterpartyEntry> batchTagCandidates(
 Map<String, CounterpartyEntry> canonicaliseKeys(
   Map<String, CounterpartyEntry> map, {
   int minPrefix = 10,
+  int merchantMinPrefix = 6,
 }) {
   final keys = map.keys.toList()
     ..sort((a, b) => b.length.compareTo(a.length)); // longest first
@@ -155,7 +159,13 @@ Map<String, CounterpartyEntry> canonicaliseKeys(
 
     for (final other in keys) {
       if (other == k || claimed.containsKey(other)) continue;
-      if (other.length < minPrefix) continue;
+      // Merchant stems are safe to merge on a shorter prefix: `CHOWDE` is
+      // only ever `CHOWDECK`, whereas `MOHAMMED` could be any number of
+      // different people.
+      final floor = (entry.isMerchant && map[other]!.isMerchant)
+          ? merchantMinPrefix
+          : minPrefix;
+      if (other.length < floor) continue;
       if (!k.startsWith(other)) continue;
       aliases.add(other);
       claimed[other] = k;
@@ -170,6 +180,8 @@ Map<String, CounterpartyEntry> canonicaliseKeys(
       txCount: count,
       aliases: aliases,
       disposition: disposition,
+      isMerchant: entry.isMerchant ||
+          aliases.any((a) => map[a]?.isMerchant ?? false),
     );
   }
   return canonical;
@@ -197,6 +209,7 @@ TransactionRecord recordFor(
   BankAlert alert,
   Map<String, CounterpartyEntry> map, {
   LabelSource source = LabelSource.migration,
+  String? suggestedCategoryId,
 }) {
   final entry = resolveKey(map, alert.counterpartyKey);
 
@@ -214,6 +227,14 @@ TransactionRecord recordFor(
   }
   if (alert.kind == AlertKind.debit && (entry?.autoAssigns ?? false)) {
     return _record(smsId, alert, TxnStatus.labeled, entry!.categoryId, source, key);
+  }
+  // Nothing learned about this counterparty, but the merchant is one anybody
+  // would recognise and the user tracks a category for it.
+  if (alert.kind == AlertKind.debit &&
+      entry == null &&
+      suggestedCategoryId != null) {
+    return _record(smsId, alert, TxnStatus.labeled, suggestedCategoryId,
+        LabelSource.dictionary, key);
   }
   // Credits are stored so the balance chain stays continuous, but they are
   // never pending: the user is not asked to categorise money arriving.

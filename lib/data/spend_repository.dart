@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 import '../parsing/bank_alert.dart';
+import '../parsing/merchant_dictionary.dart';
 import 'migration_plan.dart';
 import 'models.dart';
 
@@ -665,7 +666,13 @@ class SpendRepository {
     required BankAlert alert,
     required Map<String, CounterpartyEntry> map,
   }) async {
-    final record = recordFor(smsId, alert, map, source: LabelSource.map);
+    final record = recordFor(
+      smsId,
+      alert,
+      map,
+      source: LabelSource.map,
+      suggestedCategoryId: await _dictionarySuggestion(alert),
+    );
     final month = monthRef(monthKeyOf(alert.occurredAt ?? DateTime.now()));
     final txRef = month.collection('transactions').doc(smsId);
     final amount = record.amount ?? 0;
@@ -696,6 +703,19 @@ class SpendRepository {
     });
 
     return written ? record : null;
+  }
+
+  /// A category id for a recognised merchant, or null.
+  ///
+  /// Restricted to categories the user actually tracks this month: guessing a
+  /// category they do not have would file the money somewhere with nothing on
+  /// screen to show it.
+  Future<String?> _dictionarySuggestion(BankAlert alert) async {
+    final key = alert.counterpartyKey;
+    if (key == null || alert.kind != AlertKind.debit) return null;
+
+    final name = suggestCategoryName(key, await trackedCategoryNames());
+    return name == null ? null : slugifyCategory(name);
   }
 
   /// Applies a decision about a counterparty and settles the transactions

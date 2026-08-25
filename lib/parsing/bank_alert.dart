@@ -185,12 +185,31 @@ String _stripRouting(String value) {
   return out.isEmpty ? value.trim() : out;
 }
 
+/// A terminal or reference number welded onto a merchant name.
+///
+/// Card narrations carry one per purchase -- `CHOWDE T5904386`,
+/// `CHOWDE T5869997` -- so the same merchant arrives under a different name
+/// every time. Left in, a tag never matches the next transaction and the user
+/// is asked about the same place indefinitely. Only a *trailing* token is
+/// stripped, so a merchant whose real name contains digits keeps it.
+final _terminalRef = RegExp(
+    r'(\s+T?\d{4,}[A-Z0-9]*|\s+[A-Z]{0,3}\d{4,}[A-Z0-9]*)+$',
+    caseSensitive: false);
+
 /// Normalises a counterparty into a stable map key.
 String? normaliseCounterparty(String? raw) {
   if (raw == null) return null;
   var s = _stripRouting(raw.replaceAll(_processorPrefix, ''));
   s = s.replaceAll(RegExp(r'[^A-Za-z0-9&.\- ]'), ' ');
   s = s.replaceAll(RegExp(r'\s+'), ' ').trim().toUpperCase();
+
+  // Strip the varying reference, but never reduce a key to nothing: a purely
+  // numeric merchant is unidentifiable, yet still has to stay distinct.
+  final withoutRef = s.replaceAll(_terminalRef, '').trim();
+  if (withoutRef.isNotEmpty && RegExp(r'[A-Z]{3}').hasMatch(withoutRef)) {
+    s = withoutRef;
+  }
+
   return s.isEmpty ? null : s;
 }
 

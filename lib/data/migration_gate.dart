@@ -20,6 +20,29 @@ class MigrationGate {
   ///
   /// [SchemaMigration] is itself idempotent, so a second run would be
   /// harmless -- this guard exists to avoid re-reading the whole SMS inbox.
+  /// Where to send the user on launch, decided before anything is drawn.
+  ///
+  /// One document read covers both questions. Deciding this after the summary
+  /// has rendered -- which is what the summary's post-frame gate did -- means
+  /// the user watches it flash past on the way somewhere else.
+  static Future<String> initialRoute(String uid) async {
+    try {
+      final snap =
+          await FirebaseFirestore.instance.collection('Users').doc(uid).get();
+      final data = snap.data();
+
+      final migration = SchemaMigration(FirebaseFirestore.instance, uid);
+      if (await migration.needsMigration()) return '/preparing';
+      // Data present and current, but the flag says nothing about whether the
+      // batch screen was ever dealt with.
+      if (data?['batchTagSeen'] != true) return '/batchTag';
+      return '/deeplink/summary';
+    } catch (_) {
+      // Never strand the user on a blank screen because a read failed.
+      return '/deeplink/summary';
+    }
+  }
+
   /// One-off repairs plus a totals refresh.
   ///
   /// Safe to call on every launch and from either entry point: the repairs are

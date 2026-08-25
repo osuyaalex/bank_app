@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../parsing/bank_alert.dart';
+import '../parsing/merchant_dictionary.dart';
 import 'migration_plan.dart';
 import 'models.dart';
 
@@ -39,19 +40,22 @@ class SchemaMigration {
   ///  * 4 -> 5: version 4 persisted every counterparty it saw, including the
   ///    two thirds seen only once, and predates the untracked-category
   ///    prompt.
-  ///  * 6 -> 7: transactions recorded the raw truncated counterparty key
-  ///    rather than the canonical one, so tagging could never find them and
-  ///    they stayed pending forever. Records written before this need
-  ///    rebuilding.
   ///  * 5 -> 6: bank routing language was leaking into counterparty keys
   ///    (`ALAT TRANSFER FROM <you> TO <them>`, `POS Trf on <date> ...`),
-  ///    which split single people across several machine-looking entries and
-  ///    kept them off the batch screen. Keys built before this are wrong and
-  ///    have to be rebuilt.
+  ///    splitting single people across several machine-looking entries.
+  ///  * 6 -> 7: transactions recorded the raw truncated counterparty key
+  ///    rather than the canonical one, so tagging could never find them and
+  ///    they stayed pending forever.
+  ///  * 7 -> 8: merchant keys carried the terminal reference the bank appends
+  ///    per purchase, so one merchant arrived under dozens of keys and a tag
+  ///    never matched the next transaction.
+  ///  * 8 -> 9: no schema change. Deleting the collections for a clean test
+  ///    leaves this field behind, and without a bump the migration would
+  ///    consider itself done and skip rebuilding them.
   ///
   /// Re-running is safe: every step is idempotent, `track_items` is never
   /// written, and decisions the user has already made are preserved.
-  static const currentVersion = 7;
+  static const currentVersion = 9;
 
   /// How far back to look for legacy month documents.
   ///
@@ -106,7 +110,20 @@ class SchemaMigration {
   /// screen in front of the user before committing to a half-minute of work.
   Future<bool> needsMigration() async {
     final snap = await _user.get();
-    return ((snap.data()?['schemaVersion'] ?? 0) as int) < currentVersion;
+    if (((snap.data()?['schemaVersion'] ?? 0) as int) < currentVersion) {
+      return true;
+    }
+
+    // The version says migrated, but the data it describes may be gone --
+    // collections deleted for a clean test, or an account restored from
+    // nothing. Without this the app trusts the flag, skips the migration and
+    // shows empty screens.
+    //
+    // Probed on counterparties rather than months: `rebuildCurrentMonthTotals`
+    // writes a month document on every run, so that collection is recreated by
+    // the app itself moments after being deleted and can never look missing.
+    final seeded = await _user.collection('counterparties').limit(1).get();
+    return seeded.docs.isEmpty;
   }
 
   /// Runs any steps that have not completed yet.
@@ -126,12 +143,36 @@ class SchemaMigration {
     DateTime? now,
   }) async {
     final today = now ?? DateTime.now();
-    final snap = await _user.get();
-    if ((snap.data()?['schemaVersion'] ?? 0) >= currentVersion) {
+
+    // Deliberately the same question [needsMigration] answers. Checking the
+    // version here instead meant the two disagreed whenever the data had been
+    // deleted: the router sent the user to the progress screen because the
+    // data was gone, and this returned "already migrated" because the flag
+    // said so -- so nothing was rebuilt, and the screen it returned to asked
+    // again, round and round.
+    if (!await needsMigration()) {
       return const MigrationReport(alreadyMigrated: true);
     }
 
-    final done = await _done();
+    var done = await _done();
+
+    // A step marked complete whose output is missing has to run again.
+    // Otherwise a write that was recorded but never landed -- Firestore
+    // briefly unavailable, or the collection deleted afterwards -- leaves the
+    // step permanently ticked off and the data permanently absent, and every
+    // later run skips the very work that would fix it.
+    final seeded = await _user.collection('counterparties').limit(1).get();
+    if (seeded.docs.isEmpty) {
+      // Every step, not a chosen few. An empty counterparties collection means
+      // the migration's output is gone -- deleted, or written while Firestore
+      // was unavailable -- so no step marker can be trusted. Un-ticking only
+      // some of them left categories permanently unwritten, which emptied the
+      // category picker.
+      done = <String>{};
+      // ignore: avoid_print
+      print('MIGRATION: output missing, re-running every step');
+    }
+
     final legacy = await _readLegacy(today);
 
     if (!done.contains('categories')) {
@@ -157,7 +198,13 @@ class SchemaMigration {
         seedCounterparties(alerts.values, ownerName: ownerName));
 
     if (!done.contains('counterparties')) {
-      await _writeCounterparties(worthPersisting(map));
+      final persist = worthPersisting(map);
+      // ignore: avoid_print
+      print('MIGRATION: seeded=${map.length} persisting=${persist.length}');
+      await _writeCounterparties(persist);
+      final check = await _user.collection('counterparties').limit(5).get();
+      // ignore: avoid_print
+      print('MIGRATION: counterparties readback=${check.docs.length}');
       await _markDone('counterparties');
     }
     if (!done.contains('backfill')) {
@@ -273,14 +320,48 @@ class SchemaMigration {
   ) async {
     final key = monthKeyOf(now);
     final month = _user.collection('months').doc(key);
+
+    // Recognised merchants file themselves here too. Without this the
+    // dictionary would only ever apply to transactions arriving after the
+    // migration, leaving everything already backfilled sitting in the sorting
+    // list even when the merchant is one anybody would recognise.
+    final tracked = await _trackedCategoryNames();
     final entries = alerts.entries.where((e) =>
         e.value.occurredAt != null && monthKeyOf(e.value.occurredAt!) == key);
 
     await _commitChunked(entries, (batch, e) {
-      final record = recordFor(e.key, e.value, map);
+      final suggestion = e.value.counterpartyKey == null
+          ? null
+          : suggestCategoryName(e.value.counterpartyKey!, tracked);
+      final record = recordFor(
+        e.key,
+        e.value,
+        map,
+        suggestedCategoryId:
+            suggestion == null ? null : slugifyCategory(suggestion),
+      );
       batch.set(month.collection('transactions').doc(e.key), record.toMap(),
           SetOptions(merge: true));
     });
+  }
+
+  /// Category names tracked in the current month, read from the legacy
+  /// document since that is where the category screens still write.
+  Future<Set<String>> _trackedCategoryNames() async {
+    final legacyId =
+        '${_legacyMonthNames[DateTime.now().month - 1]}${DateTime.now().year}';
+    final doc = await db
+        .collection('track_items')
+        .doc(legacyId)
+        .collection('monthUsers')
+        .doc(uid)
+        .get();
+    final items = doc.data()?['listItems'];
+    if (items is! List) return {};
+    return {
+      for (final item in items)
+        if (item is Map && item['name'] != null) item['name'].toString(),
+    };
   }
 
   /// Firestore caps a batch at 500 writes.

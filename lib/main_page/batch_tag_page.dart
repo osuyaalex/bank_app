@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 
 import '../data/migration_plan.dart';
@@ -48,6 +49,18 @@ class _BatchTagPageState extends State<BatchTagPage> {
   }
 
   Future<void> _load() async {
+    try {
+      await _loadInner();
+    } catch (e, st) {
+      // Previously unguarded: a throw here left the screen on its spinner with
+      // nothing logged, which is indistinguishable from "no data".
+      print('BATCH: load failed: $e');
+      print(st.toString().split('\n').take(3).join(' | '));
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadInner() async {
     final categories = await _repo.loadCategories();
     final tracked = await _repo.trackedCategoryNames();
     final currency = await _repo.currencySymbol();
@@ -71,6 +84,9 @@ class _BatchTagPageState extends State<BatchTagPage> {
       _rows = [...proposed, ...batchTagCandidates(map, limit: widget.limit)];
       _loading = false;
     });
+    print('BATCH: counterparties=${map.length} categories=${categories.length} '
+        'tracked=${tracked.length} proposed=${proposed.length} '
+        'rows=${_rows.length}');
   }
 
   Future<void> _save() async {
@@ -79,7 +95,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
     final settled = _choices.length;
     await _repo.markBatchTagSeen();
     if (!mounted) return;
-    Navigator.of(context).maybePop();
+    _leave();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(settled == 0
           ? 'Saved. New transactions will sort themselves out.'
@@ -253,6 +269,19 @@ class _BatchTagPageState extends State<BatchTagPage> {
     );
   }
 
+  /// Leaves the screen.
+  ///
+  /// Reached two ways: replacing the progress screen after a migration, where
+  /// there is nothing beneath to return to, or pushed from the summary's
+  /// banner, where popping is right.
+  void _leave() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/deeplink/summary');
+    }
+  }
+
   Future<void> _pick(CounterpartyEntry e) async {
     final chosen = await showCategoryPicker(
       context,
@@ -359,7 +388,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
                   ? null
                   : () async {
                       await _repo.markBatchTagSeen();
-                      if (context.mounted) Navigator.of(context).maybePop();
+                      if (context.mounted) _leave();
                     },
               style: TextButton.styleFrom(
                 foregroundColor: Colors.grey.shade600,

@@ -68,6 +68,7 @@ class CounterpartyEntry {
     this.txCount = 0,
     this.lastSeen,
     this.aliases = const [],
+    this.isMerchant = false,
   });
 
   final String key;
@@ -88,6 +89,12 @@ class CounterpartyEntry {
   /// much of the narration survived, and all of them must resolve here.
   final List<String> aliases;
 
+  /// True when this came from a card or online purchase rather than a
+  /// transfer. Merchant names truncate to short stems (`CHOWDE` for
+  /// `CHOWDECK`) that are safe to merge; people's names do not -- `MOHAMMED`
+  /// is a prefix of several different people.
+  final bool isMerchant;
+
   static const overrideLimit = 3;
 
   bool get autoAssigns =>
@@ -102,6 +109,7 @@ class CounterpartyEntry {
     int? txCount,
     DateTime? lastSeen,
     List<String>? aliases,
+    bool? isMerchant,
   }) =>
       CounterpartyEntry(
         key: key,
@@ -111,6 +119,7 @@ class CounterpartyEntry {
         txCount: txCount ?? this.txCount,
         lastSeen: lastSeen ?? this.lastSeen,
         aliases: aliases ?? this.aliases,
+        isMerchant: isMerchant ?? this.isMerchant,
       );
 
   Map<String, dynamic> toMap() => {
@@ -121,6 +130,7 @@ class CounterpartyEntry {
         'txCount': txCount,
         'lastSeen': lastSeen?.toIso8601String(),
         'aliases': aliases,
+        'isMerchant': isMerchant,
       };
 }
 
