@@ -1,4 +1,5 @@
 import '../parsing/bank_alert.dart';
+import '../parsing/merchant_dictionary.dart';
 import 'models.dart';
 
 /// Pure transformations that compute what the migration will write.
@@ -118,12 +119,20 @@ Map<String, CounterpartyEntry> seedCounterparties(
 List<CounterpartyEntry> batchTagCandidates(
   Map<String, CounterpartyEntry> map, {
   int limit = 20,
+  Iterable<String> trackedCategories = const [],
 }) {
+  final tracked = trackedCategories.toList();
   final list = map.values
       // `tracked` is already answered; `notSpending` is proposed separately as
       // a confirmation, not as a category choice.
       .where((e) => e.disposition == Disposition.ask)
       .where((e) => !isInstitutionOnlyKey(e.key))
+      // Merchants the dictionary already files are not worth asking about.
+      // Putting Netflix in front of the user when the app knows perfectly well
+      // what Netflix is makes the dictionary pointless -- it would save the
+      // app work rather than the person using it.
+      .where((e) =>
+          tracked.isEmpty || suggestCategoryName(e.key, tracked) == null)
       .toList()
     ..sort((a, b) => b.txCount.compareTo(a.txCount));
   return list.take(limit).toList();
@@ -228,10 +237,16 @@ TransactionRecord recordFor(
   if (alert.kind == AlertKind.debit && (entry?.autoAssigns ?? false)) {
     return _record(smsId, alert, TxnStatus.labeled, entry!.categoryId, source, key);
   }
-  // Nothing learned about this counterparty, but the merchant is one anybody
+  // Nothing decided about this counterparty, but the merchant is one anybody
   // would recognise and the user tracks a category for it.
+  //
+  // Keyed on the absence of an *answer*, not of an entry. Seeding gives every
+  // counterparty an entry at [Disposition.ask], and the backfill runs after
+  // it, so requiring `entry == null` meant this never fired during a
+  // migration -- the dictionary only ever worked on counterparties the app
+  // had never seen, which is nearly none of them.
   if (alert.kind == AlertKind.debit &&
-      entry == null &&
+      (entry == null || entry.disposition == Disposition.ask) &&
       suggestedCategoryId != null) {
     return _record(smsId, alert, TxnStatus.labeled, suggestedCategoryId,
         LabelSource.dictionary, key);

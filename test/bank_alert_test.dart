@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:banking_app/parsing/bank_alert.dart';
+import 'package:banking_app/data/migration_plan.dart';
+import 'package:banking_app/data/models.dart';
 import 'package:banking_app/parsing/merchant_dictionary.dart';
 
 /// Real Zenith alert bodies (account digits altered).
@@ -36,6 +38,7 @@ CR Amt:5,000.00
 Bal:5,442.92''';
 
 void main() {
+  _batchExcludesKnownMerchants();
   _dictionaryAndNormalisation();
   group('classifyAlert', () {
     test('outgoing transfer is a debit', () {
@@ -265,6 +268,24 @@ void _dictionaryAndNormalisation() {
       expect(suggestCategoryName('NETFLIXCOM', ['food', 'Transport']), isNull);
     });
 
+    test('a truncated merchant name still matches', () {
+      // Card narrations are cut to a fixed width, so CHOWDECK arrives as
+      // CHOWDE -- shorter than the pattern, which `contains` cannot match.
+      expect(suggestCategoryName('CHOWDE', ['food']), 'food');
+      expect(suggestCategoryName('NETFLI', ['Subscriptions']), 'Subscriptions');
+    });
+
+    test('a concept inside another word does not claim it', () {
+      // "car" is a substring of "healthcare"; a fuel station is not a medical
+      // expense.
+      expect(suggestCategoryName('PETROCAM', ['Healthcare', 'food']), isNull);
+      expect(suggestCategoryName('PETROCAM', ['Transport']), 'Transport');
+    });
+
+    test('a stem too short to be sure claims nothing', () {
+      expect(suggestCategoryName('CHO', ['food']), isNull);
+    });
+
     test('an unknown merchant suggests nothing', () {
       expect(suggestCategoryName('ABUBAKAR ALIYU', ['food']), isNull);
       expect(suggestCategoryName('18791357748', ['food']), isNull);
@@ -279,5 +300,74 @@ void _dictionaryAndNormalisation() {
       expect(suggestCategoryName('GOOGLE SPOTIFY', ['Food & Drinks', 'My Subscriptions']),
           'My Subscriptions');
     });
+  });
+}
+
+void _batchExcludesKnownMerchants() {
+  test('a merchant the dictionary handles is not put in front of the user', () {
+    // Asking about Netflix when the app already knows what Netflix is makes
+    // the dictionary pointless: it would save the app work, not the person.
+    final map = canonicaliseKeys(seedCounterparties([
+      BankAlert(
+          bank: 'WEMA',
+          kind: AlertKind.debit,
+          channel: TxnChannel.web,
+          narration: 'NETFLIXCOM',
+          amount: 4400,
+          counterpartyKey: 'NETFLIXCOM',
+          occurredAt: DateTime(2026, 8, 1)),
+      BankAlert(
+          bank: 'WEMA',
+          kind: AlertKind.debit,
+          channel: TxnChannel.web,
+          narration: 'NETFLIXCOM',
+          amount: 4400,
+          counterpartyKey: 'NETFLIXCOM',
+          occurredAt: DateTime(2026, 8, 2)),
+      BankAlert(
+          bank: 'WEMA',
+          kind: AlertKind.debit,
+          channel: TxnChannel.transfer,
+          narration: 'ABUBAKAR ALIYU',
+          amount: 3000,
+          counterpartyKey: 'ABUBAKAR ALIYU',
+          occurredAt: DateTime(2026, 8, 3)),
+      BankAlert(
+          bank: 'WEMA',
+          kind: AlertKind.debit,
+          channel: TxnChannel.transfer,
+          narration: 'ABUBAKAR ALIYU',
+          amount: 3000,
+          counterpartyKey: 'ABUBAKAR ALIYU',
+          occurredAt: DateTime(2026, 8, 4)),
+    ]));
+
+    final asked = batchTagCandidates(map, trackedCategories: ['Subscriptions'])
+        .map((e) => e.key);
+    expect(asked, contains('ABUBAKAR ALIYU'));
+    expect(asked, isNot(contains('NETFLIXCOM')));
+  });
+
+  test('but it is asked about when that category is not tracked', () {
+    final map = canonicaliseKeys(seedCounterparties([
+      BankAlert(
+          bank: 'WEMA',
+          kind: AlertKind.debit,
+          channel: TxnChannel.web,
+          narration: 'NETFLIXCOM',
+          amount: 4400,
+          counterpartyKey: 'NETFLIXCOM',
+          occurredAt: DateTime(2026, 8, 1)),
+      BankAlert(
+          bank: 'WEMA',
+          kind: AlertKind.debit,
+          channel: TxnChannel.web,
+          narration: 'NETFLIXCOM',
+          amount: 4400,
+          counterpartyKey: 'NETFLIXCOM',
+          occurredAt: DateTime(2026, 8, 2)),
+    ]));
+    expect(batchTagCandidates(map, trackedCategories: ['food']).map((e) => e.key),
+        contains('NETFLIXCOM'));
   });
 }

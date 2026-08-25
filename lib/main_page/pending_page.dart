@@ -32,6 +32,11 @@ class _PendingPageState extends State<PendingPage> {
   String _currency = '';
   bool _loading = true;
 
+  /// Transactions whose answer is still being written. Filing one settles it
+  /// and rebuilds the month, which takes long enough that silence reads as
+  /// the tap having missed.
+  final Set<String> _savingIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +71,8 @@ class _PendingPageState extends State<PendingPage> {
     );
     if (choice == null) return;
 
+    if (mounted) setState(() => _savingIds.add(txn.smsId));
+    try {
     if (choice.notSpending) {
       await _repo.tagCounterparty(
         key: txn.counterpartyKey ?? '',
@@ -91,6 +98,12 @@ class _PendingPageState extends State<PendingPage> {
         categoryName: category.name,
         counterpartyKey: txn.counterpartyKey,
       );
+    }
+    } catch (e) {
+      // ignore: avoid_print
+      print('PENDING: filing failed for ${txn.smsId}: $e');
+    } finally {
+      if (mounted) setState(() => _savingIds.remove(txn.smsId));
     }
     await _load();
   }
@@ -229,6 +242,7 @@ class _PendingPageState extends State<PendingPage> {
       );
 
   Widget _card(TransactionRecord txn) {
+    final saving = _savingIds.contains(txn.smsId);
     final amount = NumberFormat('#,##0.00').format(txn.amount ?? 0);
     final when = txn.occurredAt == null
         ? ''
@@ -254,15 +268,24 @@ class _PendingPageState extends State<PendingPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.orange.withValues(alpha: 0.12),
+                  color: saving
+                      ? brandBlue.withValues(alpha: 0.12)
+                      : Colors.orange.withValues(alpha: 0.12),
                 ),
-                child: const Icon(Icons.help_outline,
-                    size: 20, color: Colors.orange),
+                child: saving
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: brandBlue),
+                      )
+                    : const Icon(Icons.help_outline,
+                        size: 20, color: Colors.orange),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -297,12 +320,12 @@ class _PendingPageState extends State<PendingPage> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: brandBlue.withValues(alpha: 0.12),
+                  color: brandBlue.withValues(alpha: saving ? 0.06 : 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text('Sort',
+                child: Text(saving ? 'Saving' : 'Sort',
                     style: TextStyle(
-                        color: brandBlue,
+                        color: brandBlue.withValues(alpha: saving ? 0.6 : 1),
                         fontWeight: FontWeight.w600,
                         fontSize: 12.5)),
               ),
