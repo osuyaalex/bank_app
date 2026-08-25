@@ -64,7 +64,6 @@ class _SignInPageState extends State<SignInPage> {
     String? getEmail =  prefs.getString('email');
     String? getPassword =  prefs.getString('password');
     String? getPhoneNumber = prefs.getString('phoneNumber');
-    print(getEmail);
     if(getEmail != null || getPassword != null || getPhoneNumber != null){
       if(getEmail != null){
         EasyLoading.show();

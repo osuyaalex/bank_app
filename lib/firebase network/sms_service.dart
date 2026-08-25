@@ -74,7 +74,6 @@ class SmsService{
                 smsId: message.id!.toString(),
                 alert: parsed,
               );
-              print('Debit alert from ${message.sender} at $dateTime');
               // Nothing else tells the user an unrecognised transaction is
               // waiting, so ask while they still remember what it was.
               if (mirrored != null && mirrored.status == TxnStatus.pending) {

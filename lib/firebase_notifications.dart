@@ -1,18 +1,18 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'data/pending_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:timezone/timezone.dart' as tz;
 
 
 Future<void> handleBackgroundMessage(RemoteMessage message)async{
-  print('title: ${message.notification?.title}');
-  print('body: ${message.notification?.body}');
-  print('payload: ${message.data}');
+  // Push payloads carry transaction detail. Kept out of release logs.
+  if (kDebugMode) {
+    print('push: ${message.notification?.title} / ${message.data}');
+  }
 }
 
 class FirebaseApi{
@@ -96,22 +96,6 @@ class FirebaseApi{
 
   //daily notifs start here
 
-  tz.TZDateTime _nextInstanceOfUserTime(TimeOfDay timeOfDay) {
-    final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime scheduledDate = tz.TZDateTime(
-        tz.local,
-        now.year,
-        now.month,
-        now.day,
-        timeOfDay.hour,
-        timeOfDay.minute
-    );
-
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1)); // Schedule for the next day if it's in the past
-    }
-    return scheduledDate;
-  }
   // ends here
 
   Future<void> showImmediateNotification() async {
@@ -143,12 +127,14 @@ class FirebaseApi{
     }
     if (fcmToken != null) {
       prefs.setString('fcmToken', fcmToken);
-      print('FCM Token: $fcmToken');
+      // The token is a push credential for this device; never log it in a
+      // build other people are running.
+      if (kDebugMode) print('FCM Token: $fcmToken');
     }
     firebaseMessaging.onTokenRefresh.listen((newToken) {
       // TODO: If necessary, send new token to application server.
       prefs.setString('fcmToken', newToken);
-      print('FCM Token Refreshed: $newToken');
+      if (kDebugMode) print('FCM Token Refreshed: $newToken');
     }, onError: (error) {
       print('FCM Token Refresh Error: $error');
     });
