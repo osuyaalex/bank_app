@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../data/migration.dart';
 import '../data/migration_gate.dart';
 import '../data/sms_inbox.dart';
+import '../firebase network/sms_service.dart';
 import '../data/spend_repository.dart';
 import 'widget/category_picker.dart';
 
@@ -80,41 +81,54 @@ class _PreparingPageState extends State<PreparingPage>
       await _ensureSmsAccess();
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final report =
-            await SchemaMigration(FirebaseFirestore.instance, user.uid).run(
-          inbox: await SmsInbox.readForMigration(),
-          ownerName: user.displayName,
-        );
-        candidates = report.batchTagCandidates.length;
-        // One line describing the outcome. Enough to explain a support
-        // report, without narrating every step.
-        // ignore: avoid_print
-        print('MIGRATION: months=${report.legacyMonths} '
-            'counterparties=${report.counterparties} candidates=$candidates'
-            '${report.awaitingInbox ? " (awaiting inbox)" : ""}');
+        final repo = SpendRepository(uid: user.uid);
+        final migration =
+            SchemaMigration(FirebaseFirestore.instance, user.uid);
+
+        if (await migration.needsMigration()) {
+          final report = await migration.run(
+            inbox: await SmsInbox.readForMigration(),
+            ownerName: user.displayName,
+          );
+          // One line describing the outcome. Enough to explain a support
+          // report, without narrating every step.
+          // ignore: avoid_print
+          print('MIGRATION: months=${report.legacyMonths} '
+              'counterparties=${report.counterparties}'
+              '${report.awaitingInbox ? " (awaiting inbox)" : ""}');
+        } else {
+          // Already migrated, so this screen is here to refresh rather than
+          // rebuild: pick up the alerts that have arrived since the last
+          // scan, which is what makes new counterparties worth offering.
+          await SmsService().getSmsMessages();
+        }
+
         // This path returns straight to the app without passing back through
         // the gate, so the same maintenance has to happen here.
         await MigrationGate.runMaintenance(user.uid);
         // Creates the month document the deleted track-items screen used to
         // write, carrying last month's budgets forward where there are any.
-        final repo = SpendRepository(uid: user.uid);
         await repo.ensureMonthInitialised();
+
         needsSetup = (await repo.trackedCategoryNames()).isEmpty;
+        // Recomputed from the map as it stands now. Reading it off the
+        // migration report only worked on the run that did the migrating;
+        // every later entry reported zero and sent the user past the screen.
+        candidates = await repo.pendingTagCount();
+        // ignore: avoid_print
+        print('SCAN: candidates=$candidates needsSetup=$needsSetup');
       }
     } catch (e) {
       // Never trap the user here: the app works exactly as before if this
       // fails, and the next launch retries.
       // ignore: avoid_print
-      print('MIGRATION FAILED: $e');
+      print('SCAN FAILED: $e');
     }
 
     if (!mounted) return;
     // Reached by `go` from the root, so there is nothing beneath to pop back
-    // to. Hand straight to the batch screen, or to the summary when there is
-    // nothing worth tagging.
-    // `needsSetup` matters as much as `candidates`: someone with no budget yet
-    // has to reach the batch screen even with nothing to tag, because that is
-    // where the category catalogue now lives.
+    // to. Hand straight to the batch screen, or to the summary when the scan
+    // turned nothing up.
     if (candidates > 0 || needsSetup) {
       context.pushReplacement('/batchTag');
     } else {

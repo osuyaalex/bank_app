@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'data/migration_gate.dart';
+import 'data/onboarding_gate.dart';
 
 class RootPage extends StatelessWidget {
   @override
@@ -18,14 +19,19 @@ class RootPage extends StatelessWidget {
           // decided a migration was needed, and only then did the progress
           // screen appear -- so the user saw the summary flash past first.
           WidgetsBinding.instance.addPostFrameCallback((_) async {
-            final route =
-                await MigrationGate.initialRoute(snapshot.data!.uid);
+            final uid = snapshot.data!.uid;
+            // Populates the cache the router's redirect reads. Until this
+            // runs the state is unknown, and every route outside onboarding
+            // bounces back here rather than letting the user slip past.
+            await OnboardingGate.refresh(uid);
+            final route = await MigrationGate.initialRoute(uid);
             if (!context.mounted) return;
             GoRouter.of(context).go(route);
           });
         } else {
           // User is not signed in, navigate to sign in
           WidgetsBinding.instance.addPostFrameCallback((_) {
+            OnboardingGate.forget();
             GoRouter.of(context).go('/deeplink/signIn');
           });
         }

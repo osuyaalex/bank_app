@@ -151,7 +151,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
     // Answers were saved as they were made; this only closes the screen.
     final settled = _choices.length;
     final wasSetup = _isSetup;
-    await _repo.markBatchTagSeen();
+    await _repo.markBatchTagDismissed();
     if (!mounted) return;
     _leave();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -193,18 +193,32 @@ class _BatchTagPageState extends State<BatchTagPage> {
         ),
         body: SafeArea(
           child: _rows.isEmpty
-              ? _emptyState()
-              : Column(
+              ? Column(
                   children: [
-                    _intro(),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
-                        itemCount: _rows.length,
-                        itemBuilder: (_, i) => _card(_rows[i]),
-                      ),
-                    ),
+                    if (!_smsGranted) _smsBanner(),
+                    Expanded(child: _emptyState()),
                   ],
+                )
+              // The banner and the intro ride inside the list rather than
+              // sitting in a fixed row above it. Stacked in a Column they
+              // claimed height the list then could not give back, which
+              // overflowed as soon as the screen was short -- landscape, or a
+              // small phone with large system text.
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
+                  itemCount: _rows.length + 1,
+                  itemBuilder: (_, i) {
+                    if (i == 0) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (!_smsGranted) _smsBanner(),
+                          _intro(),
+                        ],
+                      );
+                    }
+                    return _card(_rows[i - 1]);
+                  },
                 ),
         ),
         bottomNavigationBar: _actionBar(),
@@ -213,7 +227,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
   }
 
   Widget _intro() => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        padding: const EdgeInsets.fromLTRB(6, 12, 6, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -260,7 +274,6 @@ class _BatchTagPageState extends State<BatchTagPage> {
   Widget _catalogueSetup() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!_smsGranted) _smsBanner(),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
             child: Column(
@@ -300,7 +313,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
       );
 
   Widget _smsBanner() => Container(
-        margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        margin: const EdgeInsets.fromLTRB(2, 8, 2, 4),
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
           color: const Color(0xffFFF4E5),
@@ -325,8 +338,8 @@ class _BatchTagPageState extends State<BatchTagPage> {
             const SizedBox(height: 6),
             Text(
               'This app finds your spending by reading your bank alerts. '
-              'Without it there is nothing to sort and you will have to enter '
-              'everything by hand.',
+              'Until you turn it on, new transactions will not show up here '
+              'and nothing will be tracked automatically.',
               style: TextStyle(
                   fontSize: 12.5, height: 1.45, color: Colors.brown.shade700),
             ),
@@ -710,7 +723,10 @@ class _BatchTagPageState extends State<BatchTagPage> {
               onPressed: _saving
                   ? null
                   : () async {
-                      await _repo.markBatchTagSeen();
+                      // Same effect as Done: the screen has been dealt with.
+                      // The summary's banner is how anyone who wants another
+                      // round gets back to it.
+                      await _repo.markBatchTagDismissed();
                       if (context.mounted) _leave();
                     },
               style: TextButton.styleFrom(

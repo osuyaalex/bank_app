@@ -33,9 +33,22 @@ class MigrationGate {
 
       final migration = SchemaMigration(FirebaseFirestore.instance, uid);
       if (await migration.needsMigration()) return '/preparing';
-      // Data present and current, but the flag says nothing about whether the
-      // batch screen was ever dealt with.
-      if (data?['batchTagSeen'] != true) return '/batchTag';
+
+      // Closing the screen is permanent, by either button. Anyone who has
+      // done so goes straight in, and the rescan happens quietly behind the
+      // summary instead of behind an animation they did not ask to watch.
+      if (data?['batchTagDismissed'] == true) return '/deeplink/summary';
+
+      // Otherwise the offer stands -- but only bother if there is something
+      // to offer. The scan screen is the way in to the batch screen and is
+      // never shown on its own account: making the user watch it on every
+      // launch only to land on the summary would be a delay dressed up as
+      // work.
+      final repo = SpendRepository(uid: uid);
+      final noCategoriesYet = (await repo.trackedCategoryNames()).isEmpty;
+      if (noCategoriesYet || await repo.pendingTagCount() > 0) {
+        return '/preparing';
+      }
       return '/deeplink/summary';
     } catch (_) {
       // Never strand the user on a blank screen because a read failed.
@@ -76,11 +89,11 @@ class MigrationGate {
     }
   }
 
-  /// True once the user has saved or skipped the batch-tag screen.
+  /// True once the user has closed the batch-tag screen.
   static Future<bool> _batchTagSettled(String uid) async {
     final snap =
         await FirebaseFirestore.instance.collection('Users').doc(uid).get();
-    return snap.data()?['batchTagSeen'] == true;
+    return snap.data()?['batchTagDismissed'] == true;
   }
 
   static Future<void> maybeRun(BuildContext context) async {

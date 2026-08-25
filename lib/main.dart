@@ -5,6 +5,7 @@ import 'package:banking_app/main_page/home_page.dart';
 import 'package:banking_app/providers/progressba_provider.dart';
 import 'package:banking_app/root_page.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +17,7 @@ import 'package:provider/provider.dart';
 import 'package:workmanager/workmanager.dart';
 import 'firebase network/sms_service.dart';
 import 'firebase_notifications.dart';
+import 'data/onboarding_gate.dart';
 import 'data/pending_notifications.dart';
 import 'data/spend_repository.dart';
 import 'firebase_options.dart';
@@ -166,6 +168,32 @@ class MyApp extends StatelessWidget {
             builder: (_, __) => const PreparingPage()
         ),
       ],
+      // Resolves entry, and nothing more.
+      //
+      // Its only job is to catch a navigation that lands somewhere in the app
+      // before this account's state has been read -- which is what a fresh
+      // sign-in is, and how the summary used to get shown without the batch
+      // screen ever being offered. Those go to the resolver, which reads the
+      // flag and picks the entry route.
+      //
+      // It deliberately does *not* force the batch screen on anyone. That
+      // screen is an offer made on the way in, not a toll gate: pulling a
+      // user out of the pending list or the summary to demand they tag
+      // twenty counterparties is exactly the behaviour Skip exists to
+      // refuse.
+      redirect: (BuildContext context, GoRouterState state) {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          OnboardingGate.forget();
+          return null; // The sign-in screens run their own flow.
+        }
+
+        // Where entry is decided. Redirecting these would be a loop.
+        const passThrough = {'/root', '/preparing', '/batchTag'};
+        if (passThrough.contains(state.matchedLocation)) return null;
+
+        return OnboardingGate.isKnownFor(user.uid) ? null : '/root';
+      },
       // redirect: (BuildContext context, GoRouterState state) async {
       //   final User? user = FirebaseAuth.instance.currentUser;
       //

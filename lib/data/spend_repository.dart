@@ -6,6 +6,7 @@ import '../parsing/bank_alert.dart';
 import '../parsing/merchant_dictionary.dart';
 import 'currency_setup.dart';
 import 'migration_plan.dart';
+import 'onboarding_gate.dart';
 import 'models.dart';
 
 /// Reads and writes the per-user schema under `Users/{uid}`.
@@ -774,8 +775,23 @@ class SpendRepository {
 
   /// Records that the user has saved or skipped the batch-tag screen, so it
   /// is not shown again on every launch.
-  Future<void> markBatchTagSeen() =>
-      _user.set({'batchTagSeen': true}, SetOptions(merge: true));
+  /// Records that the user has closed the batch screen.
+  ///
+  /// Called by both buttons. Done and Skip mean the same thing here -- the
+  /// screen has been dealt with and should stop being volunteered -- and the
+  /// summary's "more places to sort" banner keeps it reachable for anyone who
+  /// wants another round.
+  ///
+  /// The cache is updated first so the decision holds even if the write is
+  /// still in flight when the screen closes.
+  Future<void> markBatchTagDismissed() async {
+    OnboardingGate.markDismissed(uid);
+    await _user.set({
+      'batchTagDismissed': true,
+      // Kept for the record; nothing routes on it any more.
+      'batchTagSeen': true,
+    }, SetOptions(merge: true));
+  }
 
   // -------------------------------------------------------------------------
   // Writes
