@@ -55,13 +55,23 @@ class _PreparingPageState extends State<PreparingPage>
     var candidates = 0;
     try {
       final user = FirebaseAuth.instance.currentUser;
+      print('MIGRATION(preparing): start user=${user?.uid}');
       if (user != null) {
         final report =
             await SchemaMigration(FirebaseFirestore.instance, user.uid).run(
-          inbox: await SmsInbox.readForMigration(),
+          inbox: await () async {
+          final box = await SmsInbox.readForMigration();
+          print('MIGRATION(preparing): inbox=${box?.length ?? "unavailable"}');
+          return box;
+        }(),
           ownerName: user.displayName,
         );
         candidates = report.batchTagCandidates.length;
+        print('MIGRATION(preparing): alreadyMigrated=${report.alreadyMigrated} '
+            'awaitingInbox=${report.awaitingInbox} '
+            'months=${report.legacyMonths} '
+            'counterparties=${report.counterparties} '
+            'candidates=$candidates');
         // This path returns straight to the app without passing back through
         // the gate, so the same maintenance has to happen here.
         await MigrationGate.runMaintenance(user.uid);
@@ -74,10 +84,13 @@ class _PreparingPageState extends State<PreparingPage>
     }
 
     if (!mounted) return;
+    // Reached by `go` from the root, so there is nothing beneath to pop back
+    // to. Hand straight to the batch screen, or to the summary when there is
+    // nothing worth tagging.
     if (candidates > 0) {
       context.pushReplacement('/batchTag');
     } else {
-      context.pop();
+      context.go('/deeplink/summary');
     }
   }
 
