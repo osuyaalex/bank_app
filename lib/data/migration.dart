@@ -226,7 +226,8 @@ class SchemaMigration {
     return MigrationReport(
       legacyMonths: legacy.length,
       counterparties: map.length,
-      batchTagCandidates: batchTagCandidates(map),
+      batchTagCandidates:
+          batchTagCandidates(map, trackedCategories: await _trackedCategoryNames()),
     );
   }
 

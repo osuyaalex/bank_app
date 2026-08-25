@@ -39,6 +39,11 @@ class _BatchTagPageState extends State<BatchTagPage> {
   List<CounterpartyEntry> _rows = [];
   final Map<String, CategoryChoice> _choices = {};
 
+  /// Counterparties whose answer is still being written. Tagging settles the
+  /// transactions waiting on it and rebuilds the month, which takes a few
+  /// seconds -- long enough that silence reads as the tap not registering.
+  final Set<String> _savingKeys = {};
+
   bool _loading = true;
   bool _saving = false;
 
@@ -81,7 +86,11 @@ class _BatchTagPageState extends State<BatchTagPage> {
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       _tracked = tracked;
       _currency = currency;
-      _rows = [...proposed, ...batchTagCandidates(map, limit: widget.limit)];
+      _rows = [
+        ...proposed,
+        ...batchTagCandidates(map,
+            limit: widget.limit, trackedCategories: tracked),
+      ];
       _loading = false;
     });
     print('BATCH: counterparties=${map.length} categories=${categories.length} '
@@ -197,6 +206,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
                     orElse: () => const Category(id: '', name: '?'))
                 .name;
     final answered = label != null;
+    final saving = _savingKeys.contains(e.key);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -216,12 +226,13 @@ class _BatchTagPageState extends State<BatchTagPage> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: _saving ? null : () => _pick(e),
+        onTap: saving ? null : () => _pick(e),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
@@ -230,11 +241,17 @@ class _BatchTagPageState extends State<BatchTagPage> {
                       ? _brand.withValues(alpha: 0.14)
                       : Colors.grey.shade100,
                 ),
-                child: Icon(
-                  answered ? Icons.check_rounded : Icons.person_outline,
-                  size: 20,
-                  color: answered ? _brand : Colors.grey.shade500,
-                ),
+                child: saving
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: _brand),
+                      )
+                    : Icon(
+                        answered ? Icons.check_rounded : Icons.person_outline,
+                        size: 20,
+                        color: answered ? _brand : Colors.grey.shade500,
+                      ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -249,13 +266,20 @@ class _BatchTagPageState extends State<BatchTagPage> {
                           fontWeight: FontWeight.w600, fontSize: 14.5),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      label ?? '${e.txCount} transactions  ·  Tap to choose',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: answered ? _brand : Colors.grey.shade500,
-                        fontWeight:
-                            answered ? FontWeight.w600 : FontWeight.normal,
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Text(
+                        saving
+                            ? '$label  ·  saving'
+                            : label ??
+                                '${e.txCount} transactions  ·  Tap to choose',
+                        key: ValueKey('${e.key}-$label-$saving'),
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: answered ? _brand : Colors.grey.shade500,
+                          fontWeight:
+                              answered ? FontWeight.w600 : FontWeight.normal,
+                        ),
                       ),
                     ),
                   ],
@@ -308,16 +332,33 @@ class _BatchTagPageState extends State<BatchTagPage> {
       }
     }
 
-    // Written immediately rather than held until Done. On a phone that kills
-    // backgrounded apps, holding twenty answers in memory means losing twenty.
-    await _repo.tagCounterparty(
-      key: e.key,
-      disposition:
-          chosen.notSpending ? Disposition.notSpending : Disposition.tracked,
-      categoryId: chosen.categoryId,
-    );
+    // Shown straight away and saved behind it. The answer is the user's
+    // decision, not the database's -- making them watch a spinner before
+    // seeing their own choice reflected would be backwards.
+    if (mounted) {
+      setState(() {
+        _choices[e.key] = chosen;
+        _savingKeys.add(e.key);
+      });
+    }
 
-    if (mounted) setState(() => _choices[e.key] = chosen);
+    try {
+      // Written immediately rather than held until Done. On a phone that kills
+      // backgrounded apps, holding twenty answers in memory means losing
+      // twenty.
+      await _repo.tagCounterparty(
+        key: e.key,
+        disposition:
+            chosen.notSpending ? Disposition.notSpending : Disposition.tracked,
+        categoryId: chosen.categoryId,
+      );
+    } catch (err) {
+      // ignore: avoid_print
+      print('BATCH: tag failed for ${e.key}: $err');
+      if (mounted) setState(() => _choices.remove(e.key));
+    } finally {
+      if (mounted) setState(() => _savingKeys.remove(e.key));
+    }
   }
 
   /// Asks for a monthly budget before a category starts being tracked.

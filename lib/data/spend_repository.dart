@@ -247,8 +247,11 @@ class SpendRepository {
   }
 
   /// How many counterparties are still worth putting in front of the user.
-  Future<int> pendingTagCount({int limit = 20}) async =>
-      batchTagCandidates(await loadCounterparties(), limit: limit).length;
+  Future<int> pendingTagCount({int limit = 20}) async => batchTagCandidates(
+        await loadCounterparties(),
+        limit: limit,
+        trackedCategories: await trackedCategoryNames(),
+      ).length;
 
   /// Recomputes this month's totals from the transaction records.
   ///
@@ -711,8 +714,12 @@ class SpendRepository {
   /// category they do not have would file the money somewhere with nothing on
   /// screen to show it.
   Future<String?> _dictionarySuggestion(BankAlert alert) async {
-    final key = alert.counterpartyKey;
-    if (key == null || alert.kind != AlertKind.debit) return null;
+    if (alert.kind != AlertKind.debit) return null;
+    // The canonical spelling where one is known, since truncated variants all
+    // resolve to it; the raw key otherwise.
+    final key = resolveKey(await counterparties(), alert.counterpartyKey)?.key ??
+        alert.counterpartyKey;
+    if (key == null) return null;
 
     final name = suggestCategoryName(key, await trackedCategoryNames());
     return name == null ? null : slugifyCategory(name);

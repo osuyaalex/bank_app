@@ -107,8 +107,22 @@ List<String> conceptsFor(String counterpartyKey) {
   var bestLength = 0;
 
   _merchants.forEach((pattern, concepts) {
-    // Longest matching pattern wins, so "JUMIA FOOD" beats "JUMIA".
-    if (pattern.length > bestLength && key.contains(pattern)) {
+    if (pattern.length <= bestLength) return;
+
+    // The name as it arrives, which usually carries a processor prefix or
+    // extra words: `DLO*GOOGLE SPOT`, `PSK*CHOWDECK`.
+    var matches = key.contains(pattern);
+
+    // Or the name cut short by the bank. Card narrations are truncated to a
+    // fixed width, so `CHOWDECK` arrives as `CHOWDE` -- shorter than the
+    // pattern, which a contains check can never match. Requires a reasonable
+    // stem so three letters cannot claim a merchant.
+    if (!matches && key.length >= 5 && pattern.startsWith(key)) {
+      matches = true;
+    }
+
+    if (matches) {
+      // Longest matching pattern wins, so "JUMIA FOOD" beats "JUMIA".
       best = concepts;
       bestLength = pattern.length;
     }
@@ -136,13 +150,16 @@ String? suggestCategoryName(
     final exact = tracked[concept];
     if (exact != null) return exact;
   }
-  // Then a looser match, so a category called "Food & Drinks" still catches
-  // the "food" concept.
+  // Then a looser match on whole words, so "Food & Drinks" still catches the
+  // "food" concept.
+  //
+  // Word-wise, not substring: `car` is inside `healthcare`, which filed a
+  // fuel station as a medical expense. A wrong answer nobody notices is worse
+  // than no answer at all, so a concept has to be a word in its own right.
   for (final concept in concepts) {
     for (final entry in tracked.entries) {
-      if (entry.key.contains(concept) || concept.contains(entry.key)) {
-        return entry.value;
-      }
+      final words = entry.key.split(RegExp(r'[^a-z0-9]+'));
+      if (words.contains(concept)) return entry.value;
     }
   }
   return null;
