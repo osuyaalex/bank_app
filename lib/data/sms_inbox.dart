@@ -78,6 +78,7 @@ class SmsInbox {
         id: m.id!.toString(),
         sender: m.sender ?? '',
         body: m.body!,
+        receivedAt: m.date,
       );
     }
   }

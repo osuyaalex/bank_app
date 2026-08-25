@@ -8,10 +8,25 @@ import 'models.dart';
 /// One SMS handed to the migration. Keeps this file independent of the SMS
 /// plugin so it can be driven from a test.
 class InboxMessage {
-  const InboxMessage({required this.id, required this.sender, required this.body});
+  const InboxMessage({
+    required this.id,
+    required this.sender,
+    required this.body,
+    this.receivedAt,
+  });
+
   final String id;
   final String sender;
   final String body;
+
+  /// When the phone received the message.
+  ///
+  /// Needed because not every bank prints a date. The prose-style alerts
+  /// fintechs send -- "You received NGN25,000.00 from CHINEDU OKEKE" -- often
+  /// carry none at all, and the backfill drops anything it cannot date. That
+  /// would have silently discarded the entire history of every such bank the
+  /// moment the generic parser made them readable.
+  final DateTime? receivedAt;
 }
 
 /// Moves a user from `track_items` to the per-user schema.
@@ -210,8 +225,12 @@ class SchemaMigration {
     //
     // `batchTagSeen` is cleared deliberately: a fresh migration has just
     // rebuilt the counterparty map, which is exactly when the batch-tag
-    // screen is worth offering again -- including to someone who dismissed it
-    // under an older schema.
+    // screen is worth offering again.
+    //
+    // `batchTagDismissed` is deliberately *not* touched. That flag is the
+    // user having closed this screen, and a schema change on our side is no
+    // reason to overrule them -- they can reopen it from the summary's banner
+    // whenever they want.
     await _user.set({
       'schemaVersion': currentVersion,
       'batchTagSeen': false,
@@ -270,7 +289,13 @@ class SchemaMigration {
     final out = <String, BankAlert>{};
     for (final m in inbox) {
       final a = parseAlert(m.sender, m.body);
-      if (a != null) out[m.id] = a;
+      if (a == null) continue;
+      // An alert with no date of its own is dated by the message that carried
+      // it. Close enough -- a bank alert arrives within seconds of the
+      // transaction -- and the alternative is dropping the row entirely.
+      out[m.id] = a.occurredAt == null && m.receivedAt != null
+          ? a.copyWith(occurredAt: m.receivedAt)
+          : a;
     }
     return out;
   }
