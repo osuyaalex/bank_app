@@ -2,10 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../data/migration.dart';
 import '../data/migration_gate.dart';
 import '../data/sms_inbox.dart';
+import '../data/spend_repository.dart';
 import 'widget/category_picker.dart';
 
 /// Shown while the first migration runs.
@@ -51,30 +53,53 @@ class _PreparingPageState extends State<PreparingPage>
     }
   }
 
+  /// Asks for SMS access before anything tries to read the inbox.
+  ///
+  /// Nothing in the foreground used to ask. The only request lived in the
+  /// two-hourly background scan, where an isolate cannot show a dialog, so a
+  /// new user was never prompted: the migration read nothing, reported
+  /// "awaiting inbox", and dropped them on an empty app with no explanation.
+  ///
+  /// Returns false when the user says no, which is a legitimate answer -- they
+  /// can still budget by hand, and the batch screen says what they are missing.
+  Future<bool> _ensureSmsAccess() async {
+    try {
+      if (await Permission.sms.isGranted) return true;
+      final status = await Permission.sms.request();
+      return status.isGranted;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _run() async {
     var candidates = 0;
+    var needsSetup = false;
     try {
+      // Before the migration, not after: it is what makes the inbox readable.
+      await _ensureSmsAccess();
       final user = FirebaseAuth.instance.currentUser;
-      print('MIGRATION(preparing): start user=${user?.uid}');
       if (user != null) {
         final report =
             await SchemaMigration(FirebaseFirestore.instance, user.uid).run(
-          inbox: await () async {
-          final box = await SmsInbox.readForMigration();
-          print('MIGRATION(preparing): inbox=${box?.length ?? "unavailable"}');
-          return box;
-        }(),
+          inbox: await SmsInbox.readForMigration(),
           ownerName: user.displayName,
         );
         candidates = report.batchTagCandidates.length;
-        print('MIGRATION(preparing): alreadyMigrated=${report.alreadyMigrated} '
-            'awaitingInbox=${report.awaitingInbox} '
-            'months=${report.legacyMonths} '
-            'counterparties=${report.counterparties} '
-            'candidates=$candidates');
+        // One line describing the outcome. Enough to explain a support
+        // report, without narrating every step.
+        // ignore: avoid_print
+        print('MIGRATION: months=${report.legacyMonths} '
+            'counterparties=${report.counterparties} candidates=$candidates'
+            '${report.awaitingInbox ? " (awaiting inbox)" : ""}');
         // This path returns straight to the app without passing back through
         // the gate, so the same maintenance has to happen here.
         await MigrationGate.runMaintenance(user.uid);
+        // Creates the month document the deleted track-items screen used to
+        // write, carrying last month's budgets forward where there are any.
+        final repo = SpendRepository(uid: user.uid);
+        await repo.ensureMonthInitialised();
+        needsSetup = (await repo.trackedCategoryNames()).isEmpty;
       }
     } catch (e) {
       // Never trap the user here: the app works exactly as before if this
@@ -87,7 +112,10 @@ class _PreparingPageState extends State<PreparingPage>
     // Reached by `go` from the root, so there is nothing beneath to pop back
     // to. Hand straight to the batch screen, or to the summary when there is
     // nothing worth tagging.
-    if (candidates > 0) {
+    // `needsSetup` matters as much as `candidates`: someone with no budget yet
+    // has to reach the batch screen even with nothing to tag, because that is
+    // where the category catalogue now lives.
+    if (candidates > 0 || needsSetup) {
       context.pushReplacement('/batchTag');
     } else {
       context.go('/deeplink/summary');

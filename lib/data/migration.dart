@@ -198,13 +198,7 @@ class SchemaMigration {
         seedCounterparties(alerts.values, ownerName: ownerName));
 
     if (!done.contains('counterparties')) {
-      final persist = worthPersisting(map);
-      // ignore: avoid_print
-      print('MIGRATION: seeded=${map.length} persisting=${persist.length}');
-      await _writeCounterparties(persist);
-      final check = await _user.collection('counterparties').limit(5).get();
-      // ignore: avoid_print
-      print('MIGRATION: counterparties readback=${check.docs.length}');
+      await _writeCounterparties(worthPersisting(map));
       await _markDone('counterparties');
     }
     if (!done.contains('backfill')) {

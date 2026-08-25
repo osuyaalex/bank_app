@@ -4,11 +4,9 @@ import 'package:banking_app/data/spend_repository.dart';
 import 'package:go_router/go_router.dart';
 import 'package:banking_app/firebase%20network/daily_resets.dart';
 import 'package:banking_app/firebase%20network/sms_service.dart';
-import 'package:banking_app/firebase_notifications.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/main_page/add_more_items_page.dart';
 import 'package:banking_app/main_page/item_details.dart';
-import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/widget/progress_bar.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -74,10 +72,16 @@ class _HomePageState extends State<HomePage> {
       currentMonth = currentMonth.replaceAll(' ', '');
       // Compare and navigate if not equal
       if (!_currentMonthDocs.contains(currentMonth)) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const SelectTrackItems()),
-        );
+        // A new month has rolled over. The old flow pushed the track-items
+        // screen and made the user re-enter every category and budget; the
+        // month is now created from last month's, and only a user with
+        // nothing to carry forward is sent to pick categories.
+        await SpendRepository().ensureMonthInitialised();
+        if ((await SpendRepository().trackedCategoryNames()).isEmpty &&
+            context.mounted) {
+          context.go('/batchTag');
+          return;
+        }
       }
       setState(() {
         _lastPage = _currentMonthDocs.length - 1;

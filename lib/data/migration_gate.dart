@@ -88,10 +88,7 @@ class MigrationGate {
     _started = true;
 
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print('MIGRATION: no signed-in user, skipping');
-      return;
-    }
+    if (user == null) return;
 
     try {
       // A first migration takes the better part of a minute. Rather than doing
@@ -106,23 +103,12 @@ class MigrationGate {
         return;
       }
 
-      print('MIGRATION: start uid=${user.uid}');
-      final sw = Stopwatch()..start();
       final inbox = await SmsInbox.readForMigration();
-      print('MIGRATION: inbox=${inbox?.length ?? "unavailable"} '
-          'in ${sw.elapsedMilliseconds}ms');
-
       final report =
           await SchemaMigration(FirebaseFirestore.instance, user.uid).run(
         inbox: inbox,
         ownerName: user.displayName,
       );
-      print('MIGRATION: done in ${sw.elapsedMilliseconds}ms '
-          'alreadyMigrated=${report.alreadyMigrated} '
-          'awaitingInbox=${report.awaitingInbox} '
-          'months=${report.legacyMonths} '
-          'counterparties=${report.counterparties} '
-          'candidates=${report.batchTagCandidates.length}');
 
       // The screen is offered until the user deals with it once. Gating on a
       // fresh migration alone would mean anyone who tapped Skip -- or who
@@ -138,7 +124,6 @@ class MigrationGate {
           : report.batchTagCandidates.length;
       // One-time repair for transactions labelled into a category the user
       // never finished setting up. Runs once per device, then never again.
-      print('MIGRATION: batch-tag candidates=$candidates');
       if (candidates == 0) return;
       if (!context.mounted) return;
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/category_catalogue.dart';
 import '../../data/models.dart';
 
 const brandBlue = Color(0xff5AA5E2);
@@ -53,6 +54,8 @@ Future<CategoryChoice?> showCategoryPicker(
   required Set<String> tracked,
   CategoryChoice? current,
   Future<Category?> Function()? onCreate,
+  List<CatalogueEntry> suggestions = const [],
+  Future<Category?> Function(CatalogueEntry)? onAdopt,
 }) {
   Widget group(BuildContext sheetContext, String heading, Iterable<Category> items) {
     final list = items.toList();
@@ -114,6 +117,37 @@ Future<CategoryChoice?> showCategoryPicker(
                         categories.where((c) => tracked.contains(c.name))),
                     group(sheetContext, 'Not tracked this month',
                         categories.where((c) => !tracked.contains(c.name))),
+                    if (suggestions.isNotEmpty && onAdopt != null) ...[
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8, top: 4),
+                        child: Text('SUGGESTED',
+                            style: TextStyle(
+                                fontSize: 11,
+                                letterSpacing: 0.8,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black38)),
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final s in suggestions)
+                            pickerChip(
+                              label: s.name,
+                              selected: false,
+                              onTap: () async {
+                                final created = await onAdopt(s);
+                                if (created == null) return;
+                                if (sheetContext.mounted) {
+                                  Navigator.pop(sheetContext,
+                                      CategoryChoice.category(created.id));
+                                }
+                              },
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 8,

@@ -1,4 +1,4 @@
-import 'package:banking_app/main_page/select_track_items.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -93,9 +93,9 @@ class _GmailConfirmationState extends State<GmailConfirmation> {
                       return const Summary();
                     }));
                   }else{
-                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                      return const SelectTrackItems();
-                    }));
+                    // Signup hands back to the launch gate, which runs the
+                    // scan and then the batch screen.
+                    GoRouter.of(context).go('/root');
                   }
                 },
                 textColor: Colors.white,

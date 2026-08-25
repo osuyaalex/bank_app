@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../parsing/bank_alert.dart';
 import '../parsing/merchant_dictionary.dart';
+import 'currency_setup.dart';
 import 'migration_plan.dart';
 import 'models.dart';
 
@@ -95,6 +96,113 @@ class SpendRepository {
     };
   }
 
+  /// Creates this month's document if it is not there yet.
+  ///
+  /// The track-items screen used to be the only thing that wrote it, so
+  /// deleting that screen would have left new users -- and anyone rolling into
+  /// a new month -- with no document for the app to render from.
+  ///
+  /// Two things it must get right:
+  ///  * The parent `track_items/{month}` doc. A subcollection document does
+  ///    not make its parent appear in a collection listing, and the home
+  ///    screen finds the current month by listing that collection -- so
+  ///    without this the month is invisible and the user gets bounced.
+  ///  * Existing data. Called on every launch, so it writes only when the
+  ///    document is absent; a blind merge would reset `monthlySpend` and drop
+  ///    the month's `messageId` list each time.
+  ///
+  /// Returns true when a month was created, false when one already existed.
+  Future<bool> ensureMonthInitialised({List<Map<String, dynamic>>? carryOver}) async {
+    final existing = await _legacyMonth.get();
+    if (existing.exists && existing.data()?['listItems'] != null) return false;
+
+    final now = DateTime.now();
+    final monthKey = DateFormat('MMMM yyyy').format(now).replaceAll(' ', '');
+
+    // Rules allow this document to carry nothing but `dummy`; it exists purely
+    // so the month shows up when the collection is listed.
+    await db.collection('track_items').doc(monthKey).set({'dummy': null});
+
+    // A new month inherits last month's categories and budgets. Making the
+    // user re-enter all of them every month was the old screen's job and the
+    // main reason it felt redundant.
+    final items = carryOver ?? await _previousMonthItems(now);
+
+    await _legacyMonth.set({
+      'listItems': items,
+      'monthlySpend': 0.0,
+      'currency': await _currencyForNewMonth(),
+      'currentMonthName': DateFormat.MMMM().format(now),
+      'messageId': <dynamic>[],
+    }, SetOptions(merge: true));
+
+    // Mirror the carried-over budgets into the new schema so the derived
+    // totals have something to measure against from the first transaction.
+    if (items.isNotEmpty) {
+      await monthRef(monthKeyOf(now)).set({
+        'budgets': {
+          for (final item in items)
+            slugifyCategory(item['name'].toString()):
+                double.tryParse(
+                        item['budgetSet'].toString().replaceAll(RegExp(r'[^0-9.]'), '')) ??
+                    0,
+        }
+      }, SetOptions(merge: true));
+    }
+    return true;
+  }
+
+  /// Last month's categories, with their budgets kept and their spending
+  /// zeroed. Empty for a brand-new user, who picks from the catalogue instead.
+  Future<List<Map<String, dynamic>>> _previousMonthItems(DateTime now) async {
+    try {
+      final prev = DateTime(now.year, now.month - 1);
+      final key = DateFormat('MMMM yyyy').format(prev).replaceAll(' ', '');
+      final snap = await db
+          .collection('track_items')
+          .doc(key)
+          .collection('monthUsers')
+          .doc(uid)
+          .get();
+      final items = snap.data()?['listItems'];
+      if (items is! List) return [];
+      return [
+        for (final raw in items)
+          if (raw is Map && raw['name'] != null)
+            {
+              'image': raw['image'] ?? '',
+              'name': raw['name'],
+              'description': '',
+              'dailySpend': 0.0,
+              'budgetSet': raw['budgetSet'] ?? '0',
+              'totalAmountSpent': 0.0,
+              'currentMonth': DateFormat.MMMM().format(now),
+              'previousDailySpends': <dynamic>[],
+              'lastResetTime': Timestamp.now(),
+            },
+      ];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// The symbol for a month being created: whatever a previous month used, or
+  /// a fresh lookup for a user who has never had one.
+  Future<String> _currencyForNewMonth() async {
+    try {
+      final months = await db.collection('track_items').get();
+      for (final m in months.docs) {
+        final snap =
+            await m.reference.collection('monthUsers').doc(uid).get();
+        final symbol = snap.data()?['currency']?.toString();
+        if (symbol != null && symbol.isNotEmpty) return symbol;
+      }
+    } catch (_) {
+      // Fall through to detection.
+    }
+    return CurrencySetup.detectSymbol();
+  }
+
   /// Starts tracking [name] for the current month.
   ///
   /// Writes to both schemas: the legacy list the app renders from, and the
@@ -109,6 +217,10 @@ class SpendRepository {
     String image = '',
   }) async {
     final category = Category.fromName(name, image: image);
+
+    // Guarantees the month document and its parent exist before the category
+    // is appended to them.
+    await ensureMonthInitialised();
 
     await _legacyMonth.set({
       'listItems': FieldValue.arrayUnion([
@@ -175,6 +287,18 @@ class SpendRepository {
 
   Future<int> pendingCount({String? monthKey}) async =>
       (await pendingTransactions(monthKey: monthKey)).length;
+
+  /// Live count of transactions still awaiting an answer.
+  ///
+  /// A read-once count goes stale the moment one is sorted on another screen,
+  /// which is how the summary ended up showing figures the home screen had
+  /// already moved past.
+  Stream<int> watchPendingCount({String? monthKey}) =>
+      monthRef(monthKey ?? monthKeyOf(DateTime.now()))
+          .collection('transactions')
+          .where('status', isEqualTo: TxnStatus.pending.name)
+          .snapshots()
+          .map((s) => s.docs.length);
 
   /// The categories to offer as one-tap answers on a notification.
   ///

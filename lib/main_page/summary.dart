@@ -1,15 +1,11 @@
 import 'dart:async';
-import 'package:banking_app/firebase%20network/sms_service.dart';
 import 'package:banking_app/main_page/home_page.dart';
 import 'package:banking_app/main_page/item_details.dart';
-import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/widget/generate_dots.dart';
 import 'package:banking_app/main_page/widget/skeleton.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
@@ -17,7 +13,6 @@ import '../data/pending_notifications.dart';
 import '../data/spend_repository.dart';
 import '../data/migration_gate.dart';
 import '../elevated_button.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 
 
@@ -37,15 +32,65 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
   String _currentMonth = '';
 
 
-  Future _getTrackItems()async{
+  /// Live subscription to this month's document.
+  ///
+  /// Read once, this screen kept whatever it loaded in initState: tagging on
+  /// the home screen rewrote the totals, but popping back here re-showed the
+  /// old ones because nothing re-read. Listening means any write -- a scan, a
+  /// tag, a correction, the totals rebuild -- lands here on its own.
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _monthSub;
+  StreamSubscription<int>? _pendingSub;
+
+  void _watchTrackItems() {
     String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
     _currentMonth = currentMonth.replaceAll(' ', '');
-    DocumentSnapshot userDoc = await FirebaseFirestore.instance
+    _monthSub?.cancel();
+    _monthSub = FirebaseFirestore.instance
         .collection("track_items")
         .doc(_currentMonth)
         .collection("monthUsers")
         .doc(FirebaseAuth.instance.currentUser!.uid)
-        .get();
+        .snapshots()
+        .listen(_applyTrackItems, onError: (e) {
+      // ignore: avoid_print
+      print('Summary: month listener failed: $e');
+    });
+  }
+
+  /// Creates the month document when the listener finds none.
+  ///
+  /// Guarded: the listener fires again the moment the document appears, and
+  /// without this flag that would start a second bootstrap mid-write.
+  bool _bootstrapping = false;
+
+  Future<void> _bootstrapMonth() async {
+    if (_bootstrapping) return;
+    _bootstrapping = true;
+    try {
+      final repo = SpendRepository();
+      await repo.ensureMonthInitialised();
+      // Nothing carried over means a user who has never set a budget, and the
+      // batch screen is where categories are chosen now.
+      if ((await repo.trackedCategoryNames()).isEmpty && mounted) {
+        context.go('/batchTag');
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('Summary: could not create this month: $e');
+    }
+  }
+
+  void _watchPending() {
+    try {
+      _pendingSub?.cancel();
+      _pendingSub = SpendRepository().watchPendingCount().listen((count) {
+        if (mounted) setState(() => _pendingCount = count);
+      }, onError: (_) {/* the banner is an extra; never break the screen */});
+    } catch (_) {/* not signed in yet */}
+  }
+
+  void _applyTrackItems(DocumentSnapshot userDoc) {
+    if (!mounted) return;
     setState(() {
       if (userDoc.exists && userDoc.data() != null) {
         _data = userDoc.data() as Map<String, dynamic>;
@@ -72,11 +117,11 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
         }
 
         // Do something with totalBudgetSet, for example, print it
-        print('Total Budget Set: $totalBudgetSet');
       } else {
-        Navigator.push(context, MaterialPageRoute(builder: (context) {
-          return const SelectTrackItems();
-        }));
+        // No document for this month yet. It used to mean "send them to the
+        // track-items screen"; it now means "create it", carrying last
+        // month's budgets over. The listener above picks the result up.
+        _bootstrapMonth();
       }
     });
   }
@@ -89,25 +134,12 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
     return '';
   }
 
-   getSmsMessages() async {
-     var status = await Permission.sms.status;
-     if (!status.isGranted) {
-       status = await Permission.sms.request();
-     }else if(status.isGranted){
-       print('object');
-       final smsQuery = SmsQuery();
-       List<SmsMessage> messages = await smsQuery.getAllSms;
-       messages.forEach((message) {
-         print('Sender: ${message.sender}, Body: ${message.body}');
-       });
-     }
-  }
-
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
-    _getTrackItems();
+    _watchTrackItems();
+    _watchPending();
 
     WidgetsBinding.instance.addObserver(this);
     // After the first frame, so the migration never delays this screen.
@@ -117,7 +149,6 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
       // were read before it ran. Without this, Summary keeps showing the
       // pre-rebuild number while Home -- which loads later -- shows the new
       // one, and the two disagree.
-      if (mounted) await _getTrackItems();
       if (mounted) await _loadSortCounts();
       // A notification tap cannot navigate on its own -- the UI may not exist
       // yet when it fires -- so it leaves a flag for the first screen to act on.
@@ -130,6 +161,8 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
   }
   @override
   void dispose() {
+    _monthSub?.cancel();
+    _pendingSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -143,14 +176,11 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
 
   Future<void> _loadSortCounts() async {
     try {
-      final repo = SpendRepository();
-      final pending = await repo.pendingCount();
-      final untagged = await repo.pendingTagCount();
+      // _pendingCount arrives from its own listener; only the untagged
+      // counterparty count is read here.
+      final untagged = await SpendRepository().pendingTagCount();
       if (!mounted) return;
-      setState(() {
-        _pendingCount = pending;
-        _untaggedCount = untagged;
-      });
+      setState(() => _untaggedCount = untagged);
     } catch (_) {
       // The banner is an extra; never let it break the screen.
     }

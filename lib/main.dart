@@ -2,7 +2,6 @@ import 'package:banking_app/firebase%20network/daily_resets.dart';
 import 'package:banking_app/login%20pages/passwordless_signup.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/main_page/home_page.dart';
-import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/providers/progressba_provider.dart';
 import 'package:banking_app/root_page.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -149,10 +148,6 @@ class MyApp extends StatelessWidget {
         GoRoute(
             path: '/deeplink/summary',
             builder: (_, __) => const Summary()
-        ),
-        GoRoute(
-            path: '/deeplink/selectTrack',
-            builder: (_, __) => const SelectTrackItems()
         ),
         GoRoute(
             path: '/deeplink/noPassword',

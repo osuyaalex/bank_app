@@ -1,6 +1,6 @@
+import 'package:go_router/go_router.dart';
 import 'package:banking_app/firebase%20network/auth_service.dart';
 import 'package:banking_app/login%20pages/gmail_comfirmation.dart';
-import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -88,9 +88,11 @@ class _TouchIDAuthorizationState extends State<TouchIDAuthorization> {
                         context).then((v){
                       if(v!){
                         if(_doNotShowGmail == true){
-                          Navigator.push(context, MaterialPageRoute(builder: (context){
-                            return const SelectTrackItems();
-                          }));
+                          // Hands back to the launch gate, which decides
+                          // between the scan and the batch screen. Pushing a
+                          // setup screen from here is what sent new users to
+                          // the old track-items page instead.
+                          GoRouter.of(context).go('/root');
                         }else{
                           Navigator.push(context, MaterialPageRoute(builder: (context){
                             return const GmailConfirmation(mode: 'signup');
@@ -112,9 +114,7 @@ class _TouchIDAuthorizationState extends State<TouchIDAuthorization> {
                 text: 'Skip This',
                 onPressed: (){
                   if(_doNotShowGmail == true){
-                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                      return const SelectTrackItems();
-                    }));
+                    GoRouter.of(context).go('/root');
                   }else{
                     Navigator.push(context, MaterialPageRoute(builder: (context){
                       return const GmailConfirmation(mode: 'signup');
