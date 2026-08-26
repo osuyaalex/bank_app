@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'data/background_scan.dart';
 import 'data/migration_gate.dart';
 import 'data/onboarding_gate.dart';
 
@@ -24,6 +25,10 @@ class RootPage extends StatelessWidget {
             // runs the state is unknown, and every route outside onboarding
             // bounces back here rather than letting the user slip past.
             await OnboardingGate.refresh(uid);
+            // Fire and forget. Whichever screen the user lands on renders
+            // from listeners, so the figures fill in when this finishes
+            // rather than the app waiting on it first.
+            BackgroundScan.startOnce();
             final route = await MigrationGate.initialRoute(uid);
             if (!context.mounted) return;
             GoRouter.of(context).go(route);
@@ -32,6 +37,7 @@ class RootPage extends StatelessWidget {
           // User is not signed in, navigate to sign in
           WidgetsBinding.instance.addPostFrameCallback((_) {
             OnboardingGate.forget();
+            BackgroundScan.reset();
             GoRouter.of(context).go('/deeplink/signIn');
           });
         }

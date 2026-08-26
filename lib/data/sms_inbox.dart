@@ -62,6 +62,27 @@ class SmsInbox {
     return byId.values.toList();
   }
 
+  /// How much of the inbox this app can actually make sense of.
+  ///
+  /// Distinguishes the two reasons a user sees an empty app, which look
+  /// identical from the inside: they have no bank alerts, or they have plenty
+  /// and none of them parse. Only the second is the app's fault, and only the
+  /// second is worth saying out loud.
+  static Future<({int total, int parsed})> readability({int count = 300}) async {
+    if (!await Permission.sms.isGranted) return (total: 0, parsed: 0);
+    try {
+      final messages = await readRecent(count: count);
+      var parsed = 0;
+      for (final m in messages) {
+        if (m.sender == null || m.body == null) continue;
+        if (parseAlert(m.sender!, m.body!) != null) parsed++;
+      }
+      return (total: messages.length, parsed: parsed);
+    } catch (_) {
+      return (total: 0, parsed: 0);
+    }
+  }
+
   /// The recent slice used by the periodic scan, which only ever looks at
   /// today. Bounded on purpose: an unbounded read is a memory risk on the
   /// low-end devices this app runs on.
