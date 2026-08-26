@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
+import '../data/budget_status.dart';
+import 'widget/category_picker.dart' show brandBlue;
 import '../data/pending_notifications.dart';
 import '../data/spend_repository.dart';
 import '../data/migration_gate.dart';
@@ -116,7 +118,7 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
           _message = "Warning! You've spent more than half of your budget. Be careful to avoid overspending.";
         }
 
-        // Do something with totalBudgetSet, for example, print it
+        _totalBudget = totalBudgetSet;
       } else {
         // No document for this month yet. It used to mean "send them to the
         // track-items screen"; it now means "create it", carrying last
@@ -124,6 +126,56 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
         _bootstrapMonth();
       }
     });
+  }
+
+  /// This month's budget across every category.
+  ///
+  /// It was already being worked out and used only to pick a warning
+  /// sentence. Showing the figure is the point of a budgeting app: a number
+  /// on its own says what was spent, not whether that was too much.
+  double _totalBudget = 0;
+
+  /// "of ₦450,000 budgeted", with a bar showing how much of it is gone.
+  Widget _budgetLine({
+    required String currency,
+    required double spent,
+    required double budget,
+  }) {
+    final status = BudgetStatus.of(spent: spent, budget: budget);
+    final colour = switch (status.level) {
+      BudgetLevel.over => const Color(0xffC0392B),
+      BudgetLevel.nearing => const Color(0xffB7791F),
+      BudgetLevel.ok => brandBlue,
+    };
+    final fraction = status.fraction.clamp(0.0, 1.0);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40),
+      child: Column(
+        children: [
+          Text('of $currency${_formatNumber(budget)} budgeted',
+              style: TextStyle(fontSize: 13.5, color: Colors.grey.shade600)),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 7,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation(colour),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(status.describe(currency),
+              style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: status.level == BudgetLevel.ok
+                      ? Colors.grey.shade600
+                      : colour)),
+        ],
+      ),
+    );
   }
 
   String _formatNumber(double? number) {
@@ -276,6 +328,18 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
                                 ),
                               ),
                             ),
+                            // The figure it is measured against, directly
+                            // beneath it. A total on its own says what was
+                            // spent, never whether that was too much.
+                            if (_totalBudget > 0)
+                              _budgetLine(
+                                currency: '${_data['currency'] ?? ''}',
+                                spent:
+                                    (_data['monthlySpend'] as num?)?.toDouble() ??
+                                        0,
+                                budget: _totalBudget,
+                              ),
+                            const SizedBox(height: 12),
                             SizedBox(
                               width: MediaQuery.of(context).size.width*0.7,
                               child: Text(_message,

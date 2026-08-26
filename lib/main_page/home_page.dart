@@ -1,17 +1,19 @@
 import 'widget/scanning_view.dart';
+import 'package:banking_app/data/background_scan.dart';
+import 'package:banking_app/data/budget_status.dart';
 import 'package:banking_app/data/pending_notifications.dart';
 import 'package:banking_app/data/spend_repository.dart';
 import 'package:go_router/go_router.dart';
 import 'package:banking_app/firebase%20network/daily_resets.dart';
-import 'package:banking_app/firebase%20network/sms_service.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
-import 'package:banking_app/main_page/add_more_items_page.dart';
+import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/widget/progress_bar.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
@@ -24,6 +26,32 @@ class HomePage extends StatefulWidget {
 
   @override
   State<HomePage> createState() => _HomePageState();
+}
+
+/// A month's total budget, from the categories it carries.
+double _monthBudget(dynamic listItems) {
+  if (listItems is! List) return 0;
+  var total = 0.0;
+  for (final item in listItems) {
+    if (item is! Map) continue;
+    total += double.tryParse(
+            '${item['budgetSet']}'.replaceAll(RegExp(r'[^0-9.]'), '')) ??
+        0;
+  }
+  return total;
+}
+
+/// Amber warns, red states a fact. Neither shouts: the card still has to
+/// look like part of the app rather than an error state.
+Color _statusColour(BudgetLevel level) {
+  switch (level) {
+    case BudgetLevel.over:
+      return const Color(0xffC0392B);
+    case BudgetLevel.nearing:
+      return const Color(0xffB7791F);
+    case BudgetLevel.ok:
+      return Colors.transparent;
+  }
 }
 
 class _HomePageState extends State<HomePage> {
@@ -338,12 +366,11 @@ class _HomePageState extends State<HomePage> {
   /// The two-second delay that used to sit in front of it is gone -- it was
   /// pure waiting.
   Future<void> _prepare() async {
-    String? scanResult;
-    try {
-      scanResult = await SmsService().getSmsMessages();
-    } catch (e) {
-      print('SMS scan failed: $e');
-    }
+    // The scan is started at launch and nothing here waits on it. It used to
+    // be awaited before this screen would render, which made the screen the
+    // only thing that scanned -- so an account that opens to the summary was
+    // never scanned at all.
+    BackgroundScan.startOnce();
 
     await _getAllCurrentMonthDocs();
     await _loadNeedsSorting();
@@ -353,7 +380,9 @@ class _HomePageState extends State<HomePage> {
       _preparing = false;
     });
 
-    if (scanResult == 'SMS permission denied.') {
+    // Asked separately, because the scan is no longer the thing that reports
+    // it. Cheap, and it is the one outcome the user has to act on.
+    if (!await Permission.sms.isGranted && mounted) {
       snack(context,
           'Your SMS is required for the tracking process. Please enable SMS permissions in the app settings.');
     }
@@ -441,6 +470,51 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 ),
                               ),
+                              // What it is measured against. A figure on its
+                              // own says what was spent, never whether that
+                              // was too much.
+                              Builder(builder: (_) {
+                                final budget =
+                                    _monthBudget(monthData['listItems']);
+                                if (budget <= 0) return const SizedBox.shrink();
+                                final spent = (monthData['monthlySpend']
+                                            as num?)
+                                        ?.toDouble() ??
+                                    0;
+                                final status = BudgetStatus.of(
+                                    spent: spent, budget: budget);
+                                return Padding(
+                                  padding: const EdgeInsets.fromLTRB(26, 9, 26, 0),
+                                  child: Column(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: LinearProgressIndicator(
+                                          value:
+                                              status.fraction.clamp(0.0, 1.0),
+                                          minHeight: 5,
+                                          backgroundColor: Colors.white
+                                              .withValues(alpha: 0.28),
+                                          valueColor: AlwaysStoppedAnimation(
+                                              status.isOver
+                                                  ? const Color(0xffFFC9C2)
+                                                  : Colors.white),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'of ${monthData['currency']} '
+                                        '${_formatNumber(budget)} budgeted',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.88),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
                             ],
                           ),
                         );
@@ -587,7 +661,13 @@ class _HomePageState extends State<HomePage> {
                                       child: TextButton(
                                           onPressed: (){
                                             Navigator.push(context, MaterialPageRoute(builder: (context){
-                                              return const AddMoreTrackItems();
+                                              // The rebuilt setup screen,
+                                              // not the old one it replaced.
+                                              // `returnOnDone` hands the user
+                                              // back here rather than into
+                                              // the scan and batch screen.
+                                              return const SelectTrackItems(
+                                                  returnOnDone: true);
                                             }));
                                           },
                                           child: const Text('Tap to add more items')
@@ -606,6 +686,11 @@ class _HomePageState extends State<HomePage> {
                                       (listedItems['totalAmountSpent'] as num?)?.toDouble() ?? 0;
                                   progress = (maxValue > 0) ? (currentValue / maxValue) : 0.0;
                                   progress = progress.isFinite ? progress : 0.0;
+                                  // One rule for the colour and the wording,
+                                  // shared with the notification, so the card
+                                  // and the alert can never disagree.
+                                  final status = BudgetStatus.of(
+                                      spent: currentValue, budget: maxValue);
 
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 8.0),
@@ -625,7 +710,20 @@ class _HomePageState extends State<HomePage> {
                                         padding: const EdgeInsets.all(12),
                                         decoration: BoxDecoration(
                                             borderRadius: BorderRadius.circular(18),
-                                            color: Colors.white
+                                            color: Colors.white,
+                                            // A quiet outline rather than a
+                                            // filled alarm: it has to read at
+                                            // a glance without making the
+                                            // whole screen look broken.
+                                            border: Border.all(
+                                              color: _statusColour(status.level)
+                                                  .withValues(alpha:
+                                                      status.level ==
+                                                              BudgetLevel.ok
+                                                          ? 0
+                                                          : 0.55),
+                                              width: 1.4,
+                                            )
                                         ),
                                         child: Column(
                                           children: [
@@ -657,6 +755,43 @@ class _HomePageState extends State<HomePage> {
                                               progress: progress,
                                               currency: monthData['currency'],
                                             ),
+                                            if (status.level != BudgetLevel.ok) ...[
+                                              const SizedBox(height: 10),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    status.isOver
+                                                        ? Icons.error_outline
+                                                        : Icons
+                                                            .info_outline_rounded,
+                                                    size: 15,
+                                                    color: _statusColour(
+                                                        status.level),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Expanded(
+                                                    child: Text(
+                                                      // The figures, not just
+                                                      // the fact: "over
+                                                      // budget" alone says
+                                                      // there is a problem
+                                                      // without saying how
+                                                      // big it is.
+                                                      status.describe(
+                                                          '${monthData['currency'] ?? ''}'),
+                                                      style: TextStyle(
+                                                        fontSize: 12.5,
+                                                        height: 1.35,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: _statusColour(
+                                                            status.level),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                             const SizedBox(height: 15,),
                                             const Divider()
                                           ],
