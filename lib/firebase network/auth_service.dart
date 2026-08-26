@@ -22,6 +22,15 @@ class AuthServices{
       await prefs.setString('email', email);
       await prefs.setString('password', password);
       UserCredential cred = await auth.createUserWithEmailAndPassword(email: email, password: password);
+      // Also on the auth profile, not only in Firestore. The migration reads
+      // it to spot transfers between the user's own accounts, and the
+      // category matcher reads it to spot relatives by surname -- both were
+      // silently doing nothing because this was never set.
+      try {
+        await cred.user!.updateDisplayName('$firstName $lastName'.trim());
+      } catch (_) {
+        // The Firestore copy below is the fallback, so this is not fatal.
+      }
       await firestore.collection('Users').doc(cred.user!.uid).set({
         "firstName": firstName,
         "lastName":lastName,

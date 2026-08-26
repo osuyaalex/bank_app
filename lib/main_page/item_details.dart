@@ -1,3 +1,5 @@
+import 'widget/remove_category_sheet.dart';
+import '../data/spend_repository.dart';
 import 'package:banking_app/main_page/widget/category_breakdown.dart';
 import 'package:banking_app/data/models.dart';
 import 'package:banking_app/elevated_button.dart';
@@ -118,40 +120,77 @@ class _ItemDetailsState extends State<ItemDetails> {
       print('Error updating user biometric: $e');
     }
   }
-  _deleteItem() async {
-    try {
-      EasyLoading.show();
-      DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
-          .collection("track_items")
-          .doc(widget.actualMonth)
-          .collection("monthUsers")
-          .doc(FirebaseAuth.instance.currentUser!.uid)
-          .get();
-      List<dynamic> listItems = documentSnapshot.get('listItems');
-      if (widget.index >= 0 && widget.index < listItems.length) {
-        listItems.removeAt(widget.index);
+  /// Removes this tracker, having first asked what to do with its money.
+  ///
+  /// It used to drop the entry from the legacy list and stop, which left every
+  /// transaction pointing at a category that no longer appeared anywhere. The
+  /// money stayed in the month total with no way to see or correct it.
+  Future<void> _deleteItem() async {
+    final repo = SpendRepository();
+    final name = widget.itemDetails['name'].toString();
+    final categoryId = slugifyCategory(name);
 
-        // Update Firestore with the new list
-        await FirebaseFirestore.instance
-            .collection("track_items")
-            .doc(widget.actualMonth)
-            .collection("monthUsers")
-            .doc(FirebaseAuth.instance.currentUser!.uid)
-            .update({
-          "listItems": listItems,
-        });
-        EasyLoading.dismiss();
-        snack(context, 'Item deleted successfully');
-        Navigator.pop(context);
-        Navigator.pop(context);
-      } else {
-        EasyLoading.dismiss();
-        snack(context, 'Invalid index');
-      }
+    EasyLoading.show();
+    int count;
+    List<Category> others;
+    try {
+      count = await repo.transactionCountFor(categoryId);
+      others = (await repo.pickerCategories())
+          .where((c) => c.id != categoryId)
+          .toList();
     } catch (e) {
       EasyLoading.dismiss();
-      print('Error deleting item: $e');
-      snack(context, 'Error deleting item');
+      if (mounted) snack(context, 'Could not read this category.');
+      return;
+    }
+    EasyLoading.dismiss();
+    if (!mounted) return;
+
+    final outcome = await showRemoveCategorySheet(
+      context,
+      categoryName: name,
+      transactionCount: count,
+      otherCategories: others,
+    );
+    if (outcome == null || !mounted) return;
+
+    EasyLoading.show();
+    try {
+      if (outcome.choice == RemoveChoice.moveThenRemove) {
+        await repo.moveCategoryTransactions(
+          fromCategoryId: categoryId,
+          toCategoryId: outcome.moveTo!,
+          toCategoryName: outcome.moveToName!,
+        );
+      }
+      await repo.deleteCategory(
+        categoryId: categoryId,
+        categoryName: name,
+        deleteTransactions: outcome.choice == RemoveChoice.removeAndDelete,
+      );
+      EasyLoading.dismiss();
+      if (!mounted) return;
+
+      snack(
+        context,
+        switch (outcome.choice) {
+          RemoveChoice.moveThenRemove =>
+            '$count moved to ${outcome.moveToName}.',
+          RemoveChoice.removeAndUnfile => count == 0
+              ? '$name removed.'
+              : '$name removed. $count sent back to sorting.',
+          RemoveChoice.removeAndDelete =>
+            '$name removed and $count transaction'
+                '${count == 1 ? "" : "s"} deleted.',
+        },
+      );
+      Navigator.pop(context);
+      Navigator.pop(context);
+    } catch (e) {
+      EasyLoading.dismiss();
+      // ignore: avoid_print
+      print('Remove category failed: $e');
+      if (mounted) snack(context, 'Could not remove this category.');
     }
   }
 

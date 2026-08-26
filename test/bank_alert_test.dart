@@ -342,10 +342,16 @@ void _batchExcludesKnownMerchants() {
           occurredAt: DateTime(2026, 8, 4)),
     ]));
 
+    // Recognised merchants are listed, not hidden.
+    //
+    // They were filtered out while the only choices were "ask the user" or
+    // "say nothing". The screen now shows them already filed, and a user who
+    // sees Netflix ticked as Subscriptions has evidence the app did the work.
+    // Hiding it meant that evidence was an absence.
     final asked = batchTagCandidates(map, trackedCategories: ['Subscriptions'])
         .map((e) => e.key);
     expect(asked, contains('ABUBAKAR ALIYU'));
-    expect(asked, isNot(contains('NETFLIXCOM')));
+    expect(asked, contains('NETFLIXCOM'));
   });
 
   test('but it is asked about when that category is not tracked', () {

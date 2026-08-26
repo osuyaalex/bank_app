@@ -88,7 +88,7 @@ class _PreparingPageState extends State<PreparingPage>
         if (await migration.needsMigration()) {
           final report = await migration.run(
             inbox: await SmsInbox.readForMigration(),
-            ownerName: user.displayName,
+            ownerName: await repo.ownerName(),
           );
           // One line describing the outcome. Enough to explain a support
           // report, without narrating every step.
