@@ -24,6 +24,8 @@ import 'firebase_options.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'main_page/batch_tag_page.dart';
+import 'main_page/how_it_works_page.dart';
+import 'main_page/select_track_items.dart';
 import 'main_page/pending_page.dart';
 import 'main_page/preparing_page.dart';
 import 'main_page/summary.dart';
@@ -156,6 +158,14 @@ class MyApp extends StatelessWidget {
             builder: (_, __) => const NoPasswordSignIn()
         ),
         GoRoute(
+            path: '/intro',
+            builder: (_, __) => const HowItWorksPage()
+        ),
+        GoRoute(
+            path: '/trackItems',
+            builder: (_, __) => const SelectTrackItems()
+        ),
+        GoRoute(
             path: '/batchTag',
             builder: (_, __) => const BatchTagPage()
         ),
@@ -189,7 +199,13 @@ class MyApp extends StatelessWidget {
         }
 
         // Where entry is decided. Redirecting these would be a loop.
-        const passThrough = {'/root', '/preparing', '/batchTag'};
+        const passThrough = {
+          '/root',
+          '/intro',
+          '/trackItems',
+          '/preparing',
+          '/batchTag',
+        };
         if (passThrough.contains(state.matchedLocation)) return null;
 
         return OnboardingGate.isKnownFor(user.uid) ? null : '/root';

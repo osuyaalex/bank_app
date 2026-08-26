@@ -31,6 +31,26 @@ class MigrationGate {
           await FirebaseFirestore.instance.collection('Users').doc(uid).get();
       final data = snap.data();
 
+      final repo = SpendRepository(uid: uid);
+      final tracked = await repo.trackedCategoryNames();
+
+      // Budgets come first, and the order is not cosmetic. A transaction is
+      // filed by matching it to a category that already exists, so a user who
+      // reaches the scan with none gets nothing matched and has to tag every
+      // row by hand.
+      if (tracked.isEmpty) {
+        // The explainer runs once, ahead of the first thing the app asks for.
+        // Its absence is what had testers asking what a screen wanted from
+        // them before they knew what the app was.
+        if (data?['introSeen'] != true) return '/intro';
+        return '/trackItems';
+      }
+
+      // A new month. The categories and figures have been carried forward, so
+      // the screen arrives filled in and confirming is one tap -- but it is
+      // shown, because a budget nobody revisits stops being a plan.
+      if (!await repo.budgetsConfirmedThisMonth()) return '/trackItems';
+
       final migration = SchemaMigration(FirebaseFirestore.instance, uid);
       if (await migration.needsMigration()) return '/preparing';
 
@@ -44,11 +64,7 @@ class MigrationGate {
       // never shown on its own account: making the user watch it on every
       // launch only to land on the summary would be a delay dressed up as
       // work.
-      final repo = SpendRepository(uid: uid);
-      final noCategoriesYet = (await repo.trackedCategoryNames()).isEmpty;
-      if (noCategoriesYet || await repo.pendingTagCount() > 0) {
-        return '/preparing';
-      }
+      if (await repo.pendingTagCount() > 0) return '/preparing';
       return '/deeplink/summary';
     } catch (_) {
       // Never strand the user on a blank screen because a read failed.
@@ -72,7 +88,7 @@ class MigrationGate {
   }
 
   /// Version of the orphaned-label repair that has already run.
-  static const _repairVersion = 2;
+  static const _repairVersion = 4;
 
   static Future<void> _repairOnce(String uid) async {
     final doc = FirebaseFirestore.instance.collection('Users').doc(uid);
@@ -82,6 +98,11 @@ class MigrationGate {
       final repo = SpendRepository(uid: uid);
       print('REPAIR: ${await repo.repairOrphanedLabels()}');
       print('REPAIR: ${await repo.backfillMissingBudgets()}');
+      // Releases transfers the user made to their own accounts, which a
+      // faulty name guard had filed as spending on a relative.
+      print('REPAIR: self-transfers released ${await repo.repairSelfTransfers()}');
+      print('REPAIR: duplicate categories merged '
+          '${await repo.mergeDuplicateCategories()}');
       await doc.set({'repairVersion': _repairVersion}, SetOptions(merge: true));
     } catch (e) {
       // Leave the marker unset so it retries next launch.
@@ -120,7 +141,7 @@ class MigrationGate {
       final report =
           await SchemaMigration(FirebaseFirestore.instance, user.uid).run(
         inbox: inbox,
-        ownerName: user.displayName,
+        ownerName: await SpendRepository(uid: user.uid).ownerName(),
       );
 
       // The screen is offered until the user deals with it once. Gating on a
