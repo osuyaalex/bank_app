@@ -110,8 +110,8 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
   }
 
   Future<void> _switch(({String key, int count, double total}) row) async {
-    final target =
-        await _chooseCategory(row.key, 'Move to another category');
+    final target = await _chooseCategory(
+        row.key, 'Move ${row.key} and everything from them');
     if (target == null) return;
     if (!mounted) return;
 
@@ -123,17 +123,18 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       builder: (dialogContext) => AlertDialog(
         title: Text('Move ${row.key} to ${target.name}'),
         content: Text(
-          'This month you have ${_money(row.total)} from ${row.key} '
-          'under ${widget.categoryName}.',
+          'Payments to ${row.key} will go to ${target.name} from now on.\n\n'
+          'This month you have ${_money(row.total)} from them under '
+          '${widget.categoryName}. Should that move too?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('From now on'),
+            child: const Text('Leave this month'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('It was always this'),
+            child: const Text('Move it too'),
           ),
         ],
       ),
@@ -156,6 +157,11 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
     }
   }
 
+  /// Moves one payment, and only that payment.
+  ///
+  /// Deliberately does not change where later payments to the same place go.
+  /// That is what the "who this went to" view is for; this is the outlier
+  /// tool -- the one ₦50,000 to somebody you usually buy lunch from.
   Future<void> _correct(TransactionRecord txn) async {
     final target = await _chooseCategory(
       _money(txn.amount ?? 0),
@@ -166,8 +172,15 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       txn: txn,
       toCategoryId: target.id,
       toCategoryName: target.name,
+      remember: false,
     );
     await _load();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Moved to ${target.name}. Only this one — later '
+            'payments are unchanged.'),
+      ));
+    }
   }
 
   @override
@@ -339,7 +352,7 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('Move',
+                        Text('Move all',
                             style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -431,9 +444,14 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
                           Text(_money(t.amount ?? 0),
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700, fontSize: 12.5)),
-                          const SizedBox(width: 6),
-                          Icon(Icons.edit_outlined,
-                              size: 14, color: Colors.grey.shade400),
+                          const SizedBox(width: 8),
+                          Text('Just this one',
+                              style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade500)),
+                          Icon(Icons.chevron_right,
+                              size: 13, color: Colors.grey.shade400),
                         ],
                       ),
                     ),

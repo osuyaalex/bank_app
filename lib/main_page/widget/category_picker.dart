@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/category_catalogue.dart';
 import '../../data/models.dart';
+import 'ghost_chip.dart';
 
 const brandBlue = Color(0xff5AA5E2);
 
@@ -56,6 +57,9 @@ Future<CategoryChoice?> showCategoryPicker(
   Future<Category?> Function()? onCreate,
   List<CatalogueEntry> suggestions = const [],
   Future<Category?> Function(CatalogueEntry)? onAdopt,
+  List<String> ghostOptions = const [],
+  String? ghostReason,
+  Future<Category?> Function(String)? onAcceptGhost,
 }) {
   Widget group(BuildContext sheetContext, String heading, Iterable<Category> items) {
     final list = items.toList();
@@ -115,6 +119,43 @@ Future<CategoryChoice?> showCategoryPicker(
                   children: [
                     group(sheetContext, 'Tracking this month',
                         categories.where((c) => tracked.contains(c.name))),
+                    // Straight after what the user tracks, because that is
+                    // where they look first and where the app's own answer
+                    // belongs -- not buried under two other headings.
+                    if (ghostOptions.isNotEmpty && onAcceptGhost != null) ...[
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 6),
+                        child: Text('THE APP SUGGESTS',
+                            style: TextStyle(
+                                fontSize: 11,
+                                letterSpacing: 0.8,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black38)),
+                      ),
+                      if (ghostReason != null) ...[
+                        GhostHint(text: ghostReason),
+                        const SizedBox(height: 8),
+                      ],
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final name in ghostOptions)
+                            GhostChip(
+                              label: name,
+                              onTap: () async {
+                                final created = await onAcceptGhost(name);
+                                if (created == null) return;
+                                if (sheetContext.mounted) {
+                                  Navigator.pop(sheetContext,
+                                      CategoryChoice.category(created.id));
+                                }
+                              },
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     group(sheetContext, 'Not tracked this month',
                         categories.where((c) => !tracked.contains(c.name))),
                     if (suggestions.isNotEmpty && onAdopt != null) ...[

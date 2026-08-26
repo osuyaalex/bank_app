@@ -1,5 +1,4 @@
 import '../parsing/bank_alert.dart';
-import '../parsing/merchant_dictionary.dart';
 import 'models.dart';
 
 /// Pure transformations that compute what the migration will write.
@@ -105,13 +104,38 @@ Map<String, CounterpartyEntry> seedCounterparties(
           a.channel == TxnChannel.web,
       disposition: existing?.disposition ?? proposed,
       txCount: (existing?.txCount ?? 0) + 1,
+      creditCount: existing?.creditCount ?? 0,
+      roundAmounts:
+          (existing?.roundAmounts ?? 0) + (_isRoundAmount(a.amount) ? 1 : 0),
       lastSeen: (existing?.lastSeen == null ||
               (seen != null && seen.isAfter(existing!.lastSeen!)))
           ? (seen ?? existing?.lastSeen)
           : existing?.lastSeen,
     );
   }
+
+  // A second pass for money coming the other way.
+  //
+  // Credits deliberately do not *create* entries -- that would fill the batch
+  // screen with people who pay the user. They only annotate counterparties
+  // already there, because the useful fact is not "this person sent money",
+  // it is "money moved both ways with this person", which a shop never does.
+  for (final a in alerts) {
+    final key = a.counterpartyKey;
+    if (key == null || a.kind != AlertKind.credit) continue;
+    final existing = out[key];
+    if (existing == null) continue;
+    out[key] = existing.copyWith(creditCount: existing.creditCount + 1);
+  }
   return out;
+}
+
+/// Whether an amount is a round figure.
+///
+/// People send each other round numbers; shops charge what the goods cost.
+bool _isRoundAmount(double? amount) {
+  if (amount == null || amount <= 0) return false;
+  return amount % 500 == 0;
 }
 
 /// Ranks counterparties for the batch-tag screen: most frequent first, so the
@@ -121,18 +145,19 @@ List<CounterpartyEntry> batchTagCandidates(
   int limit = 20,
   Iterable<String> trackedCategories = const [],
 }) {
-  final tracked = trackedCategories.toList();
   final list = map.values
       // `tracked` is already answered; `notSpending` is proposed separately as
       // a confirmation, not as a category choice.
       .where((e) => e.disposition == Disposition.ask)
       .where((e) => !isInstitutionOnlyKey(e.key))
-      // Merchants the dictionary already files are not worth asking about.
-      // Putting Netflix in front of the user when the app knows perfectly well
-      // what Netflix is makes the dictionary pointless -- it would save the
-      // app work rather than the person using it.
-      .where((e) =>
-          tracked.isEmpty || suggestCategoryName(e.key, tracked) == null)
+      // Recognised merchants are deliberately *kept*.
+      //
+      // They used to be filtered out, on the reasoning that asking about
+      // Netflix when the app already knows what Netflix is wastes the user's
+      // time. That was right while the only options were "ask" or "hide" --
+      // but the screen now arrives with them already filed and ticked, and
+      // seeing the work done is worth more than a shorter list. Hiding them
+      // meant the user's evidence that anything happened was an absence.
       .toList()
     ..sort((a, b) => b.txCount.compareTo(a.txCount));
   return list.take(limit).toList();
@@ -164,6 +189,8 @@ Map<String, CounterpartyEntry> canonicaliseKeys(
     final entry = map[k]!;
     final aliases = <String>[];
     var count = entry.txCount;
+    var credits = entry.creditCount;
+    var round = entry.roundAmounts;
     var disposition = entry.disposition;
 
     for (final other in keys) {
@@ -179,6 +206,8 @@ Map<String, CounterpartyEntry> canonicaliseKeys(
       aliases.add(other);
       claimed[other] = k;
       count += map[other]!.txCount;
+      credits += map[other]!.creditCount;
+      round += map[other]!.roundAmounts;
       // A self-transfer detected under any spelling applies to all of them.
       if (map[other]!.disposition == Disposition.notSpending) {
         disposition = Disposition.notSpending;
@@ -187,6 +216,10 @@ Map<String, CounterpartyEntry> canonicaliseKeys(
 
     canonical[k] = entry.copyWith(
       txCount: count,
+      // Merged along with the count: a truncated spelling of the same person
+      // carries the same evidence about them.
+      creditCount: credits,
+      roundAmounts: round,
       aliases: aliases,
       disposition: disposition,
       isMerchant: entry.isMerchant ||

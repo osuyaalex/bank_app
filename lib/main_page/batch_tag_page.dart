@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -6,9 +7,16 @@ import 'package:permission_handler/permission_handler.dart';
 import '../data/category_catalogue.dart';
 import '../data/migration_plan.dart';
 import '../data/models.dart';
+import '../data/sms_inbox.dart';
+import '../parsing/bank_alert.dart';
+import '../parsing/category_matcher.dart';
 import '../data/spend_repository.dart';
+import 'widget/bulk_sort_sheet.dart';
 import 'widget/category_picker.dart';
 import 'widget/category_setup_sheet.dart';
+import 'widget/ghost_chip.dart';
+import 'widget/screen_guide.dart';
+import 'widget/unreadable_sms_view.dart';
 
 const _brand = brandBlue;
 
@@ -52,10 +60,23 @@ class _BatchTagPageState extends State<BatchTagPage> {
   /// seconds -- long enough that silence reads as the tap not registering.
   final Set<String> _savingKeys = {};
 
+  /// What the app worked out for each row before the user touched anything.
+  ///
+  /// Kept alongside [_choices] rather than folded into it, because the two
+  /// mean different things: a guess is the app's, a choice is the user's, and
+  /// a row has to be able to say which it is showing.
+  final Map<String, CategoryGuess> _guesses = {};
+
+  /// The account holder's name, for spotting relatives by surname.
+  String? _ownerName;
+
   /// Whether the app can read the SMS inbox. Without it there is nothing to
   /// tag and no amount of waiting will change that, so the screen says so
   /// rather than letting the user assume they simply have no spending.
   bool _smsGranted = true;
+
+  /// How much of the inbox could be understood. Null until checked.
+  ({int total, int parsed})? _readability;
 
   bool _loading = true;
   bool _saving = false;
@@ -65,6 +86,17 @@ class _BatchTagPageState extends State<BatchTagPage> {
   /// differ -- there is nothing to skip, and leaving without a budget would
   /// drop the user onto an empty home screen.
   bool get _isSetup => _rows.isEmpty && _tracked.isEmpty;
+
+  static const _guideId = 'batch_tag';
+  static const _guideTitle = 'Sort your spending, once';
+  static const _guideSteps = [
+    GuideStep('These are the people and places you pay most often.'),
+    GuideStep('Tap one and choose which budget it belongs to.'),
+    GuideStep('Every future payment to them is filed there automatically.'),
+  ];
+  static const _guideFootnote =
+      'You only see this once. Tap Done when you have had enough \u2014 anything '
+      'left over can be sorted later from the summary.';
 
   @override
   void initState() {
@@ -90,12 +122,14 @@ class _BatchTagPageState extends State<BatchTagPage> {
     // later write lands on a document nothing else can find.
     await _repo.ensureMonthInitialised();
 
-    final categories = await _repo.loadCategories();
+    final categories = await _repo.pickerCategories();
     final tracked = await _repo.trackedCategoryNames();
     final currency = await _repo.currencySymbol();
     final map = await _repo.loadCounterparties();
     final catalogue = await CategoryCatalogue.load();
     final smsGranted = await _readSmsPermission();
+    final readability = await SmsInbox.readability();
+    final ownerName = await _repo.ownerName();
 
     // Self-transfers the migration proposed come first and arrive already
     // ticked -- the user is confirming a suggestion, not answering a question.
@@ -115,6 +149,8 @@ class _BatchTagPageState extends State<BatchTagPage> {
       _suggestions = CategoryCatalogue.unseen(
           catalogue, categories.map((c) => c.name));
       _smsGranted = smsGranted;
+      _readability = readability;
+      _ownerName = ownerName;
       _rows = [
         ...proposed,
         ...batchTagCandidates(map,
@@ -122,6 +158,9 @@ class _BatchTagPageState extends State<BatchTagPage> {
       ];
       _loading = false;
     });
+
+    // After the frame, so the list is on screen while this fills it in.
+    unawaited(_autoAssign());
   }
 
   Future<bool> _readSmsPermission() async {
@@ -144,6 +183,236 @@ class _BatchTagPageState extends State<BatchTagPage> {
       return;
     }
     if (status.isPermanentlyDenied) await openAppSettings();
+  }
+
+  /// Files every row the app can place, before the user sees the screen.
+  ///
+  /// This is the point of the dictionary. A user who opens this to twenty
+  /// untouched rows has the same chore they had before; a user who opens it to
+  /// twenty already-filed rows only has to check the ones the app flagged.
+  ///
+  /// Writes happen in the background. The guesses are shown immediately --
+  /// making the user watch twenty spinners resolve before they can read their
+  /// own screen would be backwards.
+  /// Re-runs the matcher after a category is created.
+  ///
+  /// Accepting `+ Family` on one row taught the app what Family is, but every
+  /// other relative kept its stale guess and went on offering the same chip.
+  /// Creating a category answers every row that was waiting on it, so all of
+  /// them are re-evaluated rather than only the one that was tapped.
+  Future<void> _reassignAfterNewCategory() => _autoAssign();
+
+  Future<void> _autoAssign() async {
+    final applied = <String, CategoryChoice>{};
+
+    for (final row in _rows) {
+      if (_choices.containsKey(row.key)) continue; // already answered
+
+      // Their own account. Moving money between your own accounts is not
+      // spending, and filing it anywhere -- Family, Others, a best guess --
+      // counts it twice and inflates the month.
+      if (looksLikeOwnAccount(row.key, _ownerName)) {
+        applied[row.key] = const CategoryChoice.notSpending();
+        continue;
+      }
+
+      final guess = guessCategory(
+        row.key,
+        _tracked,
+        ownerName: _ownerName,
+        twoWayMoney: row.isTwoWay,
+        mostlyRoundAmounts: row.mostlyRound,
+      );
+      if (guess == null) continue;
+      _guesses[row.key] = guess;
+      if (guess.categoryName.isEmpty) continue; // a suggestion, not a filing
+
+      final category = _categories.firstWhere(
+        (c) => c.name.toLowerCase() == guess.categoryName.toLowerCase(),
+        orElse: () => const Category(id: '', name: ''),
+      );
+      if (category.id.isEmpty) continue;
+      applied[row.key] = CategoryChoice.category(category.id);
+    }
+
+    if (applied.isEmpty || !mounted) return;
+    setState(() => _choices.addAll(applied));
+
+    for (final entry in applied.entries) {
+      try {
+        await _repo.tagCounterparty(
+          key: entry.key,
+          disposition: entry.value.notSpending
+              ? Disposition.notSpending
+              : Disposition.tracked,
+          categoryId: entry.value.categoryId,
+        );
+      } catch (err) {
+        // ignore: avoid_print
+        print('BATCH: auto-assign failed for ${entry.key}: $err');
+        if (mounted) setState(() => _choices.remove(entry.key));
+      }
+    }
+  }
+
+  /// Creates the category the app suggested and files this row into it.
+  ///
+  /// One tap and a number, instead of: open the picker, find "Add more", type
+  /// the name the app already knew, then set the budget.
+  Future<void> _acceptSuggestion(CounterpartyEntry row, String name) async {
+    final setup =
+        await showCategorySetupSheet(context, currency: _currency, fixedName: name);
+    if (setup == null) return;
+
+    final category =
+        await _repo.startTracking(name: name, budget: setup.budget);
+    if (!mounted) return;
+    setState(() {
+      if (!_categories.any((c) => c.id == category.id)) {
+        _categories = [..._categories, category]
+          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      }
+      _tracked.add(category.name);
+      _suggestions = _suggestions.where((s) => s.name != name).toList();
+      _choices[row.key] = CategoryChoice.category(category.id);
+      _guesses.remove(row.key);
+      _savingKeys.add(row.key);
+    });
+
+    try {
+      await _repo.tagCounterparty(
+        key: row.key,
+        disposition: Disposition.tracked,
+        categoryId: category.id,
+      );
+    } finally {
+      if (mounted) setState(() => _savingKeys.remove(row.key));
+    }
+    await _reassignAfterNewCategory();
+  }
+
+  /// Rows the app has nothing at all for.
+  ///
+  /// Deliberately narrow. It used to count every row it was less than certain
+  /// about, which meant the bar announced "14 weren't clear" on a screen where
+  /// all fourteen had been given a track -- a warning about work that was
+  /// already done. A row with a track, or with a suggested one waiting to be
+  /// accepted, is not unclear; only a row with neither is.
+  List<CounterpartyEntry> get _unsureRows => _rows.where((r) {
+        // Already answered, by the user or by the app.
+        if (_choices.containsKey(r.key)) return false;
+        final g = _guesses[r.key];
+        // A recommendation is an answer too -- one the user need only accept.
+        if (g != null && g.suggestedOptions.isNotEmpty) return false;
+        return true;
+      }).toList();
+
+  /// Files every unsure row into one category at once.
+  ///
+  /// The alternative to guessing. Eighty counterparties that are bare
+  /// personal names carry no signal, and inventing a category for each is
+  /// eighty chances to be wrong; this says plainly that the app cannot tell
+  /// and turns eighty taps into one.
+  Future<void> _bulkAssign() async {
+    // Everything not yet answered, not only what the app could not place.
+    final rows =
+        _rows.where((r) => !_choices.containsKey(r.key)).toList();
+    if (rows.isEmpty || _categories.isEmpty) return;
+
+    final picks = await showBulkSortSheet(
+      context,
+      categories: _categories,
+      rows: [
+        for (final r in rows)
+          BulkSortRow(
+            id: r.key,
+            title: r.key,
+            subtitle: '${r.txCount} transaction'
+                '${r.txCount == 1 ? "" : "s"}',
+          ),
+      ],
+    );
+    if (picks == null || picks.isEmpty || !mounted) return;
+
+    setState(() {
+      picks.forEach((key, categoryId) {
+        _choices[key] = CategoryChoice.category(categoryId);
+        _guesses.remove(key);
+        _savingKeys.add(key);
+      });
+    });
+
+    for (final entry in picks.entries) {
+      try {
+        await _repo.tagCounterparty(
+          key: entry.key,
+          disposition: Disposition.tracked,
+          categoryId: entry.value,
+        );
+      } catch (err) {
+        // ignore: avoid_print
+        print('BATCH: bulk assign failed for ${entry.key}: $err');
+        if (mounted) setState(() => _choices.remove(entry.key));
+      } finally {
+        if (mounted) setState(() => _savingKeys.remove(entry.key));
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${picks.length} sorted.')));
+    }
+  }
+
+  Widget _bulkBar() {
+    // Offered whenever there is enough to be worth it, not only when the app
+    // is stuck.
+    //
+    // It used to appear only for rows with no suggestion at all. Narrowing
+    // that count was right -- it had been warning about work already done --
+    // but it also meant the bar stopped appearing once the matcher started
+    // suggesting something for nearly everything, and the bulk sheet became
+    // unreachable. The count and the shortcut are different questions.
+    final unsure = _unsureRows.length;
+    final n = _rows.where((r) => !_choices.containsKey(r.key)).length;
+    if (n < 3) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 4, 2, 10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.help_outline_rounded,
+                size: 17, color: Colors.grey.shade500),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                unsure > 0
+                    ? "$unsure still need a budget. Sort several at once?"
+                    : 'Sort several at once, without opening each.',
+                style: TextStyle(
+                    fontSize: 12.5, height: 1.35, color: Colors.grey.shade700),
+              ),
+            ),
+            TextButton(
+              onPressed: _saving ? null : _bulkAssign,
+              style: TextButton.styleFrom(
+                foregroundColor: _brand,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+              child: const Text('Choose',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -172,6 +441,22 @@ class _BatchTagPageState extends State<BatchTagPage> {
       );
     }
 
+    // Nothing on this screen means anything without transactions. Rather than
+    // an empty list the user has to interpret, say why it is empty.
+    final r = _readability;
+    final nothingReadable = r != null && r.parsed == 0 && _rows.isEmpty;
+    if (!_smsGranted || nothingReadable) {
+      return UnreadableSmsView(
+        permissionGranted: _smsGranted,
+        messagesSeen: r?.total ?? 0,
+        onRetry: () async {
+          if (!mounted) return;
+          setState(() => _loading = true);
+          await _load();
+        },
+      );
+    }
+
     // No back button, and the system gesture is blocked: this is shown once,
     // and leaving it by accident means never being offered it again.
     return PopScope(
@@ -190,6 +475,13 @@ class _BatchTagPageState extends State<BatchTagPage> {
                   color: Colors.black,
                   fontSize: 17,
                   fontWeight: FontWeight.w600)),
+          actions: const [
+            GuideButton(
+                id: _guideId,
+                title: _guideTitle,
+                steps: _guideSteps,
+                footnote: _guideFootnote),
+          ],
         ),
         body: SafeArea(
           child: _rows.isEmpty
@@ -213,7 +505,13 @@ class _BatchTagPageState extends State<BatchTagPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (!_smsGranted) _smsBanner(),
+                          const ScreenGuide(
+                              id: _guideId,
+                              title: _guideTitle,
+                              steps: _guideSteps,
+                              footnote: _guideFootnote),
                           _intro(),
+                          _bulkBar(),
                         ],
                       );
                     }
@@ -412,6 +710,12 @@ class _BatchTagPageState extends State<BatchTagPage> {
                 .name;
     final answered = label != null;
     final saving = _savingKeys.contains(e.key);
+    final guess = _guesses[e.key];
+    // A category the app would file this into if it existed. Offered on the
+    // card so accepting it is one tap rather than a trip through the picker.
+    final ghosts = !answered && (guess?.needsNewCategory ?? false)
+        ? guess!.suggestedOptions
+        : const <String>[];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -487,6 +791,38 @@ class _BatchTagPageState extends State<BatchTagPage> {
                         ),
                       ),
                     ),
+                    // Only where the app is unsure. A note on every row is
+                    // noise, and noise is what gets ignored.
+                    if (guess?.note != null && answered && !saving) ...[
+                      const SizedBox(height: 4),
+                      Text(guess!.note!,
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              height: 1.3,
+                              color: Colors.grey.shade500)),
+                    ],
+                    if (ghosts.isNotEmpty && !saving) ...[
+                      const SizedBox(height: 9),
+                      GhostHint(text: guess!.reason),
+                      const SizedBox(height: 7),
+                      // Several, where the app genuinely cannot choose. A
+                      // transfer to a person could be a gift, a loan or
+                      // lunch, and the user often does not know either --
+                      // three plausible buckets on the card beats one
+                      // confident wrong answer or an empty row.
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: [
+                          for (final g in ghosts)
+                            GhostChip(
+                              label: g,
+                              dense: true,
+                              onTap: () => _acceptSuggestion(e, g),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -522,6 +858,28 @@ class _BatchTagPageState extends State<BatchTagPage> {
       onCreate: _createCategory,
       suggestions: _suggestions,
       onAdopt: _adopt,
+      ghostOptions: _guesses[e.key]?.suggestedOptions ?? const [],
+      ghostReason: _guesses[e.key]?.reason,
+      onAcceptGhost: (name) async {
+        final setup = await showCategorySetupSheet(context,
+            currency: _currency, fixedName: name);
+        if (setup == null) return null;
+        final created =
+            await _repo.startTracking(name: name, budget: setup.budget);
+        if (mounted) {
+          setState(() {
+            if (!_categories.any((c) => c.id == created.id)) {
+              _categories = [..._categories, created]
+                ..sort((a, b) =>
+                    a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+            }
+            _tracked.add(created.name);
+            _guesses.remove(e.key);
+          });
+          await _reassignAfterNewCategory();
+        }
+        return created;
+      },
     );
     if (chosen == null) return;
 
@@ -616,6 +974,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
         _suggestions =
             _suggestions.where((s) => s.name != entry.name).toList();
       });
+      await _reassignAfterNewCategory();
     }
     return category;
   }

@@ -69,6 +69,8 @@ class CounterpartyEntry {
     this.lastSeen,
     this.aliases = const [],
     this.isMerchant = false,
+    this.creditCount = 0,
+    this.roundAmounts = 0,
   });
 
   final String key;
@@ -82,6 +84,29 @@ class CounterpartyEntry {
   final int overrideCount;
 
   final int txCount;
+
+  /// How many times money came *from* this counterparty.
+  ///
+  /// The strongest signal available for a bare personal name, and it costs
+  /// nothing to collect: a shop takes money and never sends it back, so
+  /// anyone the user both pays and is paid by is a person they have a
+  /// relationship with -- family, a friend, someone they split bills with.
+  final int creditCount;
+
+  /// How many payments were round figures.
+  ///
+  /// People send round numbers to each other -- five thousand, twenty
+  /// thousand. Shops charge what the goods cost. On its own it proves
+  /// nothing; alongside a name that carries no other signal it is worth
+  /// something.
+  final int roundAmounts;
+
+  /// True when money has moved in both directions.
+  bool get isTwoWay => creditCount > 0 && txCount > 0;
+
+  /// True when most payments were round figures.
+  bool get mostlyRound => txCount > 0 && roundAmounts / txCount >= 0.7;
+
   final DateTime? lastSeen;
 
   /// Shorter spellings of [key] produced by SMS truncation. The same person
@@ -110,6 +135,8 @@ class CounterpartyEntry {
     DateTime? lastSeen,
     List<String>? aliases,
     bool? isMerchant,
+    int? creditCount,
+    int? roundAmounts,
   }) =>
       CounterpartyEntry(
         key: key,
@@ -120,6 +147,8 @@ class CounterpartyEntry {
         lastSeen: lastSeen ?? this.lastSeen,
         aliases: aliases ?? this.aliases,
         isMerchant: isMerchant ?? this.isMerchant,
+        creditCount: creditCount ?? this.creditCount,
+        roundAmounts: roundAmounts ?? this.roundAmounts,
       );
 
   Map<String, dynamic> toMap() => {
@@ -131,6 +160,8 @@ class CounterpartyEntry {
         'lastSeen': lastSeen?.toIso8601String(),
         'aliases': aliases,
         'isMerchant': isMerchant,
+        'creditCount': creditCount,
+        'roundAmounts': roundAmounts,
       };
 }
 
