@@ -363,6 +363,16 @@ final _zenithBalance =
 final _zenithTrfTo = RegExp(r'TRF\s+TO\s+(.+?)(?://|$)', caseSensitive: false);
 final _zenithAirtime = RegExp(r'^Airtime', caseSensitive: false);
 
+/// A data purchase, which Zenith narrates as `Bundle//<phone>//<ref>`.
+///
+/// Recognised separately from airtime because the narration carries no
+/// network name to key on -- only a phone number and a reference, both of
+/// which change every purchase. Left alone it keyed as `BUNDLE` and filed as
+/// "could not work this one out", which is a data plan sitting in
+/// Miscellaneous every month.
+final _zenithBundle =
+    RegExp(r'^\s*(?:data\s*)?bundle\b', caseSensitive: false);
+
 BankAlert _parseZenith(String body, AlertKind kind) {
   final narration = _zenithNarration.firstMatch(body)?.group(1)?.trim() ?? '';
   final amount = _amountOf(body, kind);
@@ -375,6 +385,11 @@ BankAlert _parseZenith(String body, AlertKind kind) {
   } else if (_zenithAirtime.hasMatch(narration)) {
     channel = TxnChannel.airtime;
     counterparty = _airtimeKey(narration);
+  } else if (_zenithBundle.hasMatch(narration)) {
+    channel = TxnChannel.airtime;
+    // One stable key for every data purchase, since the phone number and
+    // reference differ each time.
+    counterparty = 'DATA BUNDLE';
   } else {
     final trf = _zenithTrfTo.firstMatch(narration);
     counterparty =
@@ -996,7 +1011,7 @@ String _stripGenericRouting(String value) {
 TxnChannel _genericChannel(String narration, AlertKind kind) {
   if (kind == AlertKind.charge) return TxnChannel.charge;
   final n = narration.toUpperCase();
-  if (RegExp(r'\bAIRTIME|RECHARGE|DATA\s+BUNDLE\b').hasMatch(n)) {
+  if (RegExp(r'\bAIRTIME|RECHARGE|DATA\s*BUNDLE|\bBUNDLE\b').hasMatch(n)) {
     return TxnChannel.airtime;
   }
   // `QS894:7026567426:112/01MTN:USSD_SC_12/01` is a top-up and says so only by
@@ -1112,10 +1127,32 @@ bool isInstitutionOnlyKey(String key) {
 /// and `ALEXANDER ADENIYI`), so this compares on a prefix basis. Deliberately
 /// conservative: it only suggests, and the user confirms.
 bool looksLikeOwnAccount(String key, String? ownerName) {
-  if (ownerName == null) return false;
+  if (ownerName == null || ownerName.trim().isEmpty) return false;
+
   String squash(String v) =>
       v.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
   final a = squash(key), b = squash(ownerName);
-  if (a.length < 8 || b.length < 8) return false;
-  return a.startsWith(b) || b.startsWith(a);
+  if (a.length >= 8 && b.length >= 8 && (a.startsWith(b) || b.startsWith(a))) {
+    return true;
+  }
+
+  // Word-wise as well, because a middle name the profile does not carry
+  // breaks the prefix test: `ALEXANDER ADENIYI OSUYA` against a stored
+  // `Alexander Osuya` shares every part and no prefix.
+  List<String> parts(String v) => v
+      .toLowerCase()
+      .split(RegExp(r'[^a-z]+'))
+      .where((p) => p.length > 2)
+      .toList();
+  final owner = parts(ownerName);
+  if (owner.length < 2) return false;
+  final keyParts = parts(key).toSet();
+  for (final part in owner) {
+    final found = keyParts.any((k) =>
+        k == part ||
+        (part.length >= 4 && k.startsWith(part)) ||
+        (k.length >= 4 && part.startsWith(k)));
+    if (!found) return false;
+  }
+  return true;
 }

@@ -1,3 +1,4 @@
+import 'package:banking_app/parsing/category_matcher.dart';
 import 'package:banking_app/parsing/bank_alert.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -451,6 +452,50 @@ Bal:29,611.41''')!;
       final a = parse('Debit: 320XXXX658\nAmt: NGN5,000.00\n'
           'Desc: TRF TO GLORIA MTANGA\nBal: NGN100.00')!;
       expect(a.channel, isNot(TxnChannel.airtime));
+    });
+  });
+
+  group('data bundles', () {
+    // A real Zenith alert. It parsed and counted the money correctly, then
+    // keyed on the word `BUNDLE` and filed a monthly data plan under
+    // "could not work this one out".
+    const bundle = 'Acct:221****558\nDT:25/08/2026 08:42:49 PM\n'
+        'Bundle//07068808118//221004755\nDR Amt:7,500.00\nBal:282,272.52';
+
+    test('the money was never in doubt', () {
+      final a = parseAlert('ZENITHBANK', bundle)!;
+      expect(a.kind, AlertKind.debit);
+      expect(a.amount, 7500.00);
+      expect(a.occurredAt, DateTime(2026, 8, 25, 20, 42, 49));
+    });
+
+    test('every purchase keys the same', () {
+      // The narration carries a phone number and a reference, both different
+      // every time, and no network name to key on.
+      final a = parseAlert('ZENITHBANK', bundle)!;
+      expect(a.channel, TxnChannel.airtime);
+      expect(a.counterpartyKey, 'DATA BUNDLE');
+
+      final other = parseAlert('ZENITHBANK',
+          'Acct:221****558\nDT:01/07/2026 09:15:00 AM\n'
+          'Bundle//08099999999//999999999\nDR Amt:2,000.00\n'
+          'Bal:100,000.00')!;
+      expect(other.counterpartyKey, a.counterpartyKey);
+    });
+
+    test('it files with phone spending', () {
+      final a = parseAlert('ZENITHBANK', bundle)!;
+      final g = guessCategory(a.counterpartyKey!,
+          ['Miscellaneous', 'Mobile Phone'], channelHint: 'airtime')!;
+      expect(g.categoryName, 'Mobile Phone');
+      expect(g.isCertain, isTrue);
+    });
+
+    test('with no phone budget it offers one', () {
+      final a = parseAlert('ZENITHBANK', bundle)!;
+      final g = guessCategory(a.counterpartyKey!, ['Miscellaneous'],
+          channelHint: 'airtime')!;
+      expect(g.suggestedOptions, contains('Mobile Phone'));
     });
   });
 }
