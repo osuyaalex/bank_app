@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:go_router/go_router.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -89,7 +88,9 @@ class _BatchTagPageState extends State<BatchTagPage> {
 
   /// Cleared once the user has answered the offer, either way. Re-offering a
   /// suggestion someone has just declined is nagging.
-  bool _budgetHintsDismissed = false;
+  /// True while chosen budgets are being written and the rows they cover are
+  /// being filed.
+  bool _applyingBudgets = false;
 
   bool _loading = true;
   bool _saving = false;
@@ -218,7 +219,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
   /// them are re-evaluated rather than only the one that was tapped.
   Future<void> _reassignAfterNewCategory() => _autoAssign();
 
-  Future<void> _autoAssign() async {
+  Future<int> _autoAssign() async {
     final applied = <String, CategoryChoice>{};
 
     for (final row in _rows) {
@@ -251,9 +252,16 @@ class _BatchTagPageState extends State<BatchTagPage> {
       applied[row.key] = CategoryChoice.category(category.id);
     }
 
-    if (applied.isEmpty || !mounted) return;
-    setState(() => _choices.addAll(applied));
+    if (applied.isEmpty || !mounted) return 0;
+    // Marked as saving, not merely as answered. Filing a row writes to
+    // Firestore and settles every transaction waiting on it, which takes long
+    // enough that a row changing silently reads as nothing having happened.
+    setState(() {
+      _choices.addAll(applied);
+      _savingKeys.addAll(applied.keys);
+    });
 
+    var filed = 0;
     for (final entry in applied.entries) {
       try {
         await _repo.tagCounterparty(
@@ -263,12 +271,16 @@ class _BatchTagPageState extends State<BatchTagPage> {
               : Disposition.tracked,
           categoryId: entry.value.categoryId,
         );
+        filed++;
       } catch (err) {
         // ignore: avoid_print
         print('BATCH: auto-assign failed for ${entry.key}: $err');
         if (mounted) setState(() => _choices.remove(entry.key));
+      } finally {
+        if (mounted) setState(() => _savingKeys.remove(entry.key));
       }
     }
+    return filed;
   }
 
   /// Creates the category the app suggested and files this row into it.
@@ -568,9 +580,8 @@ class _BatchTagPageState extends State<BatchTagPage> {
   /// nothing about the user and has nothing to propose. By the time this
   /// screen appears the whole inbox has been through the parser.
   Widget _budgetBanner() {
-    if (_budgetHints.isEmpty || _budgetHintsDismissed) {
-      return const SizedBox.shrink();
-    }
+    if (_applyingBudgets) return _workingBanner();
+    if (_budgetHints.isEmpty) return const SizedBox.shrink();
     final top = _budgetHints.first;
     final newOnes = _budgetHints.where((h) => !h.isTracked).length;
 
@@ -632,6 +643,55 @@ class _BatchTagPageState extends State<BatchTagPage> {
     );
   }
 
+  /// Shown while budgets are written and the rows they unlock are filed.
+  ///
+  /// Both take several round trips. Without this the sheet closed onto a
+  /// screen that sat still and then changed all at once, which reads as the
+  /// tap having been ignored.
+  Widget _workingBanner() => Container(
+        margin: const EdgeInsets.fromLTRB(6, 0, 6, 14),
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+        decoration: BoxDecoration(
+          color: const Color(0xffF4F7FF),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _brand.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                SizedBox(
+                  width: 15,
+                  height: 15,
+                  child:
+                      CircularProgressIndicator(strokeWidth: 2, color: _brand),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Setting budgets, and filing what they cover\u2026',
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xff1C1939)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                minHeight: 3,
+                backgroundColor: _brand.withValues(alpha: 0.15),
+                valueColor: const AlwaysStoppedAnimation(_brand),
+              ),
+            ),
+          ],
+        ),
+      );
+
   Future<void> _openBudgetSuggestions() async {
     final current = await _repo.trackedItemsWithBudgets();
     if (!mounted) return;
@@ -652,19 +712,57 @@ class _BatchTagPageState extends State<BatchTagPage> {
     // offer can be picked up again on this visit.
     if (chosen == null || chosen.isEmpty) return;
 
-    for (final s in chosen) {
-      await _repo.applyBudgetSuggestion(s);
+    setState(() => _applyingBudgets = true);
+    var filed = 0;
+    try {
+      for (final s in chosen) {
+        await _repo.applyBudgetSuggestion(s);
+      }
+
+      // The categories now exist and are tracked, so every row the app would
+      // have filed into them can be filed into them.
+      //
+      // This was the gap. Setting a budget for Family left every Family row
+      // sitting unanswered, because the guesses had been worked out against
+      // the old list and nothing recomputed them. The user had just told the
+      // app where that money goes and was then asked again, row by row.
+      final categories = await _repo.pickerCategories();
+      final tracked = await _repo.trackedCategoryNames();
+      if (!mounted) return;
+      setState(() {
+        _categories = categories.where((c) => c.active).toList()
+          ..sort((a, b) =>
+              a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        _tracked = tracked;
+        // Only the rows still waiting. An answered row keeps the reason it
+        // was given, which the user may still be reading.
+        _guesses.removeWhere((k, _) => !_choices.containsKey(k));
+      });
+
+      filed = await _autoAssign();
+
+      // What is still worth offering, rather than nothing.
+      //
+      // Taking one budget used to close the offer on all of them. A category
+      // just set no longer qualifies -- its figure now matches what the app
+      // would propose -- so the ones left are exactly the ones the user has
+      // not answered yet, and the banner goes on its own once they have.
+      final left = await _repo.budgetSuggestionsWorthShowing();
+      if (mounted) setState(() => _budgetHints = left);
+    } finally {
+      if (mounted) setState(() => _applyingBudgets = false);
     }
+
     if (!mounted) return;
-    setState(() {
-      _budgetHintsDismissed = true;
-      _tracked = {..._tracked, ...chosen.map((s) => s.categoryName)};
-    });
+    final budgets = chosen.length == 1
+        ? '${chosen.first.categoryName} budget set'
+        : '${chosen.length} budgets set';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(chosen.length == 1
-            ? '${chosen.first.categoryName} budget set'
-            : '${chosen.length} budgets set'),
+        content: Text(filed == 0
+            ? budgets
+            : '$budgets · $filed '
+                '${filed == 1 ? "row" : "rows"} filed automatically'),
       ),
     );
   }

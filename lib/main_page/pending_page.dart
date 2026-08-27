@@ -119,6 +119,11 @@ class _PendingPageState extends State<PendingPage> {
     }).toList();
     if (sure.isEmpty) return;
 
+    // Marked while their writes are in flight. Filing settles every
+    // transaction waiting on the counterparty, which takes long enough that
+    // rows disappearing without warning reads as the app losing them.
+    if (mounted) setState(() => _savingIds.addAll(sure.map((t) => t.smsId)));
+
     var filed = 0;
     for (final txn in sure) {
       final guess = _guesses[txn.smsId]!;
@@ -138,6 +143,8 @@ class _PendingPageState extends State<PendingPage> {
       } catch (e) {
         // ignore: avoid_print
         print('PENDING: auto-file failed for ${txn.smsId}: $e');
+      } finally {
+        if (mounted) setState(() => _savingIds.remove(txn.smsId));
       }
     }
     if (filed > 0 && mounted) {

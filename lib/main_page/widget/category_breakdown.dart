@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/models.dart';
@@ -141,18 +142,36 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
     );
     if (moveHistory == null) return;
 
-    await _repo.switchCounterparty(
-      key: row.key,
-      toCategoryId: target.id,
-      toCategoryName: target.name,
-      moveHistory: moveHistory,
-    );
-    await _load();
-    if (mounted) {
+    // Moving rewrites the counterparty rule, may re-file a month of
+    // transactions and then reloads this list. Several seconds, during which
+    // the screen used to sit perfectly still -- the user had tapped through
+    // two decisions and been shown nothing at all in return.
+    EasyLoading.show(status: 'Moving ${row.key}\u2026');
+    try {
+      await _repo.switchCounterparty(
+        key: row.key,
+        toCategoryId: target.id,
+        toCategoryName: target.name,
+        moveHistory: moveHistory,
+      );
+      await _load();
+      EasyLoading.dismiss();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(moveHistory
             ? '${row.key} moved to ${target.name}, along with this month.'
             : '${row.key} will go to ${target.name} from now on.'),
+      ));
+    } catch (e) {
+      // Previously this threw past the snackbar and the user was told
+      // nothing, leaving them looking at a list that had not changed with no
+      // idea whether the move had worked.
+      EasyLoading.dismiss();
+      // ignore: avoid_print
+      print('Move counterparty failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not move ${row.key}. Nothing was changed.'),
       ));
     }
   }
@@ -168,18 +187,29 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       txn.counterpartyKey ?? txn.narration,
     );
     if (target == null) return;
-    await _repo.correctTransaction(
-      txn: txn,
-      toCategoryId: target.id,
-      toCategoryName: target.name,
-      remember: false,
-    );
-    await _load();
-    if (mounted) {
+    EasyLoading.show(status: 'Moving this one\u2026');
+    try {
+      await _repo.correctTransaction(
+        txn: txn,
+        toCategoryId: target.id,
+        toCategoryName: target.name,
+        remember: false,
+      );
+      await _load();
+      EasyLoading.dismiss();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Moved to ${target.name}. Only this one — later '
             'payments are unchanged.'),
       ));
+    } catch (e) {
+      EasyLoading.dismiss();
+      // ignore: avoid_print
+      print('Correct transaction failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not move it. Nothing changed.')),
+      );
     }
   }
 
