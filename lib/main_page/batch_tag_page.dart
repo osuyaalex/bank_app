@@ -88,6 +88,20 @@ class _BatchTagPageState extends State<BatchTagPage> {
 
   /// Cleared once the user has answered the offer, either way. Re-offering a
   /// suggestion someone has just declined is nagging.
+  /// Counterparties already answered on an earlier visit, and no longer on
+  /// this screen.
+  ///
+  /// Tagging one removes it from the pool for good and the screen quietly
+  /// refills from the backlog. Fourteen answered on Monday and twenty-two
+  /// fresh rows on Tuesday is indistinguishable from having lost the
+  /// fourteen, which is exactly how it read: the app's only evidence of
+  /// progress was an absence.
+  int _alreadySorted = 0;
+
+  /// Counterparties still waiting behind the ones on screen. Worth saying, so
+  /// finishing this list and finding another is not a surprise.
+  int _waitingBehind = 0;
+
   /// True while chosen budgets are being written and the rows they cover are
   /// being filed.
   bool _applyingBudgets = false;
@@ -172,6 +186,19 @@ class _BatchTagPageState extends State<BatchTagPage> {
         ...batchTagCandidates(map,
             limit: widget.limit, trackedCategories: tracked),
       ];
+      final onScreen = {for (final r in _rows) r.key};
+      _alreadySorted = map.values
+          .where((e) =>
+              e.disposition != Disposition.ask &&
+              !isInstitutionOnlyKey(e.key) &&
+              !onScreen.contains(e.key))
+          .length;
+      _waitingBehind = map.values
+          .where((e) =>
+              e.disposition == Disposition.ask &&
+              !isInstitutionOnlyKey(e.key) &&
+              !onScreen.contains(e.key))
+          .length;
       _loading = false;
     });
 
@@ -785,6 +812,40 @@ class _BatchTagPageState extends State<BatchTagPage> {
               style: TextStyle(
                   fontSize: 13, height: 1.4, color: Colors.grey.shade600),
             ),
+            if (_alreadySorted > 0) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded,
+                      size: 15, color: Color(0xff2E7D32)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.4,
+                            color: Colors.grey.shade700),
+                        children: [
+                          TextSpan(
+                            text: '$_alreadySorted already sorted',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xff2E7D32)),
+                          ),
+                          TextSpan(
+                            text: _waitingBehind > 0
+                                ? '. These are the next ${_rows.length}, '
+                                    'with $_waitingBehind more after them.'
+                                : '. These are the last ${_rows.length}.',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       );
