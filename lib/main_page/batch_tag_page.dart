@@ -13,6 +13,7 @@ import '../data/sms_inbox.dart';
 import '../parsing/bank_alert.dart';
 import '../parsing/category_matcher.dart';
 import '../data/spend_repository.dart';
+import '../story/story_day.dart';
 import 'widget/bulk_sort_sheet.dart';
 import 'widget/budget_suggestion_sheet.dart';
 import 'widget/category_picker.dart';
@@ -158,7 +159,9 @@ class _BatchTagPageState extends State<BatchTagPage> {
     final smsGranted = await _readSmsPermission();
     final readability = await SmsInbox.readability();
     final ownerName = await _repo.ownerName();
-    final budgetHints = await _repo.budgetSuggestionsWorthShowing();
+    final budgetHints = Story.budgetsFromHistory
+        ? await _repo.budgetSuggestionsWorthShowing()
+        : const <BudgetSuggestion>[];
 
     // Self-transfers the migration proposed come first and arrive already
     // ticked -- the user is confirming a suggestion, not answering a question.
@@ -247,6 +250,9 @@ class _BatchTagPageState extends State<BatchTagPage> {
   Future<void> _reassignAfterNewCategory() => _autoAssign();
 
   Future<int> _autoAssign() async {
+    // Day two is when the app started working out what things were. Before
+    // that every row was answered by hand.
+    if (!Story.suggestions) return 0;
     final applied = <String, CategoryChoice>{};
 
     for (final row in _rows) {
@@ -563,14 +569,15 @@ class _BatchTagPageState extends State<BatchTagPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (!_smsGranted) _smsBanner(),
-                          const ScreenGuide(
-                              id: _guideId,
-                              title: _guideTitle,
-                              steps: _guideSteps,
-                              footnote: _guideFootnote),
+                          if (Story.guidance)
+                            const ScreenGuide(
+                                id: _guideId,
+                                title: _guideTitle,
+                                steps: _guideSteps,
+                                footnote: _guideFootnote),
                           _intro(),
-                          _budgetBanner(),
-                          _bulkBar(),
+                          if (Story.budgetsFromHistory) _budgetBanner(),
+                          if (Story.bulkSort) _bulkBar(),
                         ],
                       );
                     }
@@ -812,7 +819,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
               style: TextStyle(
                   fontSize: 13, height: 1.4, color: Colors.grey.shade600),
             ),
-            if (_alreadySorted > 0) ...[
+            if (Story.progressCounts && _alreadySorted > 0) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -1118,12 +1125,13 @@ class _BatchTagPageState extends State<BatchTagPage> {
                         spacing: 7,
                         runSpacing: 7,
                         children: [
-                          for (final g in ghosts)
-                            GhostChip(
-                              label: g,
-                              dense: true,
-                              onTap: () => _acceptSuggestion(e, g),
-                            ),
+                          if (Story.suggestions)
+                            for (final g in ghosts)
+                              GhostChip(
+                                label: g,
+                                dense: true,
+                                onTap: () => _acceptSuggestion(e, g),
+                              ),
                         ],
                       ),
                     ],

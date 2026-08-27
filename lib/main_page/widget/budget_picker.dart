@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/budget_suggestion.dart';
+import '../../story/story_day.dart';
 
 const _brand = Color(0xff2E5BFF);
 const _ink = Color(0xff1C1939);
@@ -61,7 +62,7 @@ class _BudgetPickerState extends State<BudgetPicker> {
   static final _fmt = NumberFormat('#,###');
 
   ({double tight, double usual, double roomy})? get _choices =>
-      budgetChoices(widget.history);
+      Story.budgetsFromHistory ? budgetChoices(widget.history) : null;
 
   @override
   void dispose() {

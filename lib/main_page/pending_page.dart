@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../data/models.dart';
 import '../data/spend_repository.dart';
+import '../story/story_day.dart';
 import '../data/migration_plan.dart';
 import '../parsing/bank_alert.dart';
 import '../parsing/category_matcher.dart';
@@ -113,6 +114,7 @@ class _PendingPageState extends State<PendingPage> {
   /// not need. Only certain ones: anything it merely guessed at stays
   /// visible, where the user can see the guess and sweep it in bulk.
   Future<void> _fileTheObviousOnes() async {
+    if (!Story.suggestions) return;
     final sure = _pending.where((t) {
       final g = _guesses[t.smsId];
       return g != null && g.isCertain && g.categoryName.isNotEmpty;
@@ -487,7 +489,7 @@ class _PendingPageState extends State<PendingPage> {
         child: Column(
           children: [
             if (_pending.isNotEmpty) ...[
-              const ScreenGuide(
+              if (Story.guidance) const ScreenGuide(
                   id: _guideId,
                   title: _guideTitle,
                   steps: _guideSteps,
@@ -714,12 +716,13 @@ class _PendingPageState extends State<PendingPage> {
                         spacing: 7,
                         runSpacing: 7,
                         children: [
-                          for (final g in ghosts)
-                            GhostChip(
-                              label: g,
-                              dense: true,
-                              onTap: () => _acceptSuggestion(txn, g),
-                            ),
+                          if (Story.suggestions)
+                            for (final g in ghosts)
+                              GhostChip(
+                                label: g,
+                                dense: true,
+                                onTap: () => _acceptSuggestion(txn, g),
+                              ),
                         ],
                       ),
                     ],

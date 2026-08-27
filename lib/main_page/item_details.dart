@@ -2,6 +2,7 @@ import 'widget/remove_category_sheet.dart';
 import '../data/spend_repository.dart';
 import 'package:banking_app/main_page/widget/category_breakdown.dart';
 import 'package:banking_app/data/models.dart';
+import 'package:banking_app/story/story_day.dart';
 import 'package:banking_app/elevated_button.dart';
 import 'package:banking_app/firebase%20network/image_services.dart';
 import 'package:banking_app/main_page/widget/edit_items_buttons.dart';
@@ -691,6 +692,7 @@ class _ItemDetailsState extends State<ItemDetails> {
                   // retired. Same intent, but built from the transaction
                   // records so it stays live -- and each entry can be moved or
                   // corrected here rather than only read.
+                  if (Story.breakdown)
                   CategoryBreakdown(
                     categoryId: slugifyCategory(widget.itemDetails['name']),
                     categoryName: widget.itemDetails['name'],

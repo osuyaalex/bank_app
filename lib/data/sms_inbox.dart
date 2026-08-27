@@ -3,6 +3,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../parsing/bank_alert.dart';
 import 'migration.dart';
+import '../story/demo_inbox.dart';
+import '../story/story_day.dart';
 
 /// Reads bank alerts out of the device inbox.
 ///
@@ -30,6 +32,12 @@ class SmsInbox {
   /// Returns null when the inbox cannot be read, which callers must treat as
   /// "try again later" rather than "there is nothing here".
   static Future<List<InboxMessage>?> readForMigration() async {
+    // A made-up inbox while the app is being shown as a story, so no real
+    // person's name or payments can reach a screenshot. Ahead of the
+    // permission check: a demo build has no business asking for the user's
+    // messages when it is not going to read them.
+    if (Story.demoData) return DemoInbox.build(DateTime.now());
+
     if (!await Permission.sms.isGranted) return null;
 
     final query = SmsQuery();

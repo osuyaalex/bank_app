@@ -1,6 +1,7 @@
 import 'widget/scanning_view.dart';
 import 'package:banking_app/data/background_scan.dart';
 import 'package:banking_app/data/budget_status.dart';
+import 'package:banking_app/story/story_day.dart';
 import 'package:banking_app/data/pending_notifications.dart';
 import 'package:banking_app/data/spend_repository.dart';
 import 'package:go_router/go_router.dart';
@@ -474,6 +475,9 @@ class _HomePageState extends State<HomePage> {
                               // own says what was spent, never whether that
                               // was too much.
                               Builder(builder: (_) {
+                                if (!Story.budgetLines) {
+                                  return const SizedBox.shrink();
+                                }
                                 final budget =
                                     _monthBudget(monthData['listItems']);
                                 if (budget <= 0) return const SizedBox.shrink();

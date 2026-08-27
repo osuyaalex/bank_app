@@ -13,6 +13,7 @@ import '../data/budget_status.dart';
 import 'widget/category_picker.dart' show brandBlue;
 import '../data/pending_notifications.dart';
 import '../data/spend_repository.dart';
+import '../story/story_day.dart';
 import 'widget/bank_charges_sheet.dart';
 import '../data/migration_gate.dart';
 import '../elevated_button.dart';
@@ -384,7 +385,7 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
                             // The figure it is measured against, directly
                             // beneath it. A total on its own says what was
                             // spent, never whether that was too much.
-                            if (_totalBudget > 0)
+                            if (Story.budgetLines && _totalBudget > 0)
                               _budgetLine(
                                 currency: '${_data['currency'] ?? ''}',
                                 spent:
@@ -392,7 +393,7 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
                                         0,
                                 budget: _totalBudget,
                               ),
-                            if (_charges > 0)
+                            if (Story.guidance && _charges > 0)
                               _chargesLine('${_data['currency'] ?? ''}'),
                             const SizedBox(height: 12),
                             SizedBox(
