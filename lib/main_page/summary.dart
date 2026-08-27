@@ -13,6 +13,7 @@ import '../data/budget_status.dart';
 import 'widget/category_picker.dart' show brandBlue;
 import '../data/pending_notifications.dart';
 import '../data/spend_repository.dart';
+import 'widget/bank_charges_sheet.dart';
 import '../data/migration_gate.dart';
 import '../elevated_button.dart';
 
@@ -82,6 +83,51 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
     }
   }
 
+  void _watchCharges() {
+    try {
+      _chargesSub?.cancel();
+      _chargesSub = SpendRepository().watchCharges().listen((v) {
+        if (mounted) setState(() => _charges = v);
+      }, onError: (_) {/* an extra line; never break the screen */});
+    } catch (_) {/* not signed in yet */}
+  }
+
+  Future<void> _openCharges() async {
+    final rows = await SpendRepository().chargeTransactions();
+    if (!mounted) return;
+    await showBankChargesSheet(context,
+        charges: rows, currency: '${_data['currency'] ?? ''}');
+  }
+
+  /// The fees, said quietly and kept clear of the budget bar above it.
+  Widget _chargesLine(String currency) => Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: TextButton(
+          onPressed: _openCharges,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            minimumSize: const Size(0, 0),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            foregroundColor: Colors.grey.shade700,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.receipt_long_outlined,
+                  size: 14, color: Colors.grey.shade500),
+              const SizedBox(width: 6),
+              Text(
+                'Plus $currency${_formatNumber(_charges)} in bank charges',
+                style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
+              ),
+              const SizedBox(width: 3),
+              Icon(Icons.chevron_right_rounded,
+                  size: 16, color: Colors.grey.shade500),
+            ],
+          ),
+        ),
+      );
+
   void _watchPending() {
     try {
       _pendingSub?.cancel();
@@ -134,6 +180,11 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
   /// sentence. Showing the figure is the point of a budgeting app: a number
   /// on its own says what was spent, not whether that was too much.
   double _totalBudget = 0;
+
+  /// Bank fees this month. Outside every budget, but not outside the screen:
+  /// money left the account and until now nothing anywhere said so.
+  double _charges = 0;
+  StreamSubscription<double>? _chargesSub;
 
   /// "of ₦450,000 budgeted", with a bar showing how much of it is gone.
   Widget _budgetLine({
@@ -192,6 +243,7 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
     super.initState();
     _watchTrackItems();
     _watchPending();
+    _watchCharges();
 
     WidgetsBinding.instance.addObserver(this);
     // After the first frame, so the migration never delays this screen.
@@ -215,6 +267,7 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
   void dispose() {
     _monthSub?.cancel();
     _pendingSub?.cancel();
+    _chargesSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -339,6 +392,8 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
                                         0,
                                 budget: _totalBudget,
                               ),
+                            if (_charges > 0)
+                              _chargesLine('${_data['currency'] ?? ''}'),
                             const SizedBox(height: 12),
                             SizedBox(
                               width: MediaQuery.of(context).size.width*0.7,

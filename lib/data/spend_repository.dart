@@ -389,6 +389,49 @@ class SpendRepository {
     return rows;
   }
 
+  /// What the banks have taken in fees this month, as it changes.
+  ///
+  /// Its own line rather than a category: a transfer fee is not a spending
+  /// decision, so it must never eat a budget the user set for actual
+  /// spending. That is exactly why it was invisible -- outside every budget
+  /// meant outside every screen too, and money was leaving the account with
+  /// nothing anywhere saying so.
+  Stream<double> watchCharges({String? monthKey}) =>
+      monthRef(monthKey ?? monthKeyOf(DateTime.now()))
+          .snapshots()
+          .map((d) => (d.data()?['charges'] as num?)?.toDouble() ?? 0);
+
+  /// The individual fees behind that figure, newest first.
+  Future<List<TransactionRecord>> chargeTransactions({String? monthKey}) async {
+    final snap = await monthRef(monthKey ?? monthKeyOf(DateTime.now()))
+        .collection('transactions')
+        .where('kind', isEqualTo: AlertKind.charge.name)
+        .get();
+
+    final rows = snap.docs
+        .where((d) =>
+            d.data()['isReversal'] != true &&
+            d.data()['reversedBySmsId'] == null)
+        .map((d) {
+      final m = d.data();
+      return TransactionRecord(
+        smsId: d.id,
+        bank: m['bank'] ?? '',
+        kind: AlertKind.charge,
+        channel: TxnChannel.charge,
+        status: TxnStatus.excluded,
+        amount: (m['amount'] as num?)?.toDouble(),
+        occurredAt: DateTime.tryParse(m['occurredAt'] ?? ''),
+        narration: m['narration'] ?? '',
+        counterpartyKey: m['counterpartyKey'],
+      );
+    }).toList();
+
+    rows.sort((a, b) => (b.occurredAt ?? DateTime(0))
+        .compareTo(a.occurredAt ?? DateTime(0)));
+    return rows;
+  }
+
   Future<int> pendingCount({String? monthKey}) async =>
       (await pendingTransactions(monthKey: monthKey)).length;
 
@@ -539,9 +582,20 @@ class SpendRepository {
     final byCategory = <String, double>{};
     final todayByCategory = <String, double>{};
     var monthTotal = 0.0;
+    var charges = 0.0;
 
     for (final d in snap.docs) {
       final m = d.data();
+
+      // Bank fees, summed here rather than only accumulated as they arrive,
+      // so a reversed fee and a re-delivered alert both come out right.
+      if (m['kind'] == AlertKind.charge.name) {
+        if (m['isReversal'] != true && m['reversedBySmsId'] == null) {
+          charges += (m['amount'] as num?)?.toDouble() ?? 0;
+        }
+        continue;
+      }
+
       if (m['status'] != TxnStatus.labeled.name) continue;
       final categoryId = m['categoryId'] as String?;
       if (categoryId == null) continue;
@@ -576,7 +630,8 @@ class SpendRepository {
           {'listItems': items, 'monthlySpend': monthTotal});
     });
 
-    await monthRef(key).set({'spend': byCategory}, SetOptions(merge: true));
+    await monthRef(key)
+        .set({'spend': byCategory, 'charges': charges}, SetOptions(merge: true));
     await _warnOnNewlyOverBudget(key, byCategory);
     return monthTotal;
   }
