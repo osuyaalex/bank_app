@@ -75,6 +75,25 @@ String categoryNameForConcept(String concept) => concept
         w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
     .join(' ');
 
+/// Every category name the app is capable of putting in front of the user.
+///
+/// The ghost chips offer names straight out of the lexicon -- Family, Takeout,
+/// Transfers -- none of which exist in the shipped catalogue or in a new
+/// user's account. So the app could offer a category it had no way to cost,
+/// and tapping it opened a budget picker with nothing behind it.
+///
+/// Anything the app can offer, it must also be able to work out a figure for.
+Set<String> proposableCategoryNames() => {
+  for (final c in conceptKeywords.keys) categoryNameForConcept(c),
+  // The fixed option lists above, which are not concepts.
+  'Mobile Phone',
+  'Utilities',
+  'Family',
+  'Friends',
+  'Gifts',
+  'Others',
+};
+
 /// Words too common to carry meaning on their own.
 const _stopWords = {
   'ltd', 'limited', 'plc', 'nig', 'nigeria', 'nigerian', 'the', 'and', 'of',
@@ -253,6 +272,7 @@ CategoryGuess? guessCategory(
   Iterable<String> trackedCategories, {
   String? ownerName,
   String? channelHint,
+  int? hourOfDay,
   bool twoWayMoney = false,
   bool mostlyRoundAmounts = false,
 }) {
@@ -304,10 +324,25 @@ CategoryGuess? guessCategory(
   // 2. A merchant the app knows by name.
   final merchantConcepts = conceptsFor(counterpartyKey);
   if (merchantConcepts.isNotEmpty) {
-    final c = _firstCategory(merchantConcepts, tracked);
-    if (c != null) {
+    final won = _firstConceptCategory(merchantConcepts, tracked);
+    if (won != null) {
+      // A curated concept list is not the merchant's name. Chowdeck carries
+      // "lunch" among its concepts and delivers at any hour, so where the
+      // user budgets by meal the clock is the better evidence -- but only for
+      // food. Groceries wins outright, whatever time the shopping was done.
+      if (_clockDecidesConcepts.contains(won.concept)) {
+        final meal = _mealFor(tracked, hourOfDay);
+        if (meal != null && meal != won.category) {
+          return CategoryGuess(
+            categoryName: meal,
+            confidence: 0.85,
+            reason: '${_titleCase(counterpartyKey)} is a food merchant, and '
+                'this was paid at ${_clock(hourOfDay!)}.',
+          );
+        }
+      }
       return CategoryGuess(
-        categoryName: c,
+        categoryName: won.category,
         confidence: 0.93,
         reason: '${_titleCase(counterpartyKey)} is a known '
             '${merchantConcepts.first} merchant.',
@@ -346,6 +381,21 @@ CategoryGuess? guessCategory(
   // 4. Words in the name that say what was bought.
   //
   final wordConcepts = conceptsFromWords(counterpartyKey);
+  // Here the concepts came from words the merchant actually wrote, so "The
+  // Lunch Box" is lunch at any hour -- the name beats the clock. The clock
+  // only steps in where the name said no more than "food".
+  final wordMeal = wordConcepts.any(_namedMealConcepts.contains) ||
+          !wordConcepts.any(_genericFoodConcepts.contains)
+      ? null
+      : _mealFor(tracked, hourOfDay);
+  if (wordMeal != null) {
+    return CategoryGuess(
+      categoryName: wordMeal,
+      confidence: 0.66,
+      reason: 'The name reads like food, and this was paid at '
+          '${_clock(hourOfDay!)}.',
+    );
+  }
   for (final concept in wordConcepts) {
     final exactWord =
         _tokens(counterpartyKey).any(conceptKeywords[concept]!.contains);
@@ -478,6 +528,65 @@ List<String> _optionsFrom(Iterable<String> concepts) {
     if (out.length == 3) break;
   }
   return out;
+}
+
+/// Food that the name cannot place any more precisely than "food".
+///
+/// A buka is breakfast, lunch and dinner depending only on when you walked in,
+/// which is the one case where the clock knows something the merchant name
+/// does not. Groceries, snacks and coffee are deliberately absent: a ₦40,000
+/// supermarket run at 7pm is not dinner.
+const _genericFoodConcepts = {'food', 'restaurant', 'takeout'};
+
+/// Concepts that already say which meal it was. The name beats the clock.
+const _namedMealConcepts = {'breakfast', 'lunch', 'dinner'};
+
+/// Concepts where the clock is allowed to decide which meal it was.
+///
+/// Groceries, snacks and coffee are deliberately outside it: a supermarket run
+/// at seven in the evening is not dinner, and neither is a bag of chin-chin.
+const _clockDecidesConcepts = {
+  ..._genericFoodConcepts,
+  ..._namedMealConcepts,
+};
+
+/// The meal a purchase belongs to, or null when the split does not apply.
+///
+/// Returns null unless the user actually tracks the meal in question, which is
+/// the whole gate: somebody budgeting a single "Food" category never sees this,
+/// and somebody who has gone to the trouble of separating Breakfast from
+/// Dinner gets the separation they asked for without tagging anything by hand.
+String? _mealFor(List<String> tracked, int? hour) {
+  if (hour == null || hour < 0 || hour > 23) return null;
+  return _categoryFor(_mealAtHour(hour), tracked);
+}
+
+/// The first concept with a category the user tracks, and that category.
+({String concept, String category})? _firstConceptCategory(
+    Iterable<String> concepts, List<String> tracked) {
+  for (final c in concepts) {
+    final cat = _categoryFor(c, tracked);
+    if (cat != null) return (concept: c, category: cat);
+  }
+  return null;
+}
+
+/// Which meal an hour belongs to.
+///
+/// Wide, and late. Dinner runs from five in the evening until four in the
+/// morning: eating at nine or ten at night is ordinary here, and a window
+/// that ended at eight would have filed most evening meals as breakfast.
+String _mealAtHour(int hour) {
+  if (hour >= 4 && hour <= 10) return 'breakfast';
+  if (hour >= 11 && hour <= 16) return 'lunch';
+  return 'dinner';
+}
+
+/// An hour written the way a person would say it.
+String _clock(int hour) {
+  final suffix = hour < 12 ? 'am' : 'pm';
+  final h = hour % 12 == 0 ? 12 : hour % 12;
+  return '$h$suffix';
 }
 
 String? _firstCategory(Iterable<String> concepts, List<String> tracked) {

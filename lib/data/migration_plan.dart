@@ -1,4 +1,5 @@
 import '../parsing/bank_alert.dart';
+import '../parsing/category_matcher.dart';
 import 'models.dart';
 
 /// Pure transformations that compute what the migration will write.
@@ -241,6 +242,91 @@ CounterpartyEntry? resolveKey(Map<String, CounterpartyEntry> map, String? key) {
   return null;
 }
 
+/// What each tracked category cost, month by month, across the whole inbox.
+///
+/// The batch screen is the first moment the app holds a real spending history,
+/// and it is also the moment it is about to ask for budgets. This is what lets
+/// it stop asking and start proposing.
+///
+/// Only debits count, and only where the counterparty resolves to a category
+/// the user actually tracks: an unfiled transaction says nothing about what a
+/// budget should be. Self-transfers and charges are already excluded by the
+/// same rules the ledger uses, so the totals here match what the user will see.
+///
+/// [partialMonths] names the months the figures must not be drawn from -- the
+/// month in progress, and the oldest month present, which is only as complete
+/// as the phone's SMS retention happened to leave it.
+({Map<String, Map<String, double>> byMonth, Set<String> partialMonths})
+    monthlyCategoryTotals(
+  Iterable<BankAlert> alerts,
+  Map<String, CounterpartyEntry> map,
+  Set<String> trackedNames,
+  DateTime now, {
+  String? ownerName,
+  Set<String> alsoConsider = const {},
+}) {
+  final byMonth = <String, Map<String, double>>{};
+
+  for (final a in alerts) {
+    if (a.kind != AlertKind.debit) continue;
+    if (a.occurredAt == null) continue;
+    if (a.amount == null || a.amount! <= 0) continue;
+    if (a.isReversal) continue;
+
+    final entry = resolveKey(map, a.counterpartyKey);
+    if (entry?.disposition == Disposition.notSpending) continue;
+
+    String? categoryId;
+    if (entry?.autoAssigns ?? false) {
+      categoryId = entry!.categoryId;
+    } else if (a.counterpartyKey != null) {
+      // The user's own categories first, and only then the wider set of names
+      // the app is able to offer.
+      //
+      // The order is not cosmetic. The app files transactions by matching
+      // against the tracked list alone, so a wider list consulted first would
+      // put this money somewhere the app never would -- lunch filed under
+      // Food because Food happened to come first among the concepts -- and
+      // the history would then disagree with the totals on the home screen.
+      //
+      // The full matcher, not the merchant list alone: relatives are found by
+      // surname and appear in no dictionary of brands, which left Family out
+      // of the figures entirely.
+      String? name;
+      for (final universe in [trackedNames, alsoConsider]) {
+        if (universe.isEmpty) continue;
+        final guess = guessCategory(
+          a.counterpartyKey!,
+          universe,
+          ownerName: ownerName,
+          channelHint: a.channel == TxnChannel.airtime ? 'airtime' : null,
+          hourOfDay: a.occurredAt?.hour,
+        );
+        if (guess != null &&
+            guess.categoryName.isNotEmpty &&
+            guess.confidence >= CategoryGuess.floor) {
+          name = guess.categoryName;
+          break;
+        }
+      }
+      if (name != null) categoryId = slugifyCategory(name);
+    }
+    if (categoryId == null) continue;
+
+    final m = monthKeyOf(a.occurredAt!);
+    (byMonth[m] ??= <String, double>{}).update(
+        categoryId, (v) => v + a.amount!,
+        ifAbsent: () => a.amount!);
+  }
+
+  final partial = <String>{monthKeyOf(now)};
+  if (byMonth.isNotEmpty) {
+    final oldest = byMonth.keys.reduce((a, b) => a.compareTo(b) < 0 ? a : b);
+    partial.add(oldest);
+  }
+  return (byMonth: byMonth, partialMonths: partial);
+}
+
 /// Turns a parsed alert into a transaction record.
 ///
 /// [map] decides the outcome: a tracked counterparty labels the row outright,
@@ -308,6 +394,7 @@ TransactionRecord _record(String smsId, BankAlert a, TxnStatus status,
       counterpartyKey: counterpartyKey,
       categoryId: categoryId,
       source: status == TxnStatus.labeled ? source : null,
+      isReversal: a.isReversal,
     );
 
 /// Firestore forbids `/`, `.`, `#`, `[` and `]` in document ids, and bank

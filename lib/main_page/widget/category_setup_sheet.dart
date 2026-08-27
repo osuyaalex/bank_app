@@ -1,27 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../../data/budget_suggestion.dart';
+import 'budget_picker.dart';
 
 import 'category_picker.dart';
 
 /// Formats a budget with thousand separators as it is typed, so the figure
 /// stays readable at a glance instead of becoming a wall of digits.
-class _ThousandsFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) {
-      return const TextEditingValue(text: '');
-    }
-    final formatted = NumberFormat('#,###').format(int.parse(digits));
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}
-
 /// What the user set up.
 class CategorySetup {
   const CategorySetup({required this.name, required this.budget});
@@ -42,14 +27,25 @@ class CategorySetup {
 ///
 /// Pass [fixedName] when the category already exists and only the budget is
 /// missing, which happens when tagging into something not tracked this month.
+///
+/// [history] is what this category has cost per month, where the app knows.
+/// Two or more real months and the budget is chosen from the user's own
+/// spending instead of typed. [suggested] pre-fills the figure so the common
+/// case is confirming rather than deciding.
 Future<CategorySetup?> showCategorySetupSheet(
   BuildContext context, {
   required String currency,
   String? fixedName,
+  List<double> history = const [],
+  double suggested = 0,
 }) {
   final nameField = TextEditingController(text: fixedName ?? '');
-  final budgetField = TextEditingController();
   final creating = fixedName == null;
+  // Starts on the middle of the three choices where there is history, so the
+  // sheet opens on an answer rather than on an empty field.
+  var budget = suggested > 0
+      ? suggested
+      : (budgetChoices(history)?.usual ?? 0);
 
   return showModalBottomSheet<CategorySetup>(
     context: context,
@@ -65,9 +61,6 @@ Future<CategorySetup?> showCategorySetupSheet(
       child: StatefulBuilder(
         builder: (sheetContext, setSheetState) {
           final name = nameField.text.trim();
-          final budgetDigits =
-              budgetField.text.replaceAll(RegExp(r'[^0-9]'), '');
-          final budget = int.tryParse(budgetDigits) ?? 0;
           final ready = name.isNotEmpty && budget > 0;
 
           return SafeArea(
@@ -119,34 +112,14 @@ Future<CategorySetup?> showCategorySetupSheet(
                     const SizedBox(height: 20),
                   ],
                   _label('MONTHLY BUDGET'),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: budgetField,
-                    autofocus: !creating,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [_ThousandsFormatter()],
-                    onChanged: (_) => setSheetState(() {}),
-                    style: const TextStyle(
-                        fontSize: 26, fontWeight: FontWeight.w700),
-                    decoration: _fieldDecoration(hint: '0').copyWith(
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 0, 6, 0),
-                        child: Text(
-                          currency.isEmpty ? '' : currency,
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ),
-                      prefixIconConstraints:
-                          const BoxConstraints(minWidth: 0, minHeight: 0),
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 18, horizontal: 6),
-                    ),
-                  ),
                   const SizedBox(height: 10),
+                  BudgetPicker(
+                    initial: budget,
+                    currency: currency,
+                    history: history,
+                    onChanged: (v) => setSheetState(() => budget = v),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Icon(Icons.info_outline,
@@ -154,8 +127,11 @@ Future<CategorySetup?> showCategorySetupSheet(
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'A budget is required. It is what your spending gets '
-                          'measured against.',
+                          history.length >= 2
+                              ? 'Worked out from what you have been spending. '
+                                  'Nudge it if it looks wrong.'
+                              : 'A budget is required. It is what your '
+                                  'spending gets measured against.',
                           style: TextStyle(
                               fontSize: 12,
                               height: 1.4,
@@ -187,7 +163,7 @@ Future<CategorySetup?> showCategorySetupSheet(
                                     CategorySetup(
                                         name: name,
                                         budget: NumberFormat('#,###')
-                                            .format(budget)),
+                                            .format(budget.round())),
                                   )
                               : null,
                           style: ElevatedButton.styleFrom(

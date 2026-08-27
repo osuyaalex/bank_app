@@ -22,6 +22,7 @@ class BankAlert {
     this.occurredAt,
     this.account,
     this.counterpartyKey,
+    this.isReversal = false,
   });
 
   final String bank;
@@ -44,11 +45,20 @@ class BankAlert {
   /// later transaction with the same counterparty.
   final String? counterpartyKey;
 
+  /// True when the bank is undoing an earlier transaction.
+  ///
+  /// A failed transfer comes back as `***RSVL NIP ... DR Amt:-300,000.00`.
+  /// The negative amount already makes this a credit, so it is correctly kept
+  /// out of the totals -- but the *original* debit was counted when it went
+  /// out, and nothing put it back. Money that left and returned still showed
+  /// as spent.
+  final bool isReversal;
+
   bool get isSpending => kind == AlertKind.debit;
 
   /// Used to date an alert from the message that carried it when the bank
   /// printed no date of its own.
-  BankAlert copyWith({DateTime? occurredAt}) => BankAlert(
+  BankAlert copyWith({DateTime? occurredAt, bool? isReversal}) => BankAlert(
         bank: bank,
         kind: kind,
         channel: channel,
@@ -58,6 +68,7 @@ class BankAlert {
         occurredAt: occurredAt ?? this.occurredAt,
         account: account,
         counterpartyKey: counterpartyKey,
+        isReversal: isReversal ?? this.isReversal,
       );
 
   @override
@@ -1075,16 +1086,39 @@ String _bankName(String sender) {
 ///
 /// Returns null when the sender is unrecognised or the message is not a
 /// transaction (OTPs, balance enquiries, marketing).
+/// Banks mark an undone transaction in the narration.
+///
+/// Zenith writes `***RSVL`, others spell it out. A negative amount in a
+/// labelled DR/CR field says the same thing on its own: the bank is putting
+/// money back, not taking it.
+final _reversalWord =
+    RegExp(r'\bRSVL\b|\bREVERSAL\b|\bREVERSED\b', caseSensitive: false);
+
+/// True when [body] undoes an earlier transaction.
+bool isReversalAlert(String body) {
+  if (_reversalWord.hasMatch(body)) return true;
+  final dr = _debitAmount.firstMatch(body);
+  if (dr != null && dr.group(1)!.startsWith('-')) return true;
+  final cr = _creditAmount.firstMatch(body);
+  if (cr != null && cr.group(1)!.startsWith('-')) return true;
+  return false;
+}
+
 BankAlert? parseAlert(String sender, String body) {
   final kind = classifyAlert(body);
   if (kind == AlertKind.other) return null;
 
   final s = sender.toUpperCase().replaceAll(RegExp(r'\s+'), '');
-  if (s.contains('ZENITH')) return _parseZenith(body, kind);
-  if (s.contains('WEMA')) return _parseWema(body, kind);
-  // Everything else. Previously this returned null, so any bank without a
-  // hand-written parser was invisible to the whole app.
-  return parseGenericAlert(sender, body, kind);
+  final alert = s.contains('ZENITH')
+      ? _parseZenith(body, kind)
+      : s.contains('WEMA')
+          ? _parseWema(body, kind)
+          // Everything else. Previously this returned null, so any bank
+          // without a hand-written parser was invisible to the whole app.
+          : parseGenericAlert(sender, body, kind);
+
+  if (alert == null) return null;
+  return isReversalAlert(body) ? alert.copyWith(isReversal: true) : alert;
 }
 
 /// Banks, fintechs and payment processors.

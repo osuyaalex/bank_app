@@ -37,6 +37,7 @@ class _PendingPageState extends State<PendingPage> {
   List<Category> _categories = [];
   Set<String> _tracked = {};
   String _currency = '';
+
   bool _loading = true;
 
   /// Transactions whose answer is still being written. Filing one settles it
@@ -282,7 +283,9 @@ class _PendingPageState extends State<PendingPage> {
   /// not track yet, asking only for the budget.
   Future<void> _acceptSuggestion(TransactionRecord txn, String name) async {
     final setup = await showCategorySetupSheet(context,
-        currency: _currency, fixedName: name);
+        currency: _currency,
+        fixedName: name,
+        history: await _repo.historyForCategory(name));
     if (setup == null) return;
 
     if (mounted) setState(() => _savingIds.add(txn.smsId));
@@ -318,7 +321,9 @@ class _PendingPageState extends State<PendingPage> {
       ghostReason: _guesses[txn.counterpartyKey]?.reason,
       onAcceptGhost: (name) async {
         final setup = await showCategorySetupSheet(context,
-            currency: _currency, fixedName: name);
+            currency: _currency,
+            fixedName: name,
+            history: await _repo.historyForCategory(name));
         if (setup == null) return null;
         final created =
             await _repo.startTracking(name: name, budget: setup.budget);
@@ -383,6 +388,7 @@ class _PendingPageState extends State<PendingPage> {
       context,
       currency: _currency,
       fixedName: category.name,
+      history: await _repo.historyForCategory(category.name),
     );
     if (setup == null) return false;
     await _repo.startTracking(

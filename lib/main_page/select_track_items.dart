@@ -61,6 +61,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
 
   List<CatalogueEntry> _catalogue = [];
   String _currency = '';
+
   bool _loading = true;
   bool _saving = false;
 
@@ -89,10 +90,12 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
       final existing = await _repo.pickerCategories();
       // With their budgets, not just their names.
       final tracked = await _repo.trackedItemsWithBudgets();
-
+      // From month two onward these exist, so returning users pick a budget
+      // from their own spending instead of retyping last month's.
+  
       if (!mounted) return;
       setState(() {
-        _catalogue = catalogue;
+          _catalogue = catalogue;
         _currency = currency;
         for (final c in existing) {
           _images[c.name] = c.image ?? '';
@@ -143,7 +146,9 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
     // Selecting and budgeting are one action. Splitting them is how the old
     // screen ended up with categories carrying a budget of "0".
     final setup = await showCategorySetupSheet(context,
-        currency: _currency, fixedName: name);
+        currency: _currency,
+        fixedName: name,
+        history: await _repo.historyForCategory(name));
     if (setup == null) return;
     setState(() {
       _chosen[name] = setup.budget;
@@ -162,7 +167,9 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
 
   Future<void> _editBudget(String name) async {
     final setup = await showCategorySetupSheet(context,
-        currency: _currency, fixedName: name);
+        currency: _currency,
+        fixedName: name,
+        history: await _repo.historyForCategory(name));
     if (setup == null) return;
     setState(() => _chosen[name] = setup.budget);
   }

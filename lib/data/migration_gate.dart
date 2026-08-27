@@ -88,7 +88,7 @@ class MigrationGate {
   }
 
   /// Version of the orphaned-label repair that has already run.
-  static const _repairVersion = 4;
+  static const _repairVersion = 5;
 
   static Future<void> _repairOnce(String uid) async {
     final doc = FirebaseFirestore.instance.collection('Users').doc(uid);
@@ -103,6 +103,8 @@ class MigrationGate {
       print('REPAIR: self-transfers released ${await repo.repairSelfTransfers()}');
       print('REPAIR: duplicate categories merged '
           '${await repo.mergeDuplicateCategories()}');
+      // Money that left and came back was still counted as spent.
+      print('REPAIR: reversals netted ${await repo.repairReversals()}');
       await doc.set({'repairVersion': _repairVersion}, SetOptions(merge: true));
     } catch (e) {
       // Leave the marker unset so it retries next launch.

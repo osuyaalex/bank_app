@@ -182,6 +182,7 @@ class TransactionRecord {
     this.counterpartyKey,
     this.categoryId,
     this.source,
+    this.isReversal = false,
   });
 
   final String smsId;
@@ -197,6 +198,10 @@ class TransactionRecord {
   final String? counterpartyKey;
   final String? categoryId;
   final LabelSource? source;
+
+  /// True when this alert undoes an earlier one. Stored so a later repair can
+  /// find both halves without re-reading the SMS inbox.
+  final bool isReversal;
 
   /// Does this move a tracked category's total?
   bool get countsAsSpending =>
@@ -216,6 +221,7 @@ class TransactionRecord {
         'counterpartyKey': counterpartyKey,
         'categoryId': categoryId,
         'source': source?.name,
+        'isReversal': isReversal,
       };
 }
 

@@ -1,14 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 import '../parsing/bank_alert.dart';
 import '../parsing/category_matcher.dart';
 import 'budget_status.dart';
+import 'budget_suggestion.dart';
+import 'category_catalogue.dart';
 import 'currency_setup.dart';
 import 'migration_plan.dart';
 import 'onboarding_gate.dart';
+import 'sms_inbox.dart';
 import 'models.dart';
+import 'reversal.dart';
 import 'pending_notifications.dart';
 
 /// Reads and writes the per-user schema under `Users/{uid}`.
@@ -1136,9 +1141,18 @@ class SpendRepository {
     final txRef = month.collection('transactions').doc(smsId);
     final amount = record.amount ?? 0;
 
+    // A reversal has to undo the transaction it refers to, not merely stay
+    // out of the totals itself. Resolved before the write, because a Firestore
+    // transaction can read documents but cannot run a query.
+    final reversed = alert.isReversal ? await _findReversed(alert) : null;
+    final reversedMonth = reversed?.parent.parent;
+
     final written = await db.runTransaction<bool>((tx) async {
       final existing = await tx.get(txRef);
       if (existing.exists) return false; // already counted
+      // Every read before any write: Firestore rejects the other order.
+      final original = reversed == null ? null : await tx.get(reversed);
+
       tx.set(txRef, record.toMap());
 
       if (record.countsAsSpending && record.categoryId != null) {
@@ -1148,8 +1162,9 @@ class SpendRepository {
               'spend': {record.categoryId!: FieldValue.increment(amount)}
             },
             SetOptions(merge: true));
-      } else if (alert.kind == AlertKind.charge) {
-        // Visible to the user, deliberately outside every budget.
+      } else if (alert.kind == AlertKind.charge && !alert.isReversal) {
+        // Visible to the user, deliberately outside every budget. A reversed
+        // charge is skipped here and taken off the total below instead.
         tx.set(month, {'charges': FieldValue.increment(amount)},
             SetOptions(merge: true));
       } else if (alert.kind == AlertKind.debit &&
@@ -1158,10 +1173,423 @@ class SpendRepository {
         tx.set(month, {'excluded': FieldValue.increment(amount)},
             SetOptions(merge: true));
       }
+
+      if (original != null && original.exists && reversedMonth != null) {
+        final m = original.data()!;
+        // Marked rather than deleted, so the pair stays visible and a second
+        // delivery of the same reversal cannot subtract the money twice.
+        if (m['reversedBySmsId'] == null) {
+          final effect = reversalEffect(
+            kind: m['kind']?.toString() ?? '',
+            status: m['status']?.toString() ?? '',
+            categoryId: m['categoryId'] as String?,
+            amount: (m['amount'] as num?)?.toDouble() ?? 0,
+          );
+          tx.update(reversed!, {
+            'status': TxnStatus.excluded.name,
+            'reversedBySmsId': smsId,
+          });
+          if (effect.categoryId != null) {
+            tx.set(
+                reversedMonth,
+                {
+                  'spend': {
+                    effect.categoryId!: FieldValue.increment(-effect.amount)
+                  }
+                },
+                SetOptions(merge: true));
+          } else if (effect.isCharge) {
+            tx.set(reversedMonth,
+                {'charges': FieldValue.increment(-effect.amount)},
+                SetOptions(merge: true));
+          }
+        }
+      }
       return true;
     });
 
     return written ? record : null;
+  }
+
+  /// Recomputes the budget proposals from the SMS inbox.
+  ///
+  /// Deliberately not a migration step. The migration only runs for accounts
+  /// below the current schema version, so anyone already migrated -- which is
+  /// every existing user -- would never have seen a suggestion, and bumping
+  /// the version to reach them would re-run the backfill and overwrite labels
+  /// they had already set by hand.
+  ///
+  /// Reading the inbox again is the cheaper price. It also means the figures
+  /// improve as the user sorts: every counterparty they file makes more of
+  /// their history countable, which the stored map picks up on the next run.
+  ///
+  /// Returns how many categories it could propose for. Safe to call whenever;
+  /// it writes nothing when it has nothing to say.
+  Future<int> refreshBudgetSuggestions() async {
+    final inbox = await SmsInbox.readForMigration();
+    if (inbox == null || inbox.isEmpty) return 0;
+
+    final tracked = await trackedCategoryNames();
+    if (tracked.isEmpty) return 0;
+
+    // The matcher only ever answers with a category from the list it is given,
+    // so handing it the user's list alone means a counterparty that is plainly
+    // transport contributes nothing unless Transport is already being tracked.
+    // Widening it to the shipped catalogue is what lets the app say "you spend
+    // this much on something you are not tracking" -- and then offer the
+    // category and its figure in the same tap.
+    // Every category the user has ever had, not just the ones tracked this
+    // month. Family, Takeout and Transfers are the user's own categories and
+    // appear in no shipped catalogue, so a universe of "tracked plus
+    // catalogue" could never name them -- and tapping one opened a budget
+    // picker with nothing behind it, which is precisely the case this exists
+    // for.
+    final catalogue = await CategoryCatalogue.load();
+    final universe = <String>{
+      ...tracked,
+      ...(await pickerCategories()).map((c) => c.name),
+      ...catalogue.map((c) => c.name),
+      // What the ghost chips can offer. Without these, tapping Family or
+      // Takeout -- neither of which is in the catalogue or in the account --
+      // found no history, which is the case this feature exists for.
+      ...proposableCategoryNames(),
+    };
+
+    final alerts = <BankAlert>[];
+    for (final m in inbox) {
+      final a = parseAlert(m.sender, m.body);
+      if (a == null) continue;
+      // Dated by the message that carried it where the bank printed none,
+      // otherwise the transaction cannot be placed in a month at all.
+      alerts.add(a.occurredAt == null && m.receivedAt != null
+          ? a.copyWith(occurredAt: m.receivedAt)
+          : a);
+    }
+    if (alerts.isEmpty) return 0;
+
+    final now = DateTime.now();
+    final totals = monthlyCategoryTotals(
+        alerts, await counterparties(), tracked, now,
+        ownerName: await ownerName(),
+        alsoConsider: universe.difference(tracked));
+
+    final names = {for (final n in universe) slugifyCategory(n): n};
+
+    final suggestions = suggestBudgets(
+      byMonth: totals.byMonth,
+      categoryNames: names,
+      currentMonth: monthKeyOf(now),
+      partialMonths: totals.partialMonths,
+      trackedNames: tracked,
+    );
+
+    // Stored unfiltered, and separately from the proposals.
+    //
+    // The rules that decide whether to *volunteer* a budget -- ignore the
+    // catch-alls, skip anything quiet in half its months -- are the wrong
+    // rules for a user who has just tapped a category and is being asked for
+    // its figure. They have chosen it; showing them their own months is right
+    // whatever those months look like. Filtering the two together meant
+    // tapping Lunch opened an empty picker.
+    // Pooled, so "Car Fuel" and "Fuel" -- both of which the app is capable of
+    // offering -- share one set of figures instead of one holding all of them
+    // and the other looking like the app knows nothing.
+    final history = poolHistoryByAlias(
+      categoryMonthlyHistory(
+        byMonth: totals.byMonth,
+        categoryNames: names,
+        currentMonth: monthKeyOf(now),
+        partialMonths: totals.partialMonths,
+      ),
+      names,
+    );
+
+
+    if (suggestions.isEmpty && history.isEmpty) return 0;
+    _historyCache = null;
+
+    await _user.set({
+      // Keyed by canonical name, since the pot belongs to a meaning rather
+      // than to any one of the names for it.
+      'categoryHistory': {
+        for (final e in history.entries)
+          e.key.replaceAll(RegExp(r'[/.#\[\]]'), '_'): {
+            'months': [
+              for (final m in e.value) {'month': m.month, 'total': m.total}
+            ],
+          }
+      },
+      'budgetSuggestions': {
+        'computedAt': now.toIso8601String(),
+        'items': {
+          for (final s in suggestions)
+            s.categoryId: {
+              'name': s.categoryName,
+              'amount': s.amount,
+              'typical': s.typical,
+              'isTracked': s.isTracked,
+              'months': [
+                for (final m in s.months) {'month': m.month, 'total': m.total}
+              ],
+            }
+        },
+      }
+    }, SetOptions(merge: true));
+
+    return suggestions.length;
+  }
+
+  Map<String, List<double>>? _historyCache;
+
+  /// What a category has cost per month, for the screen about to ask for its
+  /// budget. Keyed by lowercased name.
+  ///
+  /// Read fresh rather than held on a screen: the figures are rebuilt behind
+  /// the batch screen while the user is on it, and a picker opened from stale
+  /// state showed round numbers when it had the real ones.
+  Future<Map<String, List<double>>> categoryHistory() async {
+    final cached = _historyCache;
+    if (cached != null) return cached;
+
+    final raw = (await _user.get()).data()?['categoryHistory'];
+    final out = <String, List<double>>{};
+    if (raw is Map) {
+      raw.forEach((key, v) {
+        if (v is! Map) return;
+        out[key.toString()] = [
+          for (final m in (v['months'] as List? ?? const []))
+            if (m is Map) (m['total'] as num?)?.toDouble() ?? 0
+        ];
+      });
+    }
+    return _historyCache = out;
+  }
+
+  /// The months behind one category, or empty when the app has none.
+  Future<List<double>> historyForCategory(String name) async =>
+      (await categoryHistory())[canonicalBudgetName(name)] ?? const [];
+
+  /// Budgets the app is proposing, worked out from the user's own history.
+  ///
+  /// Empty when there is nothing to go on -- a new phone, a cleared inbox, or
+  /// a first month. The screen must handle that: a suggestion nobody can
+  /// justify is worse than no suggestion.
+  Future<List<BudgetSuggestion>> budgetSuggestions() async {
+    final raw = (await _user.get()).data()?['budgetSuggestions'];
+    if (raw is! Map) return const [];
+    final items = raw['items'];
+    if (items is! Map) return const [];
+
+    // Untracked categories are kept: offering one is how the user gets both
+    // the category and its figure in a single tap. What is dropped is a
+    // suggestion whose stored flag says tracked but which is no longer on the
+    // list -- the user deleted it, and re-proposing it would undo that.
+    final tracked = await trackedItemsWithBudgets();
+    final live = {for (final n in tracked.keys) slugifyCategory(n)};
+
+    final out = <BudgetSuggestion>[];
+    items.forEach((id, v) {
+      if (v is! Map) return;
+      final wasTracked = v['isTracked'] != false;
+      if (wasTracked && !live.contains(id)) return;
+      final months = <MonthlySpend>[];
+      for (final m in (v['months'] as List? ?? const [])) {
+        if (m is Map && m['month'] != null) {
+          months.add(MonthlySpend(
+              m['month'].toString(), (m['total'] as num?)?.toDouble() ?? 0));
+        }
+      }
+      out.add(BudgetSuggestion(
+        categoryId: id.toString(),
+        categoryName: v['name']?.toString() ?? id.toString(),
+        amount: (v['amount'] as num?)?.toDouble() ?? 0,
+        typical: (v['typical'] as num?)?.toDouble() ?? 0,
+        months: months,
+        isTracked: live.contains(id),
+      ));
+    });
+    out.sort((a, b) {
+      if (a.isTracked != b.isTracked) return a.isTracked ? -1 : 1;
+      return b.amount.compareTo(a.amount);
+    });
+    return out;
+  }
+
+  /// Suggestions worth showing: the ones that would actually change something.
+  ///
+  /// A category already budgeted within a tenth of the proposal is left alone.
+  /// Nagging someone to change ₦20,000 to ₦21,000 spends their attention on
+  /// nothing and makes the ones that matter easier to dismiss.
+  Future<List<BudgetSuggestion>> budgetSuggestionsWorthShowing() async {
+    final all = await budgetSuggestions();
+    if (all.isEmpty) return const [];
+    final current = await trackedItemsWithBudgets();
+
+    return all.where((s) {
+      if (!s.isTracked) return true;
+      final raw = current[s.categoryName];
+      final set =
+          double.tryParse((raw ?? '').replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+      if (set <= 0) return true; // nothing set: always worth offering
+      return (s.amount - set).abs() / set > 0.1;
+    }).toList();
+  }
+
+  /// Writes a proposed budget as the category's budget.
+  ///
+  /// Goes through [startTracking], which already treats an existing category
+  /// as a change of figure rather than a second row, so spending survives.
+  Future<void> applyBudgetSuggestion(BudgetSuggestion s) => startTracking(
+        name: s.categoryName,
+        budget: NumberFormat('#,###').format(s.amount),
+      );
+
+  /// Nets reversals that were recorded before the app knew to undo them.
+  ///
+  /// Both halves of a failed transfer were already stored -- the money went
+  /// out, came back, and only the outgoing half was ever counted, so the total
+  /// stayed high forever. Idempotent: an original carrying `reversedBySmsId`
+  /// is never picked a second time, and no reversal claims an original another
+  /// has taken.
+  Future<int> repairReversals() async {
+    final now = DateTime.now();
+    final keys = <String>{
+      monthKeyOf(now),
+      monthKeyOf(DateTime(now.year, now.month - 1, 1)),
+    };
+
+    final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    for (final k in keys) {
+      docs.addAll((await monthRef(k).collection('transactions').get()).docs);
+    }
+
+    // Older records predate the stored flag, so fall back to the narration the
+    // bank wrote, which is what the flag was derived from in the first place.
+    bool isReversalRow(Map<String, dynamic> m) =>
+        m['isReversal'] == true ||
+        isReversalAlert(m['narration']?.toString() ?? '');
+
+    final reversals = docs.where((d) => isReversalRow(d.data())).toList();
+    if (reversals.isEmpty) return 0;
+
+    final batch = db.batch();
+    final claimed = <String>{};
+    var applied = 0;
+
+    for (final r in reversals) {
+      final rm = r.data();
+      final amount = (rm['amount'] as num?)?.toDouble() ?? 0;
+      if (amount <= 0) continue;
+      final when = DateTime.tryParse(rm['occurredAt'] ?? '') ?? now;
+
+      final pool = docs.where((d) =>
+          d.id != r.id &&
+          !claimed.contains(d.id) &&
+          !isReversalRow(d.data()) &&
+          ((d.data()['amount'] as num?)?.toDouble() ?? -1) == amount);
+
+      final chosen = pickReversed(
+        [
+          for (final d in pool)
+            ReversalCandidate(
+              id: d.id,
+              kind: d.data()['kind']?.toString() ?? '',
+              status: d.data()['status']?.toString() ?? '',
+              counterpartyKey: d.data()['counterpartyKey'] as String?,
+              occurredAt: DateTime.tryParse(d.data()['occurredAt'] ?? ''),
+              alreadyReversed: d.data()['reversedBySmsId'] != null,
+            )
+        ],
+        when: when,
+        counterpartyKey: rm['counterpartyKey'] as String?,
+      );
+      if (chosen == null) continue;
+
+      final original = docs.firstWhere((d) => d.id == chosen.id);
+      final om = original.data();
+      final effect = reversalEffect(
+        kind: om['kind']?.toString() ?? '',
+        status: om['status']?.toString() ?? '',
+        categoryId: om['categoryId'] as String?,
+        amount: (om['amount'] as num?)?.toDouble() ?? 0,
+      );
+
+      claimed.add(original.id);
+      batch.update(original.reference, {
+        'status': TxnStatus.excluded.name,
+        'reversedBySmsId': rm['smsId'] ?? r.id,
+      });
+
+      final monthDoc = original.reference.parent.parent!;
+      if (effect.categoryId != null) {
+        batch.set(
+            monthDoc,
+            {
+              'spend': {
+                effect.categoryId!: FieldValue.increment(-effect.amount)
+              }
+            },
+            SetOptions(merge: true));
+      } else if (effect.isCharge) {
+        batch.set(monthDoc, {'charges': FieldValue.increment(-effect.amount)},
+            SetOptions(merge: true));
+      }
+      applied++;
+    }
+
+    if (applied == 0) return 0;
+    await batch.commit();
+    await rebuildCurrentMonthTotals();
+    return applied;
+  }
+
+  /// The transaction a reversal undoes, or null when none can be identified.
+  ///
+  /// Matched on amount, direction and time. The counterparty is used when both
+  /// halves carry one -- some formats print it on the reversal, some do not --
+  /// and the amount plus the window is the evidence when they do not.
+  ///
+  /// Queried on `amount` alone so no composite index is needed; the rest is
+  /// filtered here, on a handful of documents.
+  Future<DocumentReference<Map<String, dynamic>>?> _findReversed(
+      BankAlert reversal) async {
+    final amount = reversal.amount;
+    if (amount == null || amount <= 0) return null;
+    final when = reversal.occurredAt ?? DateTime.now();
+
+    // A reversal can land days after the transfer it undoes, which puts it in
+    // the following month often enough to be worth the second read.
+    final keys = <String>{
+      monthKeyOf(when),
+      monthKeyOf(DateTime(when.year, when.month - 1, 1)),
+    };
+
+    for (final k in keys) {
+      final snap = await monthRef(k)
+          .collection('transactions')
+          .where('amount', isEqualTo: amount)
+          .get();
+
+      final byId = {for (final d in snap.docs) d.id: d};
+      final chosen = pickReversed(
+        [
+          for (final d in snap.docs)
+            ReversalCandidate(
+              id: d.id,
+              kind: d.data()['kind']?.toString() ?? '',
+              status: d.data()['status']?.toString() ?? '',
+              counterpartyKey: d.data()['counterpartyKey'] as String?,
+              occurredAt: DateTime.tryParse(d.data()['occurredAt'] ?? ''),
+              alreadyReversed: d.data()['reversedBySmsId'] != null,
+            )
+        ],
+        when: when,
+        counterpartyKey: reversal.counterpartyKey,
+      );
+
+      if (chosen != null) return byId[chosen.id]!.reference;
+    }
+    return null;
   }
 
   /// A category id for a recognised merchant, or null.
@@ -1187,6 +1615,9 @@ class SpendRepository {
       await trackedCategoryNames(),
       ownerName: await ownerName(),
       channelHint: alert.channel == TxnChannel.airtime ? 'airtime' : null,
+      // Per transaction, not per counterparty: the same buka is lunch at one
+      // and dinner at eight, and only the individual alert carries the hour.
+      hourOfDay: alert.occurredAt?.hour,
     );
     // Only a category that exists. A suggestion to create one is a decision
     // for the user, not something to apply while they are not looking.

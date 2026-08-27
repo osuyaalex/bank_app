@@ -1,17 +1,21 @@
 import 'dart:async';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../data/category_catalogue.dart';
 import '../data/migration_plan.dart';
 import '../data/models.dart';
+import '../data/budget_suggestion.dart';
 import '../data/sms_inbox.dart';
 import '../parsing/bank_alert.dart';
 import '../parsing/category_matcher.dart';
 import '../data/spend_repository.dart';
 import 'widget/bulk_sort_sheet.dart';
+import 'widget/budget_suggestion_sheet.dart';
 import 'widget/category_picker.dart';
 import 'widget/category_setup_sheet.dart';
 import 'widget/ghost_chip.dart';
@@ -78,6 +82,15 @@ class _BatchTagPageState extends State<BatchTagPage> {
   /// How much of the inbox could be understood. Null until checked.
   ({int total, int parsed})? _readability;
 
+  /// Budgets the app worked out from the user's own history, for categories
+  /// where the figure they set is missing or nowhere near what they spend.
+  List<BudgetSuggestion> _budgetHints = [];
+
+
+  /// Cleared once the user has answered the offer, either way. Re-offering a
+  /// suggestion someone has just declined is nagging.
+  bool _budgetHintsDismissed = false;
+
   bool _loading = true;
   bool _saving = false;
 
@@ -130,6 +143,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
     final smsGranted = await _readSmsPermission();
     final readability = await SmsInbox.readability();
     final ownerName = await _repo.ownerName();
+    final budgetHints = await _repo.budgetSuggestionsWorthShowing();
 
     // Self-transfers the migration proposed come first and arrive already
     // ticked -- the user is confirming a suggestion, not answering a question.
@@ -151,6 +165,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
       _smsGranted = smsGranted;
       _readability = readability;
       _ownerName = ownerName;
+      _budgetHints = budgetHints;
       _rows = [
         ...proposed,
         ...batchTagCandidates(map,
@@ -161,6 +176,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
 
     // After the frame, so the list is on screen while this fills it in.
     unawaited(_autoAssign());
+    unawaited(_refreshBudgetHints());
   }
 
   Future<bool> _readSmsPermission() async {
@@ -261,7 +277,10 @@ class _BatchTagPageState extends State<BatchTagPage> {
   /// the name the app already knew, then set the budget.
   Future<void> _acceptSuggestion(CounterpartyEntry row, String name) async {
     final setup =
-        await showCategorySetupSheet(context, currency: _currency, fixedName: name);
+        await showCategorySetupSheet(context,
+            currency: _currency,
+            fixedName: name,
+            history: await _repo.historyForCategory(name));
     if (setup == null) return;
 
     final category =
@@ -511,6 +530,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
                               steps: _guideSteps,
                               footnote: _guideFootnote),
                           _intro(),
+                          _budgetBanner(),
                           _bulkBar(),
                         ],
                       );
@@ -520,6 +540,131 @@ class _BatchTagPageState extends State<BatchTagPage> {
                 ),
         ),
         bottomNavigationBar: _actionBar(),
+      ),
+    );
+  }
+
+  /// Rebuilds the budget proposals from the inbox, then shows what changed.
+  ///
+  /// Runs behind the screen rather than in front of it: reading and parsing
+  /// the whole inbox takes a moment, and none of it is worth making the user
+  /// wait on when the list they came for is ready.
+  Future<void> _refreshBudgetHints() async {
+    try {
+      if (await _repo.refreshBudgetSuggestions() == 0) return;
+      final hints = await _repo.budgetSuggestionsWorthShowing();
+      if (!mounted) return;
+      setState(() => _budgetHints = hints);
+    } catch (_) {
+      // A suggestion is a convenience. Failing to produce one must never take
+      // the screen down with it.
+    }
+  }
+
+  /// Offers to fill in budgets from the months already on the phone.
+  ///
+  /// Sits here rather than on the setup screen because the setup screen runs
+  /// first, before any SMS has been read -- at that point the app knows
+  /// nothing about the user and has nothing to propose. By the time this
+  /// screen appears the whole inbox has been through the parser.
+  Widget _budgetBanner() {
+    if (_budgetHints.isEmpty || _budgetHintsDismissed) {
+      return const SizedBox.shrink();
+    }
+    final top = _budgetHints.first;
+    final newOnes = _budgetHints.where((h) => !h.isTracked).length;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(6, 0, 6, 14),
+      padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+      decoration: BoxDecoration(
+        color: const Color(0xffF4F7FF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _brand.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_awesome_rounded, size: 19, color: _brand),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _budgetHints.length == 1
+                      ? 'A budget for ${top.categoryName}, from your history'
+                      : 'Budgets for ${_budgetHints.length} categories, '
+                          'from your history',
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xff1C1939)),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  newOnes > 0
+                      ? 'About $_currency'
+                          '${NumberFormat('#,###').format(top.amount)} a month '
+                          'on ${top.categoryName}, plus $newOnes '
+                          '${newOnes == 1 ? "category" : "categories"} you do '
+                          'not track yet.'
+                      : 'You have been spending about $_currency'
+                          '${NumberFormat('#,###').format(top.amount)} '
+                          'a month on ${top.categoryName}.',
+                  style:
+                      TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: _brand,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            onPressed: _openBudgetSuggestions,
+            child: const Text('See',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openBudgetSuggestions() async {
+    final current = await _repo.trackedItemsWithBudgets();
+    if (!mounted) return;
+
+    final chosen = await showBudgetSuggestionSheet(
+      context,
+      suggestions: _budgetHints,
+      currentBudgets: {
+        for (final e in current.entries)
+          e.key: double.tryParse(
+                  e.value.replaceAll(RegExp(r'[^0-9.]'), '')) ??
+              0,
+      },
+      currency: _currency,
+    );
+
+    // Backing out is an answer too, but a softer one: the banner stays so the
+    // offer can be picked up again on this visit.
+    if (chosen == null || chosen.isEmpty) return;
+
+    for (final s in chosen) {
+      await _repo.applyBudgetSuggestion(s);
+    }
+    if (!mounted) return;
+    setState(() {
+      _budgetHintsDismissed = true;
+      _tracked = {..._tracked, ...chosen.map((s) => s.categoryName)};
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(chosen.length == 1
+            ? '${chosen.first.categoryName} budget set'
+            : '${chosen.length} budgets set'),
       ),
     );
   }
@@ -862,7 +1007,9 @@ class _BatchTagPageState extends State<BatchTagPage> {
       ghostReason: _guesses[e.key]?.reason,
       onAcceptGhost: (name) async {
         final setup = await showCategorySetupSheet(context,
-            currency: _currency, fixedName: name);
+            currency: _currency,
+            fixedName: name,
+            history: await _repo.historyForCategory(name));
         if (setup == null) return null;
         final created =
             await _repo.startTracking(name: name, budget: setup.budget);
@@ -935,6 +1082,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
       context,
       currency: _currency,
       fixedName: category.name,
+      history: await _repo.historyForCategory(category.name),
     );
     if (setup == null) return false;
     await _repo.startTracking(
@@ -955,6 +1103,7 @@ class _BatchTagPageState extends State<BatchTagPage> {
       context,
       currency: _currency,
       fixedName: entry.name,
+      history: await _repo.historyForCategory(entry.name),
     );
     if (setup == null) return null;
 
