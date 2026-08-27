@@ -3,6 +3,7 @@ import 'package:banking_app/data/background_scan.dart';
 import 'package:banking_app/data/budget_status.dart';
 import 'package:banking_app/data/pending_notifications.dart';
 import 'package:banking_app/data/spend_repository.dart';
+import 'package:banking_app/data/migration_gate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:banking_app/firebase%20network/daily_resets.dart';
 import 'package:banking_app/login%20pages/sign_in_page.dart';
@@ -107,7 +108,9 @@ class _HomePageState extends State<HomePage> {
         await SpendRepository().ensureMonthInitialised();
         if ((await SpendRepository().trackedCategoryNames()).isEmpty &&
             context.mounted) {
-          context.go('/batchTag');
+          final next =
+              await MigrationGate.initialRoute(SpendRepository().uid);
+          if (context.mounted) context.go(next);
           return;
         }
       }

@@ -72,10 +72,11 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
     try {
       final repo = SpendRepository();
       await repo.ensureMonthInitialised();
-      // Nothing carried over means a user who has never set a budget, and the
-      // batch screen is where categories are chosen now.
+      // Nothing carried over means somebody who has never set a budget. Where
+      // that person goes is the gate's decision, not this screen's.
       if ((await repo.trackedCategoryNames()).isEmpty && mounted) {
-        context.go('/batchTag');
+        final next = await MigrationGate.initialRoute(repo.uid);
+        if (mounted) context.go(next);
       }
     } catch (e) {
       // ignore: avoid_print

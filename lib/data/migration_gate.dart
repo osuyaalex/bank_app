@@ -43,6 +43,21 @@ class MigrationGate {
         // Its absence is what had testers asking what a screen wanted from
         // them before they knew what the app was.
         if (data?['introSeen'] != true) return '/intro';
+
+        // Read the messages before asking for a single category.
+        //
+        // The order used to be the other way round, and it was the root of
+        // the confusion on the sorting screen rather than anything on that
+        // screen itself. A new user was handed twenty-nine abstract nouns,
+        // asked to choose some and invent a budget for each, and only then
+        // shown their spending. They chose blind -- three or four -- and
+        // arrived at twenty-two payments matching none of them.
+        //
+        // Scanning first means the categories can come from what they
+        // already spend, with the figures worked out, and there is nothing
+        // to invent.
+        final migration = SchemaMigration(FirebaseFirestore.instance, uid);
+        if (await migration.needsMigration()) return '/preparing';
         return '/trackItems';
       }
 

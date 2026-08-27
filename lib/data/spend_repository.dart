@@ -1284,8 +1284,11 @@ class SpendRepository {
     final inbox = await SmsInbox.readForMigration();
     if (inbox == null || inbox.isEmpty) return 0;
 
+    // Works with nothing tracked, deliberately. That is the setup screen's
+    // case, and somebody with no categories is exactly the person who cannot
+    // invent them -- their own spending is the only honest place for the
+    // first ones to come from.
     final tracked = await trackedCategoryNames();
-    if (tracked.isEmpty) return 0;
 
     // The matcher only ever answers with a category from the list it is given,
     // so handing it the user's list alone means a counterparty that is plainly
@@ -1382,7 +1385,13 @@ class SpendRepository {
               'name': s.categoryName,
               'amount': s.amount,
               'typical': s.typical,
-              'isTracked': s.isTracked,
+              // Somebody with no categories tracks none of these, whatever
+              // the default says. suggestBudgets reads an empty tracked-set
+              // as "assume tracked", which is right for callers that ignore
+              // the flag and exactly wrong here: stored as tracked, every one
+              // was then discarded on read, so the screen built for a new
+              // user was the one case that offered nothing.
+              'isTracked': tracked.isEmpty ? false : s.isTracked,
               'months': [
                 for (final m in s.months) {'month': m.month, 'total': m.total}
               ],

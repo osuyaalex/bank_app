@@ -130,6 +130,15 @@ class _PreparingPageState extends State<PreparingPage>
     // to. Hand straight to the batch screen, or to the summary when the scan
     // turned nothing up.
     if (candidates > 0 || needsSetup) {
+      // Somebody with no categories has just had their inbox read so the
+      // setup screen can propose some. Send them there, not to a sorting
+      // screen with nothing to sort into.
+      if ((await SpendRepository().trackedCategoryNames()).isEmpty) {
+        if (!context.mounted) return;
+        context.pushReplacement('/trackItems');
+        return;
+      }
+      if (!context.mounted) return;
       context.pushReplacement('/batchTag');
     } else {
       context.go('/deeplink/summary');

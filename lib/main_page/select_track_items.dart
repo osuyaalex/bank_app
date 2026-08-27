@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../data/budget_suggestion.dart';
 import '../data/category_catalogue.dart';
 import '../data/spend_repository.dart';
 import 'widget/category_picker.dart' show brandBlue;
@@ -60,6 +61,14 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
   ];
 
   List<CatalogueEntry> _catalogue = [];
+
+  /// Categories taken from what the user has actually been paying for.
+  ///
+  /// This screen used to open with twenty-nine abstract nouns and ask people
+  /// to choose some and invent a budget for each, before showing them a
+  /// single thing they had spent money on. They chose blind, and then met a
+  /// sorting screen full of payments matching none of it.
+  List<BudgetSuggestion> _fromSpending = [];
   String _currency = '';
 
   bool _loading = true;
@@ -90,12 +99,20 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
       final existing = await _repo.pickerCategories();
       // With their budgets, not just their names.
       final tracked = await _repo.trackedItemsWithBudgets();
-      // From month two onward these exist, so returning users pick a budget
-      // from their own spending instead of retyping last month's.
-  
+
+      // What they actually spend on, which is where the categories should
+      // come from. Recomputed when there is nothing stored, because for a
+      // new user the scan has only just finished.
+      var spending = await _repo.budgetSuggestions();
+      if (spending.isEmpty) {
+        await _repo.refreshBudgetSuggestions();
+        spending = await _repo.budgetSuggestions();
+      }
+
       if (!mounted) return;
       setState(() {
-          _catalogue = catalogue;
+        _fromSpending = spending;
+        _catalogue = catalogue;
         _currency = currency;
         for (final c in existing) {
           _images[c.name] = c.image ?? '';
@@ -231,7 +248,13 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
           elevation: 0,
           centerTitle: true,
           title: Text(
-              _returning ? 'Your budgets for this month' : 'What do you want to budget for?',
+              _returning
+                  ? 'Your budgets for this month'
+                  : _fromSpending.isEmpty
+                      // No inbox to go on, so it really is a blank list and
+                      // the old question is the honest one.
+                      ? 'What do you want to budget for?'
+                      : 'Here is where your money goes',
               style: const TextStyle(
                   color: Colors.black, fontSize: 16, fontWeight: FontWeight.w600)),
           actions: [
@@ -257,8 +280,27 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                 for (final name in _chosen.keys) _chosenRow(name),
                 const SizedBox(height: 8),
               ],
-              _sectionLabel(
-                  _chosen.isEmpty ? 'TAP TO ADD' : 'ADD SOMETHING ELSE'),
+              if (_unchosenFromSpending.isNotEmpty) ...[
+                _sectionLabel('FROM YOUR SPENDING'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                  child: Text(
+                    'Tap one to start budgeting for it. The figures are what '
+                    'you have been spending.',
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: Colors.grey.shade600),
+                  ),
+                ),
+                for (final s in _unchosenFromSpending) _spendingRow(s),
+                const SizedBox(height: 10),
+              ],
+              _sectionLabel(_unchosenFromSpending.isNotEmpty
+                  ? 'SOMETHING ELSE'
+                  : _chosen.isEmpty
+                      ? 'TAP TO ADD'
+                      : 'ADD SOMETHING ELSE'),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                 child: Wrap(
@@ -276,6 +318,81 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
         bottomNavigationBar: _bottomBar(),
       ),
     );
+  }
+
+  /// Proposals not already taken.
+  List<BudgetSuggestion> get _unchosenFromSpending => _fromSpending
+      .where((s) => !_chosen.containsKey(s.categoryName))
+      .toList();
+
+  /// One category found in their spending, with what it costs them.
+  Widget _spendingRow(BudgetSuggestion s) {
+    final money = NumberFormat('#,###');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _takeSuggestion(s),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(s.categoryName,
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xff1C1939))),
+                    const SizedBox(height: 3),
+                    Text('about $_currency${money.format(s.amount)} a month',
+                        style: TextStyle(
+                            fontSize: 12.5, color: Colors.grey.shade600)),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                decoration: BoxDecoration(
+                  color: brandBlue.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Text('Budget this',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: brandBlue)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Takes one, with the figure already worked out.
+  ///
+  /// The sheet still opens, because the number is a proposal rather than a
+  /// decision -- but it opens filled in, so agreeing is one tap and nothing
+  /// needs typing.
+  Future<void> _takeSuggestion(BudgetSuggestion s) async {
+    final setup = await showCategorySetupSheet(
+      context,
+      currency: _currency,
+      fixedName: s.categoryName,
+      history: [for (final m in s.months) m.total],
+      suggested: s.amount,
+    );
+    if (setup == null || !mounted) return;
+    setState(() => _chosen[s.categoryName] = setup.budget);
   }
 
   Widget _sectionLabel(String text) => Padding(

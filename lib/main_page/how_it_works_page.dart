@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../data/spend_repository.dart';
+import '../data/migration_gate.dart';
 
 const _ink = Color(0xff1C1939);
 const _brand = Color(0xff5AA5E2);
@@ -361,7 +363,16 @@ class _HowItWorksPageState extends State<HowItWorksPage>
     } catch (_) {
       // Not worth blocking the user over. Worst case they see it once more.
     }
-    if (mounted) context.go('/trackItems');
+    if (!mounted) return;
+    // Asks where to go rather than naming a screen.
+    //
+    // A hardcoded destination here is how the old order survived being
+    // changed everywhere else: the explainer walked straight past the gate,
+    // so a new user was still asked to invent categories before a single
+    // message had been read.
+    final next = await MigrationGate.initialRoute(
+        FirebaseAuth.instance.currentUser?.uid ?? '');
+    if (mounted) context.go(next);
   }
 }
 
