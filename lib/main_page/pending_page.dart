@@ -52,6 +52,14 @@ class _PendingPageState extends State<PendingPage> {
   }
 
   /// What the app worked out for each row, by counterparty.
+  /// What the app worked out for each row, keyed by transaction.
+  ///
+  /// Keyed by payment rather than by counterparty, which the batch screen
+  /// cannot do: a row there stands for a merchant and all the times money went
+  /// to it, while a row here is one payment with one clock reading. Sharing a
+  /// guess across a merchant's payments meant a Chowdeck order at one in the
+  /// afternoon and another at nine at night were filed identically, with the
+  /// time printed on both cards and read on neither.
   final Map<String, CategoryGuess> _guesses = {};
 
   Future<void> _load() async {
@@ -86,8 +94,11 @@ class _PendingPageState extends State<PendingPage> {
           ownerName: owner,
           twoWayMoney: entry?.isTwoWay ?? false,
           mostlyRoundAmounts: entry?.mostlyRound ?? false,
+          // The hour this payment happened, which only exists here. It is what
+          // lets food land on the right meal for somebody budgeting by meal.
+          hourOfDay: txn.occurredAt?.hour,
         );
-        if (g != null) _guesses[key] = g;
+        if (g != null) _guesses[txn.smsId] = g;
       }
       _loading = false;
     });
@@ -103,14 +114,14 @@ class _PendingPageState extends State<PendingPage> {
   /// visible, where the user can see the guess and sweep it in bulk.
   Future<void> _fileTheObviousOnes() async {
     final sure = _pending.where((t) {
-      final g = _guesses[t.counterpartyKey];
+      final g = _guesses[t.smsId];
       return g != null && g.isCertain && g.categoryName.isNotEmpty;
     }).toList();
     if (sure.isEmpty) return;
 
     var filed = 0;
     for (final txn in sure) {
-      final guess = _guesses[txn.counterpartyKey]!;
+      final guess = _guesses[txn.smsId]!;
       final category = _categories.firstWhere(
         (c) => c.name.toLowerCase() == guess.categoryName.toLowerCase(),
         orElse: () => const Category(id: '', name: ''),
@@ -142,7 +153,7 @@ class _PendingPageState extends State<PendingPage> {
   /// it is one tap from done. Counting those made the bar warn about work the
   /// app had already done.
   List<TransactionRecord> get _unsure => _pending.where((t) {
-        final g = _guesses[t.counterpartyKey];
+        final g = _guesses[t.smsId];
         if (g == null) return true;
         if (g.categoryName.isNotEmpty) return false;
         return g.suggestedOptions.isEmpty;
@@ -317,8 +328,8 @@ class _PendingPageState extends State<PendingPage> {
       tracked: _tracked,
       onCreate: _createCategory,
       ghostOptions:
-          _guesses[txn.counterpartyKey]?.suggestedOptions ?? const [],
-      ghostReason: _guesses[txn.counterpartyKey]?.reason,
+          _guesses[txn.smsId]?.suggestedOptions ?? const [],
+      ghostReason: _guesses[txn.smsId]?.reason,
       onAcceptGhost: (name) async {
         final setup = await showCategorySetupSheet(context,
             currency: _currency,
@@ -542,7 +553,7 @@ class _PendingPageState extends State<PendingPage> {
 
   Widget _card(TransactionRecord txn) {
     final saving = _savingIds.contains(txn.smsId);
-    final guess = _guesses[txn.counterpartyKey];
+    final guess = _guesses[txn.smsId];
     final ghosts = (guess?.needsNewCategory ?? false)
         ? guess!.suggestedOptions
         : const <String>[];

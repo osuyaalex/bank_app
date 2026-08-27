@@ -70,4 +70,23 @@ void main() {
       expect(at('PETROCAM FILLING STATION', 8, wide), 'Fuel');
     });
   });
+
+  group('why a guess cannot be cached per merchant', () {
+    test('one merchant, two payments, two different meals', () {
+      // Needs Sorting used to work out a guess once per counterparty and reuse
+      // it for every payment to that merchant. For anybody budgeting by meal
+      // that is wrong by construction: the same delivery service is lunch at
+      // one and dinner at nine, and the row already knows which.
+      const key = 'CHOWDECK';
+      expect(at(key, 13, meals), 'Lunch');
+      expect(at(key, 21, meals), 'Dinner');
+      expect(at(key, 8, meals), 'Breakfast');
+    });
+
+    test('a merchant that is not food is the same whenever it is paid', () {
+      const wide = ['Breakfast', 'Lunch', 'Dinner', 'Fuel'];
+      expect(at('PETROCAM FILLING STATION', 8, wide),
+          at('PETROCAM FILLING STATION', 21, wide));
+    });
+  });
 }
