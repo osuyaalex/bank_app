@@ -17,7 +17,7 @@ class Story {
 
   /// The day being shown. 1 is the app as it stood when the batch screen was
   /// first thought up; 7 is everything.
-  static const day = 1;
+  static const day = 2;
 
   /// True when this build is telling the story at all. Set to false and the
   /// app behaves exactly as it does on main.
