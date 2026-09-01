@@ -1,62 +1,392 @@
 [
   {
-    "id": "test-000", "bank": "ECOBANK", "sender": "Ecobank", "holdout": true,
+    "id": "test-000",
+    "bank": "ECOBANK",
+    "sender": "Ecobank",
+    "holdout": true,
     "note": "Prose with the direction as a verb, and Desc/Bal jammed together without spaces after the colon.",
     "body": "Acc:***2211 has been debited NGN4,750.00 on 03-Sep-2026 15:40. Desc: POS/DOMINOS PIZZA LEKKI. Bal:NGN61,200.30",
-    "expected": { "isBankAlert": true, "kind": "debit", "amount": 4750.00, "occurredAt": "2026-09-03T15:40:00.000", "counterpartyKey": "DOMINOS PIZZA LEKKI", "balanceAfter": 61200.30 }
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 4750.0,
+      "occurredAt": "2026-09-03T15:40:00.000",
+      "counterpartyKey": "DOMINOS PIZZA LEKKI",
+      "balanceAfter": 61200.3
+    }
   },
   {
-    "id": "test-001", "bank": "FIDELITY", "sender": "Fidelity", "holdout": true,
+    "id": "test-001",
+    "bank": "FIDELITY",
+    "sender": "Fidelity",
+    "holdout": true,
     "note": "Money in, with the sender behind a From: label.",
     "body": "Fidelity Alert\nCR NGN80,000.00\nAcct: ***5566\nFrom: TEMITOPE SALAMI\n03/09/2026 09:12\nBal: NGN141,200.00",
-    "expected": { "isBankAlert": true, "kind": "credit", "amount": 80000.00, "occurredAt": "2026-09-03T09:12:00.000", "counterpartyKey": "TEMITOPE SALAMI", "balanceAfter": 141200.00 }
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 80000.0,
+      "occurredAt": "2026-09-03T09:12:00.000",
+      "counterpartyKey": "TEMITOPE SALAMI",
+      "balanceAfter": 141200.0
+    }
   },
   {
-    "id": "test-002", "bank": "UNIONBANK", "sender": "UnionBank", "holdout": true,
+    "id": "test-002",
+    "bank": "UNIONBANK",
+    "sender": "UnionBank",
+    "holdout": true,
     "note": "The DR marker is welded to the figure with no space: NGN1,234.56DR.",
     "body": "Union Bank: Your acct ***7799 debited NGN1,234.56DR for WEB/SPOTIFY on 03-Sep-2026. Available Bal NGN9,870.10",
-    "expected": { "isBankAlert": true, "kind": "debit", "amount": 1234.56, "occurredAt": "2026-09-03T00:00:00.000", "counterpartyKey": "SPOTIFY", "balanceAfter": 9870.10 }
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 1234.56,
+      "occurredAt": "2026-09-03T00:00:00.000",
+      "counterpartyKey": "SPOTIFY",
+      "balanceAfter": 9870.1
+    }
   },
   {
-    "id": "test-003", "bank": "STANBIC", "sender": "StanbicIBTC", "holdout": true,
+    "id": "test-003",
+    "bank": "STANBIC",
+    "sender": "StanbicIBTC",
+    "holdout": true,
     "note": "Two-digit year and a twelve-hour clock with no space before AM.",
     "body": "Stanbic IBTC\nDebit: NGN18,000.00\nAcct: ***4455\nNarration: TRF TO UCHE NWACHUKWU\nDate: 03/09/26 09:15AM\nBalance: NGN52,000.00",
-    "expected": { "isBankAlert": true, "kind": "debit", "amount": 18000.00, "occurredAt": "2026-09-03T09:15:00.000", "counterpartyKey": "UCHE NWACHUKWU", "balanceAfter": 52000.00 }
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 18000.0,
+      "occurredAt": "2026-09-03T09:15:00.000",
+      "counterpartyKey": "UCHE NWACHUKWU",
+      "balanceAfter": 52000.0
+    }
   },
   {
-    "id": "test-004", "bank": "POLARIS", "sender": "Polaris", "holdout": true,
+    "id": "test-004",
+    "bank": "POLARIS",
+    "sender": "Polaris",
+    "holdout": true,
     "note": "VAT on a bank charge. Not a purchase, and nobody was paid.",
     "body": "VAT of NGN3.75 on SMS charge has been deducted from acct ***8899 on 03-Sep-2026. Bal: NGN7,400.25",
-    "expected": { "isBankAlert": true, "kind": "charge", "amount": 3.75, "occurredAt": "2026-09-03T00:00:00.000", "counterpartyKey": null, "balanceAfter": 7400.25 }
+    "expected": {
+      "isBankAlert": true,
+      "kind": "charge",
+      "amount": 3.75,
+      "occurredAt": "2026-09-03T00:00:00.000",
+      "counterpartyKey": null,
+      "balanceAfter": 7400.25
+    }
   },
   {
-    "id": "test-005", "bank": "PROVIDUS", "sender": "Providus", "holdout": true,
+    "id": "test-005",
+    "bank": "PROVIDUS",
+    "sender": "Providus",
+    "holdout": true,
     "note": "A trailing REF: that has to come off the key, or every payment to this person keys differently.",
     "body": "Providus\nAmt: NGN22,500.00 DR\nAcct: ***1010\nDesc: NIP TRANSFER TO RASHEED QUADRI REF:PRV884219\nDate: 03-Sep-2026 18:02\nBal: NGN12,050.00",
-    "expected": { "isBankAlert": true, "kind": "debit", "amount": 22500.00, "occurredAt": "2026-09-03T18:02:00.000", "counterpartyKey": "RASHEED QUADRI", "balanceAfter": 12050.00 }
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 22500.0,
+      "occurredAt": "2026-09-03T18:02:00.000",
+      "counterpartyKey": "RASHEED QUADRI",
+      "balanceAfter": 12050.0
+    }
   },
   {
-    "id": "test-006", "bank": "CARBON", "sender": "Carbon", "holdout": true,
+    "id": "test-006",
+    "bank": "CARBON",
+    "sender": "Carbon",
+    "holdout": true,
     "note": "Whole-naira amounts with no decimals, an 'at' before the time, and 'topped up with' as the direction.",
     "body": "Your Carbon wallet has been topped up with NGN25,000 from KEHINDE ABIODUN on 03 Sep 2026 at 20:10. New balance: NGN25,300",
-    "expected": { "isBankAlert": true, "kind": "credit", "amount": 25000.00, "occurredAt": "2026-09-03T20:10:00.000", "counterpartyKey": "KEHINDE ABIODUN", "balanceAfter": 25300.00 }
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 25000.0,
+      "occurredAt": "2026-09-03T20:10:00.000",
+      "counterpartyKey": "KEHINDE ABIODUN",
+      "balanceAfter": 25300.0
+    }
   },
   {
-    "id": "test-007", "bank": "SPARKLE", "sender": "Sparkle", "holdout": true,
+    "id": "test-007",
+    "bank": "SPARKLE",
+    "sender": "Sparkle",
+    "holdout": true,
     "note": "No labels at all. The merchant follows 'spent at'.",
     "body": "Sparkle: NGN3,400.00 spent at ARISE PHARMACY VI on 03-Sep-2026 12:45. Bal NGN18,660.00",
-    "expected": { "isBankAlert": true, "kind": "debit", "amount": 3400.00, "occurredAt": "2026-09-03T12:45:00.000", "counterpartyKey": "ARISE PHARMACY VI", "balanceAfter": 18660.00 }
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 3400.0,
+      "occurredAt": "2026-09-03T12:45:00.000",
+      "counterpartyKey": "ARISE PHARMACY VI",
+      "balanceAfter": 18660.0
+    }
   },
   {
-    "id": "test-008", "bank": "KEYSTONE", "sender": "Keystone", "holdout": true,
+    "id": "test-008",
+    "bank": "KEYSTONE",
+    "sender": "Keystone",
+    "holdout": true,
     "note": "A reversal abbreviated RSVL. Money coming back, with nobody on the other side.",
     "body": "Keystone Bank: RSVL of NGN6,000.00 credited to acct ***3131 on 03-Sep-2026. Bal: NGN14,000.00",
-    "expected": { "isBankAlert": true, "kind": "credit", "amount": 6000.00, "occurredAt": "2026-09-03T00:00:00.000", "counterpartyKey": null, "balanceAfter": 14000.00 }
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 6000.0,
+      "occurredAt": "2026-09-03T00:00:00.000",
+      "counterpartyKey": null,
+      "balanceAfter": 14000.0
+    }
   },
   {
-    "id": "test-009", "bank": "none", "sender": "GTBank", "holdout": true,
+    "id": "test-009",
+    "bank": "none",
+    "sender": "GTBank",
+    "holdout": true,
     "note": "THE TRAP. A real bank, three amounts, the word Bal, and not a transaction. A parser that has learned 'bank sender plus money equals spending' files a five million naira loan advert as a purchase.",
     "body": "GTBank: Get a QuickCredit loan of up to NGN5,000,000 today at 1.5% monthly. Dial *737*51*51# to check eligibility. Bal enquiry *737*6*1# Charges apply.",
-    "expected": { "isBankAlert": false }
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "test-010",
+    "bank": "HERITAGE",
+    "sender": "Heritage",
+    "holdout": true,
+    "note": "Labelled form, POS purchase. Shape the training set is full of; here to keep the mix honest rather than to be difficult.",
+    "body": "Heritage Bank\nAcct: ***1357\nAmt: NGN9,250.00 DR\nDesc: POS/MARKET SQUARE ENUGU\nDate: 11-Sep-2026 13:20\nBal: NGN44,120.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 9250.0,
+      "occurredAt": "2026-09-11T13:20:00.000",
+      "counterpartyKey": "MARKET SQUARE ENUGU",
+      "balanceAfter": 44120.0
+    }
+  },
+  {
+    "id": "test-011",
+    "bank": "SUNTRUST",
+    "sender": "SunTrust",
+    "holdout": true,
+    "note": "Money in, labelled, with the sender behind TRF FROM.",
+    "body": "SunTrust\nCR: NGN35,000.00\nAcct: ***2468\nDesc: TRF FROM NGOZI OKAFOR\nDate: 11-Sep-2026 08:45\nBal: NGN79,500.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 35000.0,
+      "occurredAt": "2026-09-11T08:45:00.000",
+      "counterpartyKey": "NGOZI OKAFOR",
+      "balanceAfter": 79500.0
+    }
+  },
+  {
+    "id": "test-012",
+    "bank": "PARALLEX",
+    "sender": "Parallex",
+    "holdout": true,
+    "note": "Airtime. The app keys every network the same way so they collapse into one budget line, so the expected key is AIRTIME GLO and not the phone number.",
+    "body": "Parallex\nAmt: NGN500.00 DR\nAcct: ***9753\nDesc: AIRTIME/GLO/08031234567\nDate: 11/09/2026 06:15\nBal: NGN12,300.50",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 500.0,
+      "occurredAt": "2026-09-11T06:15:00.000",
+      "counterpartyKey": "AIRTIME GLO",
+      "balanceAfter": 12300.5
+    }
+  },
+  {
+    "id": "test-013",
+    "bank": "LOTUS",
+    "sender": "Lotus",
+    "holdout": true,
+    "note": "A maintenance fee. A charge, not a purchase, and nobody was paid.",
+    "body": "Lotus Bank\nAcct: ***8642\nAmt: NGN105.00 DR\nDesc: ACCOUNT MAINTENANCE FEE\nDate: 11-Sep-2026\nBal: NGN6,700.25",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "charge",
+      "amount": 105.0,
+      "occurredAt": "2026-09-11T00:00:00.000",
+      "counterpartyKey": null,
+      "balanceAfter": 6700.25
+    }
+  },
+  {
+    "id": "test-014",
+    "bank": "CORONATION",
+    "sender": "Coronation",
+    "holdout": true,
+    "note": "An online subscription behind a WEB/ prefix.",
+    "body": "Coronation\nAcct: ***7531\nAmt: NGN18,900.00 DR\nDesc: WEB/AMAZON PRIME\nDate: 11-Sep-2026 21:05\nBal: NGN23,400.10",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 18900.0,
+      "occurredAt": "2026-09-11T21:05:00.000",
+      "counterpartyKey": "AMAZON PRIME",
+      "balanceAfter": 23400.1
+    }
+  },
+  {
+    "id": "test-015",
+    "bank": "RUBIES",
+    "sender": "Rubies",
+    "holdout": true,
+    "note": "Three slash-separated segments where the middle one is the person and the last is a note.",
+    "body": "Rubies\nAcct: ***4826\nAmt: NGN6,000.00 DR\nDesc: NIP/TRF/BABATUNDE LAWAL/UPKEEP\nDate: 11-Sep-2026 15:33\nBal: NGN51,220.75",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 6000.0,
+      "occurredAt": "2026-09-11T15:33:00.000",
+      "counterpartyKey": "BABATUNDE LAWAL",
+      "balanceAfter": 51220.75
+    }
+  },
+  {
+    "id": "test-016",
+    "bank": "VFD",
+    "sender": "VFDMFB",
+    "holdout": true,
+    "note": "A salary landing. Large credit, company on the other side.",
+    "body": "VFD MFB\nAcct: ***3690\nAmt: NGN120,000.00 CR\nDesc: TRF FROM BRIGHTPATH LTD\nDate: 11-Sep-2026 09:00\nBal: NGN168,900.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 120000.0,
+      "occurredAt": "2026-09-11T09:00:00.000",
+      "counterpartyKey": "BRIGHTPATH LTD",
+      "balanceAfter": 168900.0
+    }
+  },
+  {
+    "id": "test-017",
+    "bank": "9PSB",
+    "sender": "9PSB",
+    "holdout": true,
+    "note": "All-numeric date separators, which is a different shape again.",
+    "body": "9PSB\nAcct: ***1470\nAmt: NGN2,150.00 DR\nDesc: POS/BLESSED PHARMACY\nDate: 11-09-2026 17:48\nBal: NGN8,905.30",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 2150.0,
+      "occurredAt": "2026-09-11T17:48:00.000",
+      "counterpartyKey": "BLESSED PHARMACY",
+      "balanceAfter": 8905.3
+    }
+  },
+  {
+    "id": "test-018",
+    "bank": "PREMIUMTRUST",
+    "sender": "PremiumTrust",
+    "holdout": true,
+    "note": "Two-digit year on a labelled form.",
+    "body": "PremiumTrust\nAcct: ***2580\nAmt: NGN14,500.00 DR\nDesc: TRF TO IFEOMA UZOMA\nDate: 11-Sep-26 12:12\nBal: NGN37,800.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 14500.0,
+      "occurredAt": "2026-09-11T12:12:00.000",
+      "counterpartyKey": "IFEOMA UZOMA",
+      "balanceAfter": 37800.0
+    }
+  },
+  {
+    "id": "test-019",
+    "bank": "OPTIMUS",
+    "sender": "Optimus",
+    "holdout": true,
+    "note": "A failed card payment coming back. Money in, nobody on the other side.",
+    "body": "Optimus Bank\nAcct: ***3691\nAmt: NGN7,800.00 CR\nDesc: RSVL FAILED POS\nDate: 11-Sep-2026 19:20\nBal: NGN29,000.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 7800.0,
+      "occurredAt": "2026-09-11T19:20:00.000",
+      "counterpartyKey": null,
+      "balanceAfter": 29000.0
+    }
+  },
+  {
+    "id": "test-020",
+    "bank": "TAJ",
+    "sender": "TAJBank",
+    "holdout": true,
+    "note": "Cash out of a machine. There is no counterparty, only a place.",
+    "body": "TAJBank\nAcct: ***8024\nAmt: NGN20,000.00 DR\nDesc: ATM WITHDRAWAL IKOYI\nDate: 11-Sep-2026 14:02\nBal: NGN15,600.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 20000.0,
+      "occurredAt": "2026-09-11T14:02:00.000",
+      "counterpartyKey": "ATM WITHDRAWAL IKOYI",
+      "balanceAfter": 15600.0
+    }
+  },
+  {
+    "id": "test-021",
+    "bank": "PAGA",
+    "sender": "Paga",
+    "holdout": true,
+    "note": "Sentence. 'transferred ... to', whole naira, time behind 'at'.",
+    "body": "You transferred NGN3,750 to SEGUN FALADE on 11-Sep-2026 at 10:30. Your Paga balance is NGN9,120.40",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 3750.0,
+      "occurredAt": "2026-09-11T10:30:00.000",
+      "counterpartyKey": "SEGUN FALADE",
+      "balanceAfter": 9120.4
+    }
+  },
+  {
+    "id": "test-022",
+    "bank": "RENMONEY",
+    "sender": "Renmoney",
+    "holdout": true,
+    "note": "Sentence, passive, with the counterparty after 'to' and no labels.",
+    "body": "A payment of NGN45,000 has been made from your account ***5309 to LANDLORD RENT on 11 Sep 2026 16:00. Bal: NGN102,000",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 45000.0,
+      "occurredAt": "2026-09-11T16:00:00.000",
+      "counterpartyKey": "LANDLORD RENT",
+      "balanceAfter": 102000.0
+    }
+  },
+  {
+    "id": "test-023",
+    "bank": "SIGNATURE",
+    "sender": "Signature",
+    "holdout": true,
+    "note": "A charge written as a sentence rather than as a Desc: field.",
+    "body": "NGN1,900.00 was charged for SMS alerts on your account ***6420 on 11-Sep-2026. Balance NGN4,300.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "charge",
+      "amount": 1900.0,
+      "occurredAt": "2026-09-11T00:00:00.000",
+      "counterpartyKey": null,
+      "balanceAfter": 4300.0
+    }
+  },
+  {
+    "id": "test-024",
+    "bank": "none",
+    "sender": "FirstBank",
+    "holdout": true,
+    "note": "THE SECOND TRAP. A real bank, a seven-figure sum, a percentage and the word Bal. Nothing left the account.",
+    "body": "FirstBank: Congratulations! You are pre-qualified for a loan of NGN1,500,000. Repay over 12 months at 2.5% monthly. Dial *894*11# now. Bal: check *894*00#",
+    "expected": {
+      "isBankAlert": false
+    }
   }
 ]

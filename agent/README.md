@@ -121,13 +121,26 @@ which would make the regression cases decoration.
 
 Reported on `cases/test.json`, which no candidate has seen.
 
-| | test, unseen | regression | turns | cost |
+Reported on 25 formats no candidate has ever seen. The set was ten while the
+work was going on and was expanded afterwards, deliberately weighted towards
+the labelled shapes the earlier ten under-represented. That lowered every
+number and narrowed the gap, which is the point: seven against five is two
+messages, and two messages is not a result.
+
+| | 25 unseen | regression | turns | cost |
 |---|---|---|---|---|
-| shipped parser, before any of this | 5/10 | 29/29 | -- | -- |
-| baseline: one prompt, no tools | 5/10 | 29/29 | 1 | $0.96 |
-| agent v1: tools and iteration | 5/10 | 29/29 | 12 | $1.74 |
-| agent v2: plus a validation count it cannot fit | 6/10 | 29/29 | 61 | $7.95 |
-| **agent v3: plus the shape of the problem and real traffic** | **7/10** | 29/29 | 74 | $7.60 |
+| shipped parser, before any of this | 17/25 (68%) | 29/29 | -- | -- |
+| baseline: one prompt, no tools | 18/25 (72%) | 29/29 | 1 | $0.96 |
+| **agent v3** | **21/25 (84%)** | 29/29 | 74 | $7.60 |
+
+On the original ten: shipped 5/10, baseline 5/10, agent v1 5/10, agent v2
+6/10, agent v3 7/10. The v1 and v2 artefacts were not re-scored against the
+expanded set; their value is the shape of the progression, and it is the same
+either way.
+
+**+3 cases over a fair baseline, and +4 over the parser it replaced.** The
+smaller set said +40%; the larger one says +17%. The larger one is the honest
+figure.
 
 **+40% over a fair baseline.** Fair took four attempts: the first run had
 tools it should not have had, the second was handed an empty prompt, the third

@@ -57,17 +57,18 @@ consistently, so one real person becomes one invented person throughout.
 
     dart run agent/evaluate.dart agent/cases/test.json
 
-    cases            10
-    fully correct    7   (70.0%)
-    held-out banks   7/10
+    cases            25
+    fully correct    21   (84.0%)
+    held-out banks   21/25
 
-Ten bank formats the parser was never taught. Seven read correctly.
+Twenty-five bank formats the parser was never taught. Twenty-one read
+correctly, against seventeen before the agent's work went in.
 
 To see what the parser scored before the agent's work went in:
 
     git stash          # if you have local changes
     git checkout 4fe0697 -- lib/parsing/
-    dart run agent/evaluate.dart agent/cases/test.json    # 5/10
+    dart run agent/evaluate.dart agent/cases/test.json    # 17/25
     git checkout HEAD -- lib/parsing/
 
 Runtime: under five seconds. Cost: nothing.
@@ -107,13 +108,14 @@ request rather than a guarantee.
 
 ## What you should see
 
-| | test, unseen | regression | turns | cost | wall clock |
+| | 25 unseen | regression | turns | cost | wall clock |
 |---|---|---|---|---|---|
-| shipped parser, before | 5/10 | 29/29 | -- | -- | -- |
-| baseline: one prompt, no tools | 5/10 | 29/29 | 1 | $0.96 | 4 min |
-| agent v1: tools + iteration | 5/10 | 29/29 | 12 | $1.74 | 6 min |
-| agent v2: + blind validation | 6/10 | 29/29 | 61 | $7.95 | 21 min |
-| agent v3: + problem shape, real traffic | 7/10 | 29/29 | 74 | $7.60 | 23 min |
+| shipped parser, before | 17/25 | 29/29 | -- | -- | -- |
+| baseline: one prompt, no tools | 18/25 | 29/29 | 1 | $0.96 | 4 min |
+| agent v3 | 21/25 | 29/29 | 74 | $7.60 | 23 min |
+
+On the ten cases the work was done against: shipped 5/10, baseline 5/10,
+agent v1 5/10, agent v2 6/10, agent v3 7/10.
 
 Language models are not deterministic. Expect the same shape and a case or
 two of movement, not the same numbers to the decimal. If you want to inspect
