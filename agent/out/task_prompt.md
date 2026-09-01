@@ -62,57 +62,8 @@ with the rest of the app.
 
 # The messages it cannot read
 
-5 of 41 cases. For each, the message as it
+0 of 41 cases. For each, the message as it
 arrives and what a correct parse looks like.
-
-## hold-004  (KUDA)
-sender: Kuda
-body:
-```
-You sent NGN2,000.00 to CHINEDU EZE on 12 Jul 2026, 10:45. Your balance is NGN18,300.00
-```
-expected: kind=debit amount=2000.0 date=2026-07-12T10:45:00.000 counterparty=CHINEDU EZE balance=18300.0
-
-## hold-005  (OPAY)
-sender: OPay
-body:
-```
-Credit Alert! You received NGN15,000.00 from HALIMA IBRAHIM. Bal: NGN33,500.00. 12/07/2026 16:20
-```
-expected: kind=credit amount=15000.0 date=2026-07-12T16:20:00.000 counterparty=HALIMA IBRAHIM balance=33500.0
-
-## hold-006  (MONIEPOINT)
-sender: Moniepoint
-body:
-```
-POS Purchase
-Amount: NGN6,800.00
-Merchant: TOTAL ENERGIES ABUJA
-Date: 12-07-2026 11:11
-Balance: NGN9,420.00
-```
-expected: kind=debit amount=6800.0 date=2026-07-12T11:11:00.000 counterparty=TOTAL ENERGIES ABUJA balance=9420.0
-
-## hold-008  (STERLING)
-sender: Sterling
-body:
-```
-Sterling Bank Alert
-DR NGN25,000.00
-ACC: ***7788
-NARRATION: NIP/TRF/FUNMILAYO ADEBAYO
-12-Jul-26 13:05
-BAL: NGN102,300.00
-```
-expected: kind=debit amount=25000.0 date=2026-07-12T13:05:00.000 counterparty=FUNMILAYO ADEBAYO balance=102300.0
-
-## hold-011  (KUDA)
-sender: Kuda
-body:
-```
-Debit NGN900 to BOLT RIDE on 12-Jul-2026. Bal NGN2100
-```
-expected: kind=debit amount=900.0 date=2026-07-12T00:00:00.000 counterparty=BOLT RIDE balance=2100.0
 
 # Answer with
 

@@ -14,12 +14,21 @@ import 'lib/score.dart';
 void main(List<String> args) {
   final cases = <EvalCase>[];
   for (final p in args) {
+    if (p.startsWith('--')) continue;
     cases.addAll(loadCases(p));
   }
   // Every case the shipped parser gets wrong, not only the ones it fails to
   // detect. A message that parses with the wrong counterparty is just as
   // broken from the user's side.
-  final failing = cases.where((c) => !scoreCase(c).ok).toList();
+  //
+  // Once the agent's work is merged the shipped parser passes these, and the
+  // prompt comes out empty -- which is what happened, and produced a
+  // "baseline" that was really the merged parser scoring itself. Passing
+  // --all forces every case in, so a candidate can be re-run against a tree
+  // that already contains the answer.
+  final all = args.contains('--all');
+  final failing =
+      all ? cases : cases.where((c) => !scoreCase(c).ok).toList();
 
   final b = StringBuffer()
     ..writeln('The app below reads Nigerian bank SMS alerts with a hand-written parser.')

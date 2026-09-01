@@ -1,36 +1,41 @@
 #!/bin/zsh
-# The baseline: one direct prompt, no tools, one turn.
+# The baseline, measured against the parser as it stood BEFORE the agent's
+# work was merged.
 #
-# This is the "reasonable basic way to handle the task" the rules ask for --
-# what you get from pasting the failing messages into a chat window and asking
-# for a parser. It sees the same prompt as the agent and nothing else: it
-# cannot read the repository, cannot run the evaluator and cannot iterate.
+# Once the merge landed, `lib/parsing/` already contained the answer. The
+# prompt builder selects the cases the shipped parser fails, found none, and
+# produced an empty task -- so a "baseline" run after the merge was really the
+# merged parser scoring itself. This checks out the pre-merge parser for the
+# duration and puts it back afterwards.
 #
-#   ./agent/run_baseline.sh
+#   ./agent/run_baseline_fair.sh
 set -e
 cd "${0:A:h}/.."
 
+PRE_MERGE=4fe0697   # the commit before "Read bank alerts that are written as sentences"
 STAMP=$(date +%Y%m%d-%H%M%S)
-TRAJ="agent/trajectories/baseline-$STAMP.jsonl"
-OUT="agent/out/baseline"
+TRAJ="agent/trajectories/baseline-fair-$STAMP.jsonl"
+OUT="agent/out/baseline_fair"
 mkdir -p "$OUT" agent/trajectories
 
-echo "building the prompt..."
-# The same training cases the agent gets, so the only difference between them
-# stays the three that this experiment is about: tools, iteration, verification.
+git checkout $PRE_MERGE -- lib/parsing/
+restore() { git checkout HEAD -- lib/parsing/ 2>/dev/null || true; }
+trap restore EXIT INT TERM
+echo "parser rolled back to $PRE_MERGE for the duration of this run"
+
 dart run agent/make_prompt.dart \
   agent/cases/dev_train.json agent/cases/negative.json agent/cases/seen.json \
-  > agent/out/task_prompt.md
+  > agent/out/task_prompt_fair.md
+echo "cases in the prompt: $(grep -c '^## hold-' agent/out/task_prompt_fair.md)"
 
-echo "one prompt, no tools, one turn..."
-# Every tool named in the session init is denied by name. An empty
-# --allowedTools does NOT disable tools; the first run of this script proved
-# that by reading the repository and running the evaluator, which is exactly
-# the advantage the baseline is not allowed to have.
-# Tools are disabled by giving an allow-list that matches nothing. An empty
-# --allowedTools does NOT disable them: the first run of this script read the
-# repository and ran the evaluator, which is precisely the advantage the
-# baseline must not have. The deny list is belt and braces.
+cat > agent/out/current/fallback.dart <<'DART'
+import 'package:banking_app/parsing/bank_alert.dart';
+
+BankAlert? parseFallback(String sender, String body) => null;
+DART
+
+echo "one prompt, no tools..."
+set +e
 # Denying the tools is not enough on its own. Twice the model answered with
 # a hallucinated Read call written as plain text, invented the contents of the
 # file, and ended its turn having produced nothing. It has to be told that
@@ -40,7 +45,8 @@ claude -p \
   --disallowedTools "Task,Bash,Edit,Write,Read,Glob,Grep,NotebookEdit,WebFetch,WebSearch,Skill,Workflow,ToolSearch,Monitor,SendMessage,ListAgents,TaskOutput,TaskStop,CronCreate,CronDelete,CronList,DesignSync,EnterWorktree,ExitWorktree,PushNotification,RemoteTrigger,ReportFindings,ScheduleWakeup,BashOutput,KillShell,SlashCommand,TodoWrite,ExitPlanMode,EnterPlanMode,Artifact,AskUserQuestion,SendFeedback,SendUserFile" \
   --max-turns 3 \
   --output-format stream-json --verbose \
-  < agent/out/task_prompt.md > "$TRAJ"
+  < agent/out/task_prompt_fair.md > "$TRAJ"
+set -e
 
 python3 - "$TRAJ" "$OUT/fallback.dart" <<'PY'
 import json, re, sys
@@ -48,12 +54,9 @@ traj, out = sys.argv[1], sys.argv[2]
 text = ""
 for line in open(traj):
     line = line.strip()
-    if not line:
-        continue
-    try:
-        ev = json.loads(line)
-    except json.JSONDecodeError:
-        continue
+    if not line: continue
+    try: ev = json.loads(line)
+    except json.JSONDecodeError: continue
     if ev.get("type") == "result" and isinstance(ev.get("result"), str):
         text = ev["result"]
     elif ev.get("type") == "assistant":
@@ -61,14 +64,13 @@ for line in open(traj):
             if blk.get("type") == "text":
                 text += blk["text"]
 m = re.search(r"```dart\s*\n(.*?)```", text, re.S)
-code = m.group(1) if m else text
-open(out, "w").write(code.rstrip() + "\n")
-print(f"wrote {out}  ({len(code.splitlines())} lines)")
+open(out, "w").write((m.group(1) if m else text).rstrip() + "\n")
+print(f"wrote {out} ({len((m.group(1) if m else text).splitlines())} lines)")
 PY
 
 cp "$OUT/fallback.dart" agent/out/current/fallback.dart
-echo "trajectory: $TRAJ"
 echo
-echo "scoring..."
-dart run agent/harness/run_with_fallback.dart \
-  agent/cases/dev_train.json agent/cases/negative.json agent/cases/seen.json || true
+echo "=== baseline vs the PRE-MERGE parser, on cases it has never seen ==="
+dart run agent/harness/run_with_fallback.dart agent/cases/test.json || true
+echo "=== regression ==="
+dart run agent/harness/run_with_fallback.dart agent/cases/seen.json agent/cases/negative.json 2>&1 | grep -E "fully correct|failed"

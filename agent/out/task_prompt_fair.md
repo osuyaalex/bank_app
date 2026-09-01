@@ -1,3 +1,6 @@
+The app below reads Nigerian bank SMS alerts with a hand-written parser.
+Banks it has never been taught are not being read at all.
+
 # What a candidate has to produce
 
 Write one file. Nothing else is read, and nothing else is scored.
@@ -85,3 +88,75 @@ scores nothing.
 
 Use `normaliseCounterparty` for the key. It is what the formats that already
 work use, so anything else will disagree with the rest of the app.
+
+
+# The messages it cannot read
+
+7 of 41 cases. For each, the message as it
+arrives and what a correct parse looks like.
+
+## hold-004  (KUDA)
+sender: Kuda
+body:
+```
+You sent NGN2,000.00 to CHINEDU EZE on 12 Jul 2026, 10:45. Your balance is NGN18,300.00
+```
+expected: kind=debit amount=2000.0 date=2026-07-12T10:45:00.000 counterparty=CHINEDU EZE balance=18300.0
+
+## hold-005  (OPAY)
+sender: OPay
+body:
+```
+Credit Alert! You received NGN15,000.00 from HALIMA IBRAHIM. Bal: NGN33,500.00. 12/07/2026 16:20
+```
+expected: kind=credit amount=15000.0 date=2026-07-12T16:20:00.000 counterparty=HALIMA IBRAHIM balance=33500.0
+
+## hold-008  (STERLING)
+sender: Sterling
+body:
+```
+Sterling Bank Alert
+DR NGN25,000.00
+ACC: ***7788
+NARRATION: NIP/TRF/FUNMILAYO ADEBAYO
+12-Jul-26 13:05
+BAL: NGN102,300.00
+```
+expected: kind=debit amount=25000.0 date=2026-07-12T13:05:00.000 counterparty=FUNMILAYO ADEBAYO balance=102300.0
+
+## hold-012  (VBANK)
+sender: VBank
+body:
+```
+You paid NGN8,500 at PRINCE EBEANO SUPERMARKET on 20-Aug-2026 17:22. Balance: NGN33,180.45
+```
+expected: kind=debit amount=8500.0 date=2026-08-20T17:22:00.000 counterparty=PRINCE EBEANO SUPERMARKET balance=33180.45
+
+## hold-013  (JAIZ)
+sender: Jaiz
+body:
+```
+NGN12,000 was received from OBIOMA PEDRO into your account ***2020 on 20 Aug 2026 at 11:05. Bal NGN60,000
+```
+expected: kind=credit amount=12000.0 date=2026-08-20T11:05:00.000 counterparty=OBIOMA PEDRO balance=60000.0
+
+## hold-014  (GLOBUS)
+sender: Globus
+body:
+```
+Payment of NGN4,300.00 made to UBER TRIP on 20/08/2026 19:40. Available balance NGN15,700.00
+```
+expected: kind=debit amount=4300.0 date=2026-08-20T19:40:00.000 counterparty=UBER TRIP balance=15700.0
+
+## hold-015  (TITANTRUST)
+sender: TitanTrust
+body:
+```
+REVERSED: NGN2,500 has been returned to acct ***6060 on 20-Aug-2026. Bal NGN18,200
+```
+expected: kind=credit amount=2500.0 date=2026-08-20T00:00:00.000 counterparty=- balance=18200.0
+
+# Answer with
+
+The complete contents of agent/out/current/fallback.dart in a single
+```dart fenced block. No prose outside the block.
