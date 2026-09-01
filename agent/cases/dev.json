@@ -1,0 +1,256 @@
+[
+  {
+    "id": "hold-000",
+    "bank": "GTBANK",
+    "sender": "GTBank",
+    "holdout": true,
+    "note": "Labelled fields on separate lines. Closest in shape to a format the parser knows, so it is the easiest of the held-out set.",
+    "body": "Txn: DR\nAcct: **1234\nAmt: NGN5,000.00\nDesc: TRF/ADAEZE OKAFOR/RENT\nDate: 12-JUL-2026 14:22\nBal: NGN128,430.55",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 5000.0,
+      "occurredAt": "2026-07-12T14:22:00.000",
+      "counterpartyKey": "ADAEZE OKAFOR",
+      "balanceAfter": 128430.55
+    }
+  },
+  {
+    "id": "hold-001",
+    "bank": "ACCESS",
+    "sender": "AccessBank",
+    "holdout": true,
+    "note": "Spells out Amount and Balance rather than Amt and Bal, and puts the DR marker after the figure.",
+    "body": "Access Bank\nAcct: 0044441234\nDate: 12-Jul-2026\nAmount: NGN 12,500.00 DR\nDesc: POS/SHOPRITE IKEJA LA\nBalance: NGN 84,310.20",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 12500.0,
+      "occurredAt": "2026-07-12T00:00:00.000",
+      "counterpartyKey": "SHOPRITE IKEJA LA",
+      "balanceAfter": 84310.2
+    }
+  },
+  {
+    "id": "hold-002",
+    "bank": "UBA",
+    "sender": "UBA",
+    "holdout": true,
+    "note": "Prose, not fields. The direction is a verb -- 'has been debited' -- with no DR marker anywhere.",
+    "body": "Dear Customer, your account 2044445678 has been debited with NGN3,200.00 on 12-Jul-2026 for TRANSFER TO GBENGA LAWAL. Available balance: NGN45,120.90",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 3200.0,
+      "occurredAt": "2026-07-12T00:00:00.000",
+      "counterpartyKey": "GBENGA LAWAL",
+      "balanceAfter": 45120.9
+    }
+  },
+  {
+    "id": "hold-003",
+    "bank": "FIRSTBANK",
+    "sender": "FirstBank",
+    "holdout": true,
+    "note": "Slash-separated date, which none of the taught formats use in this position.",
+    "body": "Debit Alert\nAmt: NGN7,450.00\nAcc: *5432\nDesc: WEB/NETFLIX.COM\nDate: 12/07/2026 08:03\nBal: NGN22,908.11",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 7450.0,
+      "occurredAt": "2026-07-12T08:03:00.000",
+      "counterpartyKey": "NETFLIX.COM",
+      "balanceAfter": 22908.11
+    }
+  },
+  {
+    "id": "hold-004",
+    "bank": "KUDA",
+    "sender": "Kuda",
+    "holdout": true,
+    "note": "Fully conversational. No account number, no labels, and the counterparty follows the word 'to'.",
+    "body": "You sent NGN2,000.00 to CHINEDU EZE on 12 Jul 2026, 10:45. Your balance is NGN18,300.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 2000.0,
+      "occurredAt": "2026-07-12T10:45:00.000",
+      "counterpartyKey": "CHINEDU EZE",
+      "balanceAfter": 18300.0
+    }
+  },
+  {
+    "id": "hold-005",
+    "bank": "OPAY",
+    "sender": "OPay",
+    "holdout": true,
+    "note": "Money coming in. A parser tuned for debits often reads the direction backwards here.",
+    "body": "Credit Alert! You received NGN15,000.00 from HALIMA IBRAHIM. Bal: NGN33,500.00. 12/07/2026 16:20",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 15000.0,
+      "occurredAt": "2026-07-12T16:20:00.000",
+      "counterpartyKey": "HALIMA IBRAHIM",
+      "balanceAfter": 33500.0
+    }
+  },
+  {
+    "id": "hold-006",
+    "bank": "MONIEPOINT",
+    "sender": "Moniepoint",
+    "holdout": true,
+    "note": "The counterparty sits behind the label 'Merchant', a word none of the taught formats use.",
+    "body": "POS Purchase\nAmount: NGN6,800.00\nMerchant: TOTAL ENERGIES ABUJA\nDate: 12-07-2026 11:11\nBalance: NGN9,420.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 6800.0,
+      "occurredAt": "2026-07-12T11:11:00.000",
+      "counterpartyKey": "TOTAL ENERGIES ABUJA",
+      "balanceAfter": 9420.0
+    }
+  },
+  {
+    "id": "hold-007",
+    "bank": "PALMPAY",
+    "sender": "PalmPay",
+    "holdout": true,
+    "note": "ISO date, which is a twenty-sixth way of writing one. The expected counterparty is AIRTIME MTN, not MTN AIRTIME: the app deliberately keys every airtime purchase the same way so they group into one budget line regardless of network.",
+    "body": "Debit: NGN1,250.00\nTo: MTN AIRTIME\nTime: 2026-07-12 07:30\nBal: NGN4,110.75",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 1250.0,
+      "occurredAt": "2026-07-12T07:30:00.000",
+      "counterpartyKey": "AIRTIME MTN",
+      "balanceAfter": 4110.75
+    }
+  },
+  {
+    "id": "hold-008",
+    "bank": "STERLING",
+    "sender": "Sterling",
+    "holdout": true,
+    "note": "Two-digit year, and the narration is behind a NIP/TRF routing prefix that has to be stripped.",
+    "body": "Sterling Bank Alert\nDR NGN25,000.00\nACC: ***7788\nNARRATION: NIP/TRF/FUNMILAYO ADEBAYO\n12-Jul-26 13:05\nBAL: NGN102,300.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 25000.0,
+      "occurredAt": "2026-07-12T13:05:00.000",
+      "counterpartyKey": "FUNMILAYO ADEBAYO",
+      "balanceAfter": 102300.0
+    }
+  },
+  {
+    "id": "hold-009",
+    "bank": "FCMB",
+    "sender": "FCMB",
+    "holdout": true,
+    "note": "A bank charge, not a purchase. It has no counterparty and must not be filed as spending against anybody.",
+    "body": "Your account ***3344 has been debited NGN52.50 being SMS Alert Charge for July 2026. Bal: NGN8,220.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "charge",
+      "amount": 52.5,
+      "counterpartyKey": null,
+      "balanceAfter": 8220.0
+    }
+  },
+  {
+    "id": "hold-010",
+    "bank": "ZENITHLIKE",
+    "sender": "GTBank",
+    "holdout": true,
+    "note": "A reversal. The money went out and came back, so counting the original debit leaves the month wrong.",
+    "body": "REVERSAL: NGN10,000.00 has been credited back to your account ***9900 on 12-Jul-2026. Bal: NGN30,000.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 10000.0,
+      "occurredAt": "2026-07-12T00:00:00.000",
+      "balanceAfter": 30000.0
+    }
+  },
+  {
+    "id": "hold-011",
+    "bank": "KUDA",
+    "sender": "Kuda",
+    "holdout": true,
+    "note": "THE HARD ONE. No thousands separators and no decimal places, so 900 and 2100 look like reference numbers rather than money.",
+    "body": "Debit NGN900 to BOLT RIDE on 12-Jul-2026. Bal NGN2100",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 900.0,
+      "occurredAt": "2026-07-12T00:00:00.000",
+      "counterpartyKey": "BOLT RIDE",
+      "balanceAfter": 2100.0
+    }
+  },
+  {
+    "id": "hold-012",
+    "bank": "VBANK",
+    "sender": "VBank",
+    "holdout": true,
+    "note": "Sentence, not a form. The dev set was almost all labelled fields, which taught both candidates that banks write forms. They do not.",
+    "body": "You paid NGN8,500 at PRINCE EBEANO SUPERMARKET on 20-Aug-2026 17:22. Balance: NGN33,180.45",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 8500.0,
+      "occurredAt": "2026-08-20T17:22:00.000",
+      "counterpartyKey": "PRINCE EBEANO SUPERMARKET",
+      "balanceAfter": 33180.45
+    }
+  },
+  {
+    "id": "hold-013",
+    "bank": "JAIZ",
+    "sender": "Jaiz",
+    "holdout": true,
+    "note": "Money in, phrased passively, with the amount in whole naira and the time behind 'at'.",
+    "body": "NGN12,000 was received from OBIOMA PEDRO into your account ***2020 on 20 Aug 2026 at 11:05. Bal NGN60,000",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 12000.0,
+      "occurredAt": "2026-08-20T11:05:00.000",
+      "counterpartyKey": "OBIOMA PEDRO",
+      "balanceAfter": 60000.0
+    }
+  },
+  {
+    "id": "hold-014",
+    "bank": "GLOBUS",
+    "sender": "Globus",
+    "holdout": true,
+    "note": "The counterparty follows 'made to' with no label anywhere in the message.",
+    "body": "Payment of NGN4,300.00 made to UBER TRIP on 20/08/2026 19:40. Available balance NGN15,700.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 4300.0,
+      "occurredAt": "2026-08-20T19:40:00.000",
+      "counterpartyKey": "UBER TRIP",
+      "balanceAfter": 15700.0
+    }
+  },
+  {
+    "id": "hold-015",
+    "bank": "TITANTRUST",
+    "sender": "TitanTrust",
+    "holdout": true,
+    "note": "A reversal spelled out rather than abbreviated, with no counterparty.",
+    "body": "REVERSED: NGN2,500 has been returned to acct ***6060 on 20-Aug-2026. Bal NGN18,200",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 2500.0,
+      "occurredAt": "2026-08-20T00:00:00.000",
+      "counterpartyKey": null,
+      "balanceAfter": 18200.0
+    }
+  }
+]

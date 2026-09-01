@@ -1,0 +1,134 @@
+[
+  {
+    "id": "neg-000",
+    "bank": "none",
+    "sender": "MTNDataDeal",
+    "body": "Get this hot data deal before it expires!\n54GB (36GB + 18GB bonus) for just N11,000.\nDial *312*117# NOW to enjoy.\nOffer valid for 7days",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-001",
+    "bank": "none",
+    "sender": "GLO",
+    "body": "MUSA ABIODUN! Recharge N200 and above via E-Topup and get upto 15% bonus to call Friends & Loved ones. Glo",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-002",
+    "bank": "none",
+    "sender": "323",
+    "body": "Your data balances:\nMonthly: 3.09GB @N0.34/MB expires 30/08/4444\nInstaTop: N0.\n\nDial *121# for deals that make you smile!",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-003",
+    "bank": "none",
+    "sender": "JumboBet",
+    "body": "Get a N150,000 PATIENCE ABIODUN plus N750 FREE to back your team!\r\n\r\nSign up now and start playing\r\n\r\nhttps://tinyurl.com/infiaff?bid=331&lid=304&aid=SRS3PAXQj&cid=4444\r\n\r\n- JumboBet",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-004",
+    "bank": "none",
+    "sender": "myMTN",
+    "body": "RASHEED ABIODUN the Vibe this SEGUN ABIODUN! Get 5GB (2.5GB + 2.5GB Bonus) for only N900 on the myMTN NG App. Offer valid for 2 days. Claim yours: https://go.mtn.ng/app/offers",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-005",
+    "bank": "none",
+    "sender": "323",
+    "body": "Your data balances:\nMonthly: 25.08GB @N0.34/MB expires 30/08/4444\nInstaTop: N0.\n\nSpin your way to N10 Million! Dial *306*39# NOW.",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-006",
+    "bank": "none",
+    "sender": "myMTN",
+    "body": "Don't Miss the Vibe this SEGUN ABIODUN! Get 5GB (2.5GB + 2.5GB) Bonus for N900 on myMTN NG App. ADAEZE BAKARE expires in 2 days . Click to https://go.mtn.ng/app/offers  to grab yours",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-007",
+    "bank": "none",
+    "sender": "myMTN",
+    "body": "CHINEDU BAKARE! Get 5GB (2.5GB + 2.5GB BONUS) for just N900 only on myMTN NG. ADAEZE BAKARE expires in 2 days. Click https://go.mtn.ng/app/offers to grab yours",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-008",
+    "bank": "none",
+    "sender": "312",
+    "body": "Activation of 14.5GB FUNMILAYO BAKARE QUADRI at N4444 was successful and expires on 30/08/4444 15:12:55. Data: 14.5GB @ N0.34/MB (Local). Click: https://www.mtn.ng/personal/roaming-rates/ for roaming rates. Reply with RSP2 to this SMS to auto-renew. Rollover applies upon purchase of similar bundles. To manage your account, click: https://go.mtn.ng/app/Dashboard",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-009",
+    "bank": "none",
+    "sender": "323",
+    "body": "Your data balances:\nMonthly: 20.24GB @N0.34/MB expires 30/07/4444\nXtraTime: N0.\n\nDial *121# now for offers you can't resist!",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-010",
+    "bank": "none",
+    "sender": "myMTN",
+    "body": "Data is never TUE'much! Enjoy 5GB (2.5GB + An Additional 2.5GB BONUS) for just N900. Exclusively only on myMTN NG App. ADAEZE BAKARE expires in 2 days . Click to https://go.mtn.ng/app/offers  to enjoy",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  },
+  {
+    "id": "neg-011",
+    "bank": "none",
+    "sender": "JumboBet",
+    "body": "Your N1,500 free bonus is waiting!\r\n\r\nPredict football winners and start playing now: https://tinyurl.com/infiaff?bid=392&lid=298&aid=SRS62RlE6&cid=4444 \r\n\r\n- JumboBet",
+    "holdout": false,
+    "note": "Carries an amount but is not a transaction. Must be ignored.",
+    "expected": {
+      "isBankAlert": false
+    }
+  }
+]

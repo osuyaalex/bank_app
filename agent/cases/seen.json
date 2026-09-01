@@ -1,0 +1,274 @@
+[
+  {
+    "id": "seen-000",
+    "bank": "ZENITH",
+    "sender": "ZENITHBANK",
+    "body": "Acct:221****558\nDT:31/08/4444 10:14:09 AM\nCHINEDU ABIODUN YAKUBU OSUYA//\nDR Amt:3,000.00\nBal:183,624.49\nDial *966# for quick airtime/Data purchase",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 3000.0,
+      "occurredAt": "4444-08-31T10:14:09.000",
+      "counterpartyKey": "CHINEDU ABIODUN YAKUBU OSUYA",
+      "balanceAfter": 183624.49
+    }
+  },
+  {
+    "id": "seen-001",
+    "bank": "ZENITH",
+    "sender": "ZENITHBANK",
+    "body": "Acct:221****558\nDT:30/08/4444 10:30:36 AM\nFUNMILAYO ABIODUN/MOB/PAYSTACK CHECKOUT/T\nDR Amt:8,875.00\nBal:191,635.24\nDial *966# for quick airtime/Data purchase",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 8875.0,
+      "occurredAt": "4444-08-30T10:30:36.000",
+      "counterpartyKey": "FUNMILAYO ABIODUN",
+      "balanceAfter": 191635.24
+    }
+  },
+  {
+    "id": "seen-002",
+    "bank": "WEMA",
+    "sender": "WemaBank",
+    "body": "CR:NGN 8,000.00\r\nIFEOMA ABIODUN:4444****25\r\nDesc :NIP:ALEXANDER- JIDE ABIODUN :NGN 11,645.76\r\n29-08-4444 20:34:27",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 8000.0,
+      "occurredAt": "4444-08-29T20:34:27.000",
+      "counterpartyKey": "NIP ALEXANDER- JIDE ABIODUN NGN 11 645.76",
+      "balanceAfter": null
+    }
+  },
+  {
+    "id": "seen-003",
+    "bank": "WEMA",
+    "sender": "WemaBank",
+    "body": "DR:NGN 1,768.00\r\nIFEOMA ABIODUN:4444****25\r\nDesc :NGOZI ABIODUN on 26-08-4444@Google Spotify\r\nBal :NGN 3,783.76\r\n26-08-4444 05:01:33",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 1768.0,
+      "occurredAt": "4444-08-26T05:01:33.000",
+      "counterpartyKey": "GOOGLE SPOTIFY",
+      "balanceAfter": 3783.76
+    }
+  },
+  {
+    "id": "seen-004",
+    "bank": "ZENITH",
+    "sender": "ZENITHBANK",
+    "body": "Acct:221****558\nDT:25/08/4444 08:42:49 PM\nBundle//44444444444//444444444\nDR Amt:7,500.00\nBal:282,272.52\nDial *966# for quick airtime/Data purchase",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 7500.0,
+      "occurredAt": "4444-08-25T20:42:49.000",
+      "counterpartyKey": "DATA BUNDLE",
+      "balanceAfter": 282272.52
+    }
+  },
+  {
+    "id": "seen-005",
+    "bank": "WEMA",
+    "sender": "WemaBank",
+    "body": "DR:NGN 350.00\r\nIFEOMA ABIODUN:4444****25\r\nDesc :AirtimeALATMTN44444444444 444444444444\r\nBal :NGN 74.90\r\n15-08-4444 17:35:45",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 350.0,
+      "occurredAt": "4444-08-15T17:35:45.000",
+      "counterpartyKey": "AIRTIME MTN",
+      "balanceAfter": 74.9
+    }
+  },
+  {
+    "id": "seen-006",
+    "bank": "ZENITH",
+    "sender": "ZENITHBANK",
+    "body": "Acct:221****558\nDT:14/08/4444 11:57:02 AM\nAirtime//44444444444//airtel\nDR Amt:300.00\nBal:41.21\nDial *966# for quick airtime/Data purchase",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 300.0,
+      "occurredAt": "4444-08-14T11:57:02.000",
+      "counterpartyKey": "AIRTIME AIRTEL",
+      "balanceAfter": 41.21
+    }
+  },
+  {
+    "id": "seen-007",
+    "bank": "WEMA",
+    "sender": "WemaBank",
+    "body": "CR:NGN 1,500.00\r\nIFEOMA ABIODUN:4444****25\r\nDesc :NIP:GBENGA ABIODUN-TEMITOPE ABIODUN TUKUR  UCHE ABIODUN O\r\nBal :NGN 1,528.79\r\n13-08-4444 19:39:59",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 1500.0,
+      "occurredAt": "4444-08-13T19:39:59.000",
+      "counterpartyKey": "NIP GBENGA ABIODUN-TEMITOPE ABIODUN TUKUR UCHE ABIODUN O",
+      "balanceAfter": 1528.79
+    }
+  },
+  {
+    "id": "seen-008",
+    "bank": "WEMA",
+    "sender": "WemaBank",
+    "body": "DR:NGN 13,100.00\r\nIFEOMA ABIODUN:4444****25\r\nDesc :BABATUNDE BAKARE on 05-08-4444@Psk*chowdeck\r\nBal :NGN 86.43\r\n05-08-4444 03:02:22",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 13100.0,
+      "occurredAt": "4444-08-05T03:02:22.000",
+      "counterpartyKey": "CHOWDECK",
+      "balanceAfter": 86.43
+    }
+  },
+  {
+    "id": "seen-009",
+    "bank": "WEMA",
+    "sender": "WemaBank",
+    "body": "DR:NGN 33,000.00\r\nIFEOMA ABIODUN:4444****25\r\nDesc :ALAT NIP TRANSFER TO EMEKA BAKARE JIMOH\r\nBal :NGN 367.20\r\n02-08-4444 20:58:21",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 33000.0,
+      "occurredAt": "4444-08-02T20:58:21.000",
+      "counterpartyKey": "EMEKA BAKARE JIMOH",
+      "balanceAfter": 367.2
+    }
+  },
+  {
+    "id": "seen-010",
+    "bank": "ZENITH",
+    "sender": "ZENITHBANK",
+    "body": "Acct:221****558\nDT:31/07/4444 03:12:23 PM\nAirtime//44444444444//MTN\nDR Amt:5,000.00\nBal:6,035.86\nDial *966# for quick airtime/Data purchase",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 5000.0,
+      "occurredAt": "4444-07-31T15:12:23.000",
+      "counterpartyKey": "AIRTIME MTN",
+      "balanceAfter": 6035.86
+    }
+  },
+  {
+    "id": "seen-011",
+    "bank": "WEMA",
+    "sender": "WemaBank",
+    "body": "DR:NGN 100.00\r\nIFEOMA ABIODUN:4444****25\r\nDesc :NGOZI BAKARE LAWAL 04-03-4444@OBIOMA BAKARE, NG  PATIENCE BAKARE QUADRI :NGN 58,831.32\r\n04-03-4444 13:53:51",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 100.0,
+      "occurredAt": "4444-03-04T13:53:51.000",
+      "counterpartyKey": "OBIOMA BAKARE NG PATIENCE BAKARE QUADRI NGN 58 831.32",
+      "balanceAfter": null
+    }
+  },
+  {
+    "id": "seen-012",
+    "bank": "WEMA",
+    "sender": "WemaBank",
+    "body": "DR:NGN 5,100.00\r\nIFEOMA ABIODUN:4444****25\r\nDesc :RASHEED BAKARE on 04-03-4444@OBIOMA BAKARE, NG  PATIENCE BAKARE QUADRI :NGN 58,931.32\r\n04-03-4444 13:53:51",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 5100.0,
+      "occurredAt": "4444-03-04T13:53:51.000",
+      "counterpartyKey": "OBIOMA BAKARE NG PATIENCE BAKARE QUADRI NGN 58 931.32",
+      "balanceAfter": null
+    }
+  },
+  {
+    "id": "seen-013",
+    "bank": "2348100779351",
+    "sender": "+2348100779351",
+    "body": "Forwarded from WemaBank:\nDR:NGN 25,000.00\r\nIFEOMA ABIODUN:4444****81\r\nDesc :Family food NIP TRANSFER TO OPAY-\r\nBal :NGN 2,117.70\r\n02-02-4444 12:50:00",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 25000.0,
+      "occurredAt": "4444-02-02T12:50:00.000",
+      "counterpartyKey": "OPAY",
+      "balanceAfter": 2117.7
+    }
+  },
+  {
+    "id": "seen-014",
+    "bank": "2348100779351",
+    "sender": "+2348100779351",
+    "body": "Forwarded from WemaBank:\nDR:NGN 127,000.00\r\nIFEOMA ABIODUN:4444****81\r\nDesc :SEGUN BAKARE EZE TO UCHE BAKARE :NGN 57,182.21\r\n02-02-4444 09:32:39",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 127000.0,
+      "occurredAt": "4444-02-02T09:32:39.000",
+      "counterpartyKey": "UCHE BAKARE NGN 57",
+      "balanceAfter": null
+    }
+  },
+  {
+    "id": "seen-015",
+    "bank": "MTNN",
+    "sender": "MTN N",
+    "body": "Y'ello! You have been credited 1.5GB daily data from your ADAEZE CHUKWU 45GB Monthly plan. Dial *323*4# to view balance. Enjoy!",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 1.5,
+      "occurredAt": null,
+      "counterpartyKey": null,
+      "balanceAfter": null
+    }
+  },
+  {
+    "id": "seen-016",
+    "bank": "GLO",
+    "sender": "GLO",
+    "body": "Dear customer, you have been credited with 400MB and 200MB BABATUNDE CHUKWU bonus to browse as you like. Valid till 18/12/4444. Dial *323# to confirm.",
+    "holdout": false,
+    "note": "Format the parser already handles. Regression guard.",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "credit",
+      "amount": 400.0,
+      "occurredAt": "4444-12-18T00:00:00.000",
+      "counterpartyKey": null,
+      "balanceAfter": null
+    }
+  }
+]

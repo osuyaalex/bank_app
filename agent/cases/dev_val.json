@@ -1,0 +1,65 @@
+[
+  {
+    "id": "hold-002",
+    "bank": "UBA",
+    "sender": "UBA",
+    "holdout": true,
+    "note": "Prose, not fields. The direction is a verb -- 'has been debited' -- with no DR marker anywhere.",
+    "body": "Dear Customer, your account 2044445678 has been debited with NGN3,200.00 on 12-Jul-2026 for TRANSFER TO GBENGA LAWAL. Available balance: NGN45,120.90",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 3200.0,
+      "occurredAt": "2026-07-12T00:00:00.000",
+      "counterpartyKey": "GBENGA LAWAL",
+      "balanceAfter": 45120.9
+    }
+  },
+  {
+    "id": "hold-006",
+    "bank": "MONIEPOINT",
+    "sender": "Moniepoint",
+    "holdout": true,
+    "note": "The counterparty sits behind the label 'Merchant', a word none of the taught formats use.",
+    "body": "POS Purchase\nAmount: NGN6,800.00\nMerchant: TOTAL ENERGIES ABUJA\nDate: 12-07-2026 11:11\nBalance: NGN9,420.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 6800.0,
+      "occurredAt": "2026-07-12T11:11:00.000",
+      "counterpartyKey": "TOTAL ENERGIES ABUJA",
+      "balanceAfter": 9420.0
+    }
+  },
+  {
+    "id": "hold-009",
+    "bank": "FCMB",
+    "sender": "FCMB",
+    "holdout": true,
+    "note": "A bank charge, not a purchase. It has no counterparty and must not be filed as spending against anybody.",
+    "body": "Your account ***3344 has been debited NGN52.50 being SMS Alert Charge for July 2026. Bal: NGN8,220.00",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "charge",
+      "amount": 52.5,
+      "counterpartyKey": null,
+      "balanceAfter": 8220.0
+    }
+  },
+  {
+    "id": "hold-011",
+    "bank": "KUDA",
+    "sender": "Kuda",
+    "holdout": true,
+    "note": "THE HARD ONE. No thousands separators and no decimal places, so 900 and 2100 look like reference numbers rather than money.",
+    "body": "Debit NGN900 to BOLT RIDE on 12-Jul-2026. Bal NGN2100",
+    "expected": {
+      "isBankAlert": true,
+      "kind": "debit",
+      "amount": 900.0,
+      "occurredAt": "2026-07-12T00:00:00.000",
+      "counterpartyKey": "BOLT RIDE",
+      "balanceAfter": 2100.0
+    }
+  }
+]

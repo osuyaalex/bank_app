@@ -1,0 +1,62 @@
+[
+  {
+    "id": "test-000", "bank": "ECOBANK", "sender": "Ecobank", "holdout": true,
+    "note": "Prose with the direction as a verb, and Desc/Bal jammed together without spaces after the colon.",
+    "body": "Acc:***2211 has been debited NGN4,750.00 on 03-Sep-2026 15:40. Desc: POS/DOMINOS PIZZA LEKKI. Bal:NGN61,200.30",
+    "expected": { "isBankAlert": true, "kind": "debit", "amount": 4750.00, "occurredAt": "2026-09-03T15:40:00.000", "counterpartyKey": "DOMINOS PIZZA LEKKI", "balanceAfter": 61200.30 }
+  },
+  {
+    "id": "test-001", "bank": "FIDELITY", "sender": "Fidelity", "holdout": true,
+    "note": "Money in, with the sender behind a From: label.",
+    "body": "Fidelity Alert\nCR NGN80,000.00\nAcct: ***5566\nFrom: TEMITOPE SALAMI\n03/09/2026 09:12\nBal: NGN141,200.00",
+    "expected": { "isBankAlert": true, "kind": "credit", "amount": 80000.00, "occurredAt": "2026-09-03T09:12:00.000", "counterpartyKey": "TEMITOPE SALAMI", "balanceAfter": 141200.00 }
+  },
+  {
+    "id": "test-002", "bank": "UNIONBANK", "sender": "UnionBank", "holdout": true,
+    "note": "The DR marker is welded to the figure with no space: NGN1,234.56DR.",
+    "body": "Union Bank: Your acct ***7799 debited NGN1,234.56DR for WEB/SPOTIFY on 03-Sep-2026. Available Bal NGN9,870.10",
+    "expected": { "isBankAlert": true, "kind": "debit", "amount": 1234.56, "occurredAt": "2026-09-03T00:00:00.000", "counterpartyKey": "SPOTIFY", "balanceAfter": 9870.10 }
+  },
+  {
+    "id": "test-003", "bank": "STANBIC", "sender": "StanbicIBTC", "holdout": true,
+    "note": "Two-digit year and a twelve-hour clock with no space before AM.",
+    "body": "Stanbic IBTC\nDebit: NGN18,000.00\nAcct: ***4455\nNarration: TRF TO UCHE NWACHUKWU\nDate: 03/09/26 09:15AM\nBalance: NGN52,000.00",
+    "expected": { "isBankAlert": true, "kind": "debit", "amount": 18000.00, "occurredAt": "2026-09-03T09:15:00.000", "counterpartyKey": "UCHE NWACHUKWU", "balanceAfter": 52000.00 }
+  },
+  {
+    "id": "test-004", "bank": "POLARIS", "sender": "Polaris", "holdout": true,
+    "note": "VAT on a bank charge. Not a purchase, and nobody was paid.",
+    "body": "VAT of NGN3.75 on SMS charge has been deducted from acct ***8899 on 03-Sep-2026. Bal: NGN7,400.25",
+    "expected": { "isBankAlert": true, "kind": "charge", "amount": 3.75, "occurredAt": "2026-09-03T00:00:00.000", "counterpartyKey": null, "balanceAfter": 7400.25 }
+  },
+  {
+    "id": "test-005", "bank": "PROVIDUS", "sender": "Providus", "holdout": true,
+    "note": "A trailing REF: that has to come off the key, or every payment to this person keys differently.",
+    "body": "Providus\nAmt: NGN22,500.00 DR\nAcct: ***1010\nDesc: NIP TRANSFER TO RASHEED QUADRI REF:PRV884219\nDate: 03-Sep-2026 18:02\nBal: NGN12,050.00",
+    "expected": { "isBankAlert": true, "kind": "debit", "amount": 22500.00, "occurredAt": "2026-09-03T18:02:00.000", "counterpartyKey": "RASHEED QUADRI", "balanceAfter": 12050.00 }
+  },
+  {
+    "id": "test-006", "bank": "CARBON", "sender": "Carbon", "holdout": true,
+    "note": "Whole-naira amounts with no decimals, an 'at' before the time, and 'topped up with' as the direction.",
+    "body": "Your Carbon wallet has been topped up with NGN25,000 from KEHINDE ABIODUN on 03 Sep 2026 at 20:10. New balance: NGN25,300",
+    "expected": { "isBankAlert": true, "kind": "credit", "amount": 25000.00, "occurredAt": "2026-09-03T20:10:00.000", "counterpartyKey": "KEHINDE ABIODUN", "balanceAfter": 25300.00 }
+  },
+  {
+    "id": "test-007", "bank": "SPARKLE", "sender": "Sparkle", "holdout": true,
+    "note": "No labels at all. The merchant follows 'spent at'.",
+    "body": "Sparkle: NGN3,400.00 spent at ARISE PHARMACY VI on 03-Sep-2026 12:45. Bal NGN18,660.00",
+    "expected": { "isBankAlert": true, "kind": "debit", "amount": 3400.00, "occurredAt": "2026-09-03T12:45:00.000", "counterpartyKey": "ARISE PHARMACY VI", "balanceAfter": 18660.00 }
+  },
+  {
+    "id": "test-008", "bank": "KEYSTONE", "sender": "Keystone", "holdout": true,
+    "note": "A reversal abbreviated RSVL. Money coming back, with nobody on the other side.",
+    "body": "Keystone Bank: RSVL of NGN6,000.00 credited to acct ***3131 on 03-Sep-2026. Bal: NGN14,000.00",
+    "expected": { "isBankAlert": true, "kind": "credit", "amount": 6000.00, "occurredAt": "2026-09-03T00:00:00.000", "counterpartyKey": null, "balanceAfter": 14000.00 }
+  },
+  {
+    "id": "test-009", "bank": "none", "sender": "GTBank", "holdout": true,
+    "note": "THE TRAP. A real bank, three amounts, the word Bal, and not a transaction. A parser that has learned 'bank sender plus money equals spending' files a five million naira loan advert as a purchase.",
+    "body": "GTBank: Get a QuickCredit loan of up to NGN5,000,000 today at 1.5% monthly. Dial *737*51*51# to check eligibility. Bal enquiry *737*6*1# Charges apply.",
+    "expected": { "isBankAlert": false }
+  }
+]
