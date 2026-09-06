@@ -118,6 +118,10 @@ class SpendRepository {
         txCount: (m['txCount'] ?? 0) as int,
         creditCount: (m['creditCount'] ?? 0) as int,
         roundAmounts: (m['roundAmounts'] ?? 0) as int,
+        // Absent on entries written before spending was recorded per
+        // counterparty. Zero reads as "not known", which the screen shows as
+        // a count rather than a figure it would otherwise be inventing.
+        totalDebited: ((m['totalDebited'] ?? 0) as num).toDouble(),
         aliases: List<String>.from(m['aliases'] ?? const []),
       );
     }
@@ -1490,12 +1494,10 @@ class SpendRepository {
     final current = await trackedItemsWithBudgets();
 
     return all.where((s) {
-      if (!s.isTracked) return true;
       final raw = current[s.categoryName];
       final set =
           double.tryParse((raw ?? '').replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
-      if (set <= 0) return true; // nothing set: always worth offering
-      return (s.amount - set).abs() / set > 0.1;
+      return suggestionWorthShowing(s, set);
     }).toList();
   }
 

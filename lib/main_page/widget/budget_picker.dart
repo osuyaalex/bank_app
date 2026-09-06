@@ -42,15 +42,17 @@ class BudgetPicker extends StatefulWidget {
 
 class _BudgetPickerState extends State<BudgetPicker> {
   late double _value = widget.initial;
-  late final TextEditingController _typed =
-      TextEditingController(text: _value > 0 ? _fmt.format(_value) : '');
+  late final TextEditingController _typed = TextEditingController(
+    text: _value > 0 ? _fmt.format(_value) : '',
+  );
   bool _typing = false;
 
   /// The ladder opens near the figure already chosen. Starting at ₦1,000 when
   /// the budget is ₦400,000 means scrolling past nine chips to find anything
   /// useful, which is the work this row exists to remove.
-  late final ScrollController _ladder =
-      ScrollController(initialScrollOffset: _ladderOffset());
+  late final ScrollController _ladder = ScrollController(
+    initialScrollOffset: _ladderOffset(),
+  );
 
   double _ladderOffset() {
     final at = budgetLadder.indexWhere((v) => v >= _value);
@@ -115,21 +117,25 @@ class _BudgetPickerState extends State<BudgetPicker> {
                         textAlign: TextAlign.center,
                         inputFormatters: [_ThousandsFormatter()],
                         style: const TextStyle(
-                            fontSize: 27,
-                            fontWeight: FontWeight.w700,
-                            color: _ink),
+                          fontSize: 27,
+                          fontWeight: FontWeight.w700,
+                          color: _ink,
+                        ),
                         decoration: InputDecoration(
                           border: InputBorder.none,
                           isDense: true,
                           prefixText: widget.currency,
                           prefixStyle: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade500),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey.shade500,
+                          ),
                         ),
                         onChanged: (raw) {
-                          final v = double.tryParse(
-                                  raw.replaceAll(RegExp(r'[^0-9]'), '')) ??
+                          final v =
+                              double.tryParse(
+                                raw.replaceAll(RegExp(r'[^0-9]'), ''),
+                              ) ??
                               0;
                           setState(() => _value = v);
                           widget.onChanged(v);
@@ -166,25 +172,28 @@ class _BudgetPickerState extends State<BudgetPicker> {
           Row(
             children: [
               _Choice(
-                  label: 'Tight',
-                  amount: c.tight,
-                  currency: widget.currency,
-                  selected: _value == c.tight,
-                  onTap: () => _set(c.tight)),
+                label: 'Tight',
+                amount: c.tight,
+                currency: widget.currency,
+                selected: _value == c.tight,
+                onTap: () => _set(c.tight),
+              ),
               const SizedBox(width: 8),
               _Choice(
-                  label: 'Usual',
-                  amount: c.usual,
-                  currency: widget.currency,
-                  selected: _value == c.usual,
-                  onTap: () => _set(c.usual)),
+                label: 'Usual',
+                amount: c.usual,
+                currency: widget.currency,
+                selected: _value == c.usual,
+                onTap: () => _set(c.usual),
+              ),
               const SizedBox(width: 8),
               _Choice(
-                  label: 'Roomy',
-                  amount: c.roomy,
-                  currency: widget.currency,
-                  selected: _value == c.roomy,
-                  onTap: () => _set(c.roomy)),
+                label: 'Roomy',
+                amount: c.roomy,
+                currency: widget.currency,
+                selected: _value == c.roomy,
+                onTap: () => _set(c.roomy),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -221,8 +230,10 @@ class _BudgetPickerState extends State<BudgetPicker> {
               foregroundColor: Colors.grey.shade600,
             ),
             onPressed: () => setState(() => _typing = true),
-            child: const Text('Enter an exact amount',
-                style: TextStyle(fontSize: 12.5)),
+            child: const Text(
+              'Enter an exact amount',
+              style: TextStyle(fontSize: 12.5),
+            ),
           ),
         ],
       ],
@@ -231,19 +242,23 @@ class _BudgetPickerState extends State<BudgetPicker> {
 }
 
 Widget _sectionLabel(String text) => Builder(
-      builder: (_) => Text(
-        text,
-        style: TextStyle(
-            fontSize: 10.5,
-            letterSpacing: 0.8,
-            fontWeight: FontWeight.w700,
-            color: Colors.grey.shade500),
-      ),
-    );
+  builder: (_) => Text(
+    text,
+    style: TextStyle(
+      fontSize: 10.5,
+      letterSpacing: 0.8,
+      fontWeight: FontWeight.w700,
+      color: Colors.grey.shade500,
+    ),
+  ),
+);
 
 class _NudgeButton extends StatelessWidget {
-  const _NudgeButton(
-      {required this.icon, required this.enabled, required this.onTap});
+  const _NudgeButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
 
   final IconData icon;
   final bool enabled;
@@ -251,23 +266,25 @@ class _NudgeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.grey.shade300),
+    color: Colors.white,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(color: Colors.grey.shade300),
+    ),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: enabled ? onTap : null,
+      child: SizedBox(
+        width: 46,
+        height: 46,
+        child: Icon(
+          icon,
+          size: 22,
+          color: enabled ? _ink : Colors.grey.shade300,
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: enabled ? onTap : null,
-          child: SizedBox(
-            width: 46,
-            height: 46,
-            child: Icon(icon,
-                size: 22,
-                color: enabled ? _ink : Colors.grey.shade300),
-          ),
-        ),
-      );
+      ),
+    ),
+  );
 }
 
 class _Choice extends StatelessWidget {
@@ -287,47 +304,54 @@ class _Choice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(
-        child: InkWell(
-          onTap: onTap,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xffF0F4FF) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-            decoration: BoxDecoration(
-              color: selected ? const Color(0xffF0F4FF) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: selected ? _brand : Colors.grey.shade300,
-                width: selected ? 1.5 : 1,
-              ),
-            ),
-            child: Column(
-              children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: selected ? _brand : Colors.grey.shade600)),
-                const SizedBox(height: 3),
-                FittedBox(
-                  child: Text(
-                    compactMoney(amount, currency),
-                    style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                        color: selected ? _brand : _ink),
-                  ),
-                ),
-              ],
-            ),
+          border: Border.all(
+            color: selected ? _brand : Colors.grey.shade300,
+            width: selected ? 1.5 : 1,
           ),
         ),
-      );
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: selected ? _brand : Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 3),
+            FittedBox(
+              child: Text(
+                compactMoney(amount, currency),
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? _brand : _ink,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill(
-      {required this.text, required this.selected, required this.onTap});
+  const _Pill({
+    required this.text,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String text;
   final bool selected;
@@ -335,33 +359,38 @@ class _Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(20),
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+      decoration: BoxDecoration(
+        color: selected ? const Color(0xffF0F4FF) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xffF0F4FF) : Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: selected ? _brand : Colors.grey.shade300,
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Text(text,
-              style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  color: selected ? _brand : _ink)),
+        border: Border.all(
+          color: selected ? _brand : Colors.grey.shade300,
+          width: selected ? 1.5 : 1,
         ),
-      );
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
+          color: selected ? _brand : _ink,
+        ),
+      ),
+    ),
+  );
 }
 
 /// Groups digits as they are typed, for the rare exact figure.
 class _ThousandsFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (digits.isEmpty) return const TextEditingValue();
     final n = int.tryParse(digits);

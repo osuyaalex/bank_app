@@ -301,7 +301,7 @@ class _SuggestionRow extends StatelessWidget {
                   ],
                   if (s.months.length > 1) ...[
                     const SizedBox(height: 8),
-                    _Sparkline(months: s.months, money: money),
+                    BudgetSparkline(months: s.months, money: money),
                   ],
                 ],
               ),
@@ -322,8 +322,8 @@ class _SuggestionRow extends StatelessWidget {
 ///
 /// Small, unlabelled and deliberately so -- it is not a chart to be read off,
 /// it is evidence that the number came from somewhere.
-class _Sparkline extends StatelessWidget {
-  const _Sparkline({required this.months, required this.money});
+class BudgetSparkline extends StatelessWidget {
+  const BudgetSparkline({super.key, required this.months, required this.money});
 
   final List<MonthlySpend> months;
   final String Function(double) money;
