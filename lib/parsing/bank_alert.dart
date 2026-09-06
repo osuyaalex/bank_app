@@ -1,3 +1,5 @@
+import 'generic_sentence.dart';
+
 import 'package:intl/intl.dart';
 
 /// What a bank alert represents.
@@ -1047,7 +1049,7 @@ TxnChannel _genericChannel(String narration, AlertKind kind) {
 /// safe default: without it the record would claim a transaction happened and
 /// say nothing about its size, which corrupts the month's totals rather than
 /// merely leaving a gap in them.
-BankAlert? parseGenericAlert(String sender, String body, AlertKind kind) {
+BankAlert? _parseGenericForm(String sender, String body, AlertKind kind) {
   final amount = _genericAmount(body);
   if (amount == null) return null;
 
@@ -1074,6 +1076,18 @@ BankAlert? parseGenericAlert(String sender, String body, AlertKind kind) {
     account: _genericAccount(body),
     counterpartyKey: normaliseCounterparty(counterparty),
   );
+}
+
+/// Reads an alert from a bank with no hand-written parser.
+///
+/// Two shapes, tried in the order that keeps the older one authoritative: the
+/// labelled form first, then the sentence reader for everything it could not
+/// make sense of. The sentence reader declines whenever the message is clearly
+/// a form and the form reader already answered, so a format that works today
+/// cannot be taken over by the newer path.
+BankAlert? parseGenericAlert(String sender, String body, AlertKind kind) {
+  final form = _parseGenericForm(sender, body, kind);
+  return parseSentenceAlert(sender, body, formResult: form) ?? form;
 }
 
 /// A stable bank label from the SMS sender id.
@@ -1106,9 +1120,25 @@ bool isReversalAlert(String body) {
 
 BankAlert? parseAlert(String sender, String body) {
   final kind = classifyAlert(body);
-  if (kind == AlertKind.other) return null;
-
   final s = sender.toUpperCase().replaceAll(RegExp(r'\s+'), '');
+
+  if (kind == AlertKind.other) {
+    // `classifyAlert` looks for the vocabulary of a labelled alert -- DR, CR,
+    // "debited", an Amt: field. A bank that writes a sentence has none of it,
+    // so every sentence-shaped alert used to die here and the money went
+    // missing without a trace.
+    //
+    // Zenith and Wema are excluded deliberately. Both have hand-written
+    // parsers that have been right about thousands of messages, and letting a
+    // broader reader argue with them risks far more than it could win.
+    if (s.contains('ZENITH') || s.contains('WEMA')) return null;
+    final sentence = parseSentenceAlert(sender, body, formResult: null);
+    if (sentence == null) return null;
+    return isReversalAlert(body)
+        ? sentence.copyWith(isReversal: true)
+        : sentence;
+  }
+
   final alert = s.contains('ZENITH')
       ? _parseZenith(body, kind)
       : s.contains('WEMA')
