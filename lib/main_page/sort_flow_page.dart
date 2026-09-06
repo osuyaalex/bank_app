@@ -768,7 +768,12 @@ class _SortFlowPageState extends State<SortFlowPage> {
       // carries a way back and a way out, which is what was actually missing.
       canPop: false,
       child: Scaffold(
-        backgroundColor: Colors.grey.shade50,
+        // The budget step is a preamble, not one of the questions, and it is
+        // told apart by the room it is in rather than by a line of text
+        // saying so. Everything after it sits on the same grey.
+        backgroundColor: step is SetBudgetsStep
+            ? const Color(0xffF3F6FF)
+            : Colors.grey.shade50,
         appBar: _appBar(step, progress),
         body: SafeArea(
           child: switch (step) {
@@ -785,9 +790,10 @@ class _SortFlowPageState extends State<SortFlowPage> {
 
   PreferredSizeWidget _appBar(SortStep step, SortProgress p) {
     final canGoBack = !_reviewing && step is AskStep && _asked.isNotEmpty;
+    final preamble = step is SetBudgetsStep;
     return AppBar(
       automaticallyImplyLeading: false,
-      backgroundColor: Colors.white,
+      backgroundColor: preamble ? const Color(0xffF3F6FF) : Colors.white,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
@@ -800,7 +806,11 @@ class _SortFlowPageState extends State<SortFlowPage> {
             )
           : null,
       title: Text(
-        _reviewing ? 'Your answers' : 'Sort your spending',
+        preamble
+            ? 'Before we start'
+            : _reviewing
+            ? 'Your answers'
+            : 'Sort your spending',
         style: const TextStyle(
           color: Colors.black,
           fontSize: 16,
@@ -808,7 +818,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
         ),
       ),
       actions: [
-        if (!_reviewing)
+        if (!_reviewing && !preamble)
           TextButton(
             onPressed: _busy ? null : () => setState(() => _reviewing = true),
             style: TextButton.styleFrom(foregroundColor: _brand),
@@ -818,15 +828,19 @@ class _SortFlowPageState extends State<SortFlowPage> {
             ),
           ),
       ],
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(3),
-        child: LinearProgressIndicator(
-          value: p.total == 0 ? 1 : p.answered / p.total,
-          minHeight: 3,
-          backgroundColor: Colors.grey.shade200,
-          valueColor: const AlwaysStoppedAnimation(_brand),
-        ),
-      ),
+      // No progress bar on the preamble. It is not one of the questions, and
+      // a bar reading zero of twenty above it says the opposite.
+      bottom: preamble
+          ? null
+          : PreferredSize(
+              preferredSize: const Size.fromHeight(3),
+              child: LinearProgressIndicator(
+                value: p.total == 0 ? 1 : p.answered / p.total,
+                minHeight: 3,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: const AlwaysStoppedAnimation(_brand),
+              ),
+            ),
     );
   }
 
@@ -854,80 +868,54 @@ class _SortFlowPageState extends State<SortFlowPage> {
 
   Widget _budgetsCard(List<BudgetSuggestion> hints) {
     final read = _readability?.total ?? 0;
-    final taking = hints.where((h) => _takingBudgets.contains(h.categoryId));
-    final total = taking.fold(0.0, (t, h) => t + _amountFor(h));
+    final months = hints
+        .map((h) => h.months.length)
+        .fold(0, (a, b) => a > b ? a : b);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
       children: [
-        // The tinted panel the old banner used, kept because it was the one
-        // part of that screen people noticed.
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-          decoration: BoxDecoration(
-            color: const Color(0xffF4F7FF),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _brand.withValues(alpha: 0.35)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 20,
-                    color: _brand,
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      read > 0
-                          ? 'I read ${_money.format(read)} of your messages'
-                          : 'I read your bank messages',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _brand,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Here is what you have actually been spending.',
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                  color: _ink,
-                  height: 1.25,
+        // A header, not a paragraph. Everything this screen has to explain is
+        // explained on the rows, where the user is looking when the question
+        // actually arises. Prose above a list is prose nobody reads.
+        Row(
+          children: [
+            const Icon(Icons.auto_awesome_rounded, size: 17, color: _brand),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                months > 1
+                    ? 'FROM YOUR LAST $months MONTHS'
+                    : read > 0
+                    ? 'FROM ${_money.format(read)} MESSAGES'
+                    : 'FROM YOUR BANK MESSAGES',
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w800,
+                  color: _brand,
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                'These are not your budgets — they are what the months on your '
-                'phone add up to. Take the ones you want, change any figure, '
-                'and leave the rest.',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.45,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-            ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'This is what you\nactually spend',
+          style: TextStyle(
+            fontSize: 27,
+            fontWeight: FontWeight.w800,
+            color: _ink,
+            height: 1.2,
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 8),
+        Text(
+          'Tick what you want to budget.',
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 22),
         for (final h in hints) _budgetRow(h),
-        if (total > 0) ...[
-          const SizedBox(height: 6),
-          Text(
-            'Ticked: $_currency${_money.format(total.round())} a month across '
-            '${taking.length} ${taking.length == 1 ? 'budget' : 'budgets'}.',
-            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
-          ),
-        ],
       ],
     );
   }
@@ -935,29 +923,36 @@ class _SortFlowPageState extends State<SortFlowPage> {
   Widget _budgetRow(BudgetSuggestion h) {
     final taken = _takingBudgets.contains(h.categoryId);
     final amount = _amountFor(h);
-    final edited = _budgetEdits.containsKey(h.categoryId);
     final set = _currentBudgets[h.categoryName] ?? 0;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
-          color: taken ? const Color(0xffF7F9FF) : Colors.white,
-          borderRadius: BorderRadius.circular(15),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: taken
-                ? _brand.withValues(alpha: 0.45)
+                ? _brand.withValues(alpha: 0.55)
                 : Colors.grey.shade200,
-            width: taken ? 1.4 : 1,
+            width: taken ? 1.6 : 1,
           ),
+          boxShadow: [
+            if (taken)
+              BoxShadow(
+                color: _brand.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+          ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             InkWell(
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(15),
-                bottom: Radius.zero,
+                top: Radius.circular(16),
               ),
               onTap: _busy
                   ? null
@@ -967,15 +962,14 @@ class _SortFlowPageState extends State<SortFlowPage> {
                           : _takingBudgets.add(h.categoryId),
                     ),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 13, 12, 6),
+                padding: const EdgeInsets.fromLTRB(15, 14, 14, 12),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
                       taken
                           ? Icons.check_circle_rounded
                           : Icons.circle_outlined,
-                      size: 21,
+                      size: 22,
                       color: taken ? _brand : Colors.grey.shade400,
                     ),
                     const SizedBox(width: 12),
@@ -989,8 +983,8 @@ class _SortFlowPageState extends State<SortFlowPage> {
                                 child: Text(
                                   h.categoryName,
                                   style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
                                     color: _ink,
                                   ),
                                 ),
@@ -1007,11 +1001,11 @@ class _SortFlowPageState extends State<SortFlowPage> {
                                     borderRadius: BorderRadius.circular(5),
                                   ),
                                   child: const Text(
-                                    'NEW',
+                                    'NOT BUDGETED',
                                     style: TextStyle(
-                                      fontSize: 9,
+                                      fontSize: 8.5,
                                       letterSpacing: 0.6,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w800,
                                       color: _brand,
                                     ),
                                   ),
@@ -1019,18 +1013,22 @@ class _SortFlowPageState extends State<SortFlowPage> {
                               ],
                             ],
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 4),
+                          // One line, and it names both figures so neither
+                          // can be mistaken for the other. A bare number in
+                          // blue underneath a sentence about a different
+                          // number explains nothing.
                           Text(
-                            // Said as an observation, never as a correction.
-                            // A figure the user set is a decision; reporting
-                            // spending against it is help, and proposing a
-                            // replacement for it is an argument.
                             set > 0
-                                ? 'You allow $_currency${_money.format(set.round())}. '
-                                      'You have been spending more.'
-                                : h.basis,
+                                ? 'You spend about '
+                                      '$_currency${_money.format(h.amount.round())} '
+                                      'a month · you allow '
+                                      '$_currency${_money.format(set.round())}'
+                                : 'You spend about '
+                                      '$_currency${_money.format(h.amount.round())} '
+                                      'a month',
                             style: TextStyle(
-                              fontSize: 11.5,
+                              fontSize: 12.5,
                               height: 1.35,
                               color: Colors.grey.shade600,
                             ),
@@ -1042,67 +1040,69 @@ class _SortFlowPageState extends State<SortFlowPage> {
                 ),
               ),
             ),
+            // The figure that will actually be written, labelled as such and
+            // tappable. Unlabelled it was the screen's worst moment: a large
+            // blue number with no way to tell what it referred to.
             Padding(
-              padding: const EdgeInsets.fromLTRB(47, 0, 10, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(9),
-                      onTap: _busy ? null : () => _editBudget(h),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 4,
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              '$_currency${_money.format(amount.round())}',
-                              style: const TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w700,
-                                color: _brand,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'a month',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.edit_outlined,
-                              size: 15,
-                              color: Colors.grey.shade500,
-                            ),
-                            if (edited) ...[
-                              const SizedBox(width: 5),
-                              Text(
-                                'changed',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade500,
-                                ),
-                              ),
-                            ],
-                          ],
+              padding: const EdgeInsets.fromLTRB(15, 0, 14, 14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _busy ? null : () => _editBudget(h),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(13, 11, 11, 11),
+                  decoration: BoxDecoration(
+                    color: taken
+                        ? const Color(0xffF2F6FF)
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        h.isTracked ? 'Set budget to' : 'Start at',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: Colors.grey.shade700,
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          '$_currency${_money.format(amount.round())}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: taken ? _brand : Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.edit_outlined,
+                        size: 15,
+                        color: Colors.grey.shade500,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Change',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ),
-                  if (h.months.length > 1)
-                    BudgetSparkline(
-                      months: h.months,
-                      money: (v) => '$_currency${_money.format(v.round())}',
-                    ),
-                ],
+                ),
               ),
             ),
+            if (h.months.length > 1)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(15, 0, 14, 12),
+                child: BudgetSparkline(
+                  months: h.months,
+                  money: (v) => '$_currency${_money.format(v.round())}',
+                ),
+              ),
           ],
         ),
       ),
@@ -1704,7 +1704,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: step is SetBudgetsStep ? const Color(0xffF3F6FF) : Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
