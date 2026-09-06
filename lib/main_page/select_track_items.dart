@@ -420,24 +420,21 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
           child: ListView(
             padding: const EdgeInsets.only(bottom: 16),
             children: [
-              ScreenGuide(
-                id: _guideId,
-                title: _guideTitle,
-                steps: _returning ? _returningSteps : _guideSteps,
-                footnote: _guideFootnote,
-              ),
+              // No instruction panel. Its four steps described a screen made
+              // of three labelled sections and a running total, all of which
+              // demonstrate the same thing the moment anybody looks at them.
+              // The guide is one tap away in the bar for anyone who wants it.
               if (_chosen.isNotEmpty) ...[
                 _sectionLabel('YOUR BUDGETS'),
                 for (final name in _chosen.keys) _chosenRow(name),
                 const SizedBox(height: 8),
               ],
               if (_unchosenFromSpending.isNotEmpty) ...[
-                _sectionLabel('FROM YOUR SPENDING'),
+                _sectionLabel('WHERE YOUR MONEY GOES'),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                   child: Text(
-                    'Tap one to start budgeting for it. The figures are what '
-                    'you have been spending.',
+                    'Tap one to budget for it.',
                     style: TextStyle(
                       fontSize: 12.5,
                       height: 1.4,
@@ -477,6 +474,16 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
   /// Proposals not already taken.
   List<BudgetSuggestion> get _unchosenFromSpending =>
       _fromSpending.where((s) => !_chosen.containsKey(s.categoryName)).toList();
+
+  /// What each category has actually been costing per month, by name.
+  ///
+  /// The screen holds this already and only ever showed it on the rows the
+  /// user had *not* chosen -- so the moment a budget was picked, the one fact
+  /// needed to judge the figure disappeared. Setting ₦30,000 for Food is a
+  /// decision; setting it beside "you spend about ₦55,000" is an informed one.
+  Map<String, double> get _spendByName => {
+    for (final s in _fromSpending) s.categoryName: s.amount,
+  };
 
   /// One category found in their spending, with what it costs them.
   Widget _spendingRow(BudgetSuggestion s) {
@@ -575,6 +582,7 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
 
   Widget _chosenRow(String name) {
     final image = _images[name] ?? '';
+    final spend = _spendByName[name];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Container(
@@ -609,12 +617,29 @@ class _SelectTrackItemsState extends State<SelectTrackItems> {
                   ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (spend != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'you spend about $_currency'
+                          '${NumberFormat('#,###').format(spend.round())} '
+                          'a month',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 if (isRealBudget(_chosen[name] ?? ''))

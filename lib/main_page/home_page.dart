@@ -430,7 +430,10 @@ class _HomePageState extends State<HomePage> {
                     builder: (context, currentMonthData, child) {
                     return CarouselSlider.builder(
                       options: CarouselOptions(
-                          viewportFraction: 0.7,
+                          // This month, not this month and slivers of two
+                          // others. At 0.7 the neighbours were wide enough to
+                          // compete with the figure the screen exists to show.
+                          viewportFraction: 0.86,
                           aspectRatio: 16/9,
                           height: MediaQuery.of(context).size.width*0.43,
                           autoPlay: false,
@@ -542,6 +545,7 @@ class _HomePageState extends State<HomePage> {
               right: 45,
               child: IconButton(
                   onPressed: _scheduleNotificationAlert,
+                  tooltip: 'Reminders',
                   icon: Icon(Icons.edit_notifications_outlined,color: Colors.white,)
               ),
           ),
@@ -554,6 +558,7 @@ class _HomePageState extends State<HomePage> {
                 await context.push('/pending');
                 await _loadNeedsSorting();
               },
+              tooltip: 'Needs sorting',
               icon: _needsSorting > 0
                   ? Badge(
                       label: Text('$_needsSorting'),
@@ -595,7 +600,9 @@ class _HomePageState extends State<HomePage> {
                           );
                         }
                     );
-                  }, icon: const Icon(Icons.exit_to_app, color: Colors.white,)
+                  },
+                  tooltip: 'Sign out',
+                  icon: const Icon(Icons.exit_to_app, color: Colors.white,)
               )
           ),
           ValueListenableBuilder(
@@ -605,16 +612,35 @@ class _HomePageState extends State<HomePage> {
                   ? Positioned(
                 bottom: MediaQuery.of(context).size.height * 0.65,
                 right: 30,
-                child: TextButton(
-                  onPressed: (){
-                    DailyResets().resetDailySpend(_currentMonthDataNotifier.value);
-                    print(_currentMonthDataNotifier.value);
-                  },
-                  child: Text('Update Monthly Spend',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11
-                  ),
+                // A chip, not bare white text floating over the header. It
+                // read as something left in by mistake, which is a poor look
+                // for a control that rewrites the month's total.
+                child: Material(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(20),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      DailyResets()
+                          .resetDailySpend(_currentMonthDataNotifier.value);
+                    },
+                    child: const Padding(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.refresh_rounded,
+                              size: 14, color: Colors.white),
+                          SizedBox(width: 6),
+                          Text('Update monthly spend',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               )

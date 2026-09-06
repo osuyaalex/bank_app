@@ -296,7 +296,7 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
     if (_pendingCount == 0 && _untaggedCount == 0) return const SizedBox.shrink();
     final needsSorting = _pendingCount > 0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () async {
@@ -355,6 +355,12 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
           child: Center(
             child: Column(
               children: [
+                // First, because it is the only thing on this screen that
+                // asks anything of the user. It used to sit below the total,
+                // the budget bar, the charges line and an illustration --
+                // under the fold on a short phone, which made the one
+                // actionable item the least likely to be seen.
+                _sortBanner(),
                 Container(
                   color: Colors.white,
                   child: Padding(
@@ -431,7 +437,6 @@ class _SummaryState extends State<Summary> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-                _sortBanner(),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14.0,vertical: 19),
                   child: SizedBox(
