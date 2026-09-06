@@ -71,6 +71,7 @@ class CounterpartyEntry {
     this.isMerchant = false,
     this.creditCount = 0,
     this.roundAmounts = 0,
+    this.totalDebited = 0,
   });
 
   final String key;
@@ -100,6 +101,17 @@ class CounterpartyEntry {
   /// nothing; alongside a name that carries no other signal it is worth
   /// something.
   final int roundAmounts;
+
+  /// Everything the user has paid this counterparty, across every alert the
+  /// migration read.
+  ///
+  /// The screen that asks where these payments belong used to show a count
+  /// and nothing else -- "7 transactions" -- which is the one fact that does
+  /// not help. Seven payments to a name could be airtime or it could be rent,
+  /// and the user cannot answer without knowing which. It is a sum of debits
+  /// only, for the same reason the map is seeded from debits only: this
+  /// measures spending, not the flow of money in both directions.
+  final double totalDebited;
 
   /// True when money has moved in both directions.
   bool get isTwoWay => creditCount > 0 && txCount > 0;
@@ -137,6 +149,7 @@ class CounterpartyEntry {
     bool? isMerchant,
     int? creditCount,
     int? roundAmounts,
+    double? totalDebited,
   }) =>
       CounterpartyEntry(
         key: key,
@@ -149,6 +162,7 @@ class CounterpartyEntry {
         isMerchant: isMerchant ?? this.isMerchant,
         creditCount: creditCount ?? this.creditCount,
         roundAmounts: roundAmounts ?? this.roundAmounts,
+        totalDebited: totalDebited ?? this.totalDebited,
       );
 
   Map<String, dynamic> toMap() => {
@@ -162,6 +176,7 @@ class CounterpartyEntry {
         'isMerchant': isMerchant,
         'creditCount': creditCount,
         'roundAmounts': roundAmounts,
+        'totalDebited': totalDebited,
       };
 }
 
