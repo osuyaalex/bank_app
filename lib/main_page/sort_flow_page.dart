@@ -546,12 +546,22 @@ class _SortFlowPageState extends State<SortFlowPage> {
       history: h.months.map((m) => m.total).toList(),
     );
     if (chosen == null || !mounted) return;
+    // Saving the figure it opened on is not a change. Recording it as one
+    // would label the row "changed from N35,000" beside N35,000.
+    if ((chosen - _amountFor(h)).abs() < 1) {
+      setState(() => _takingBudgets.add(h.categoryId));
+      return;
+    }
     setState(() {
       _budgetEdits[h.categoryId] = chosen;
       // Changing a figure is a way of saying yes to it. Leaving it unticked
       // after the user has just chosen its amount would throw the work away.
       _takingBudgets.add(h.categoryId);
     });
+    _say(
+      '${h.categoryName} set to '
+      '$_currency${_money.format(chosen.round())} a month.',
+    );
   }
 
   /// Writes the ticked budgets, then files everything they cover.
@@ -923,6 +933,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
   Widget _budgetRow(BudgetSuggestion h) {
     final taken = _takingBudgets.contains(h.categoryId);
     final amount = _amountFor(h);
+    final edited = _budgetEdits.containsKey(h.categoryId);
     final set = _currentBudgets[h.categoryName] ?? 0;
 
     return Padding(
@@ -1022,7 +1033,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
                             set > 0
                                 ? 'You spend about '
                                       '$_currency${_money.format(h.amount.round())} '
-                                      'a month · you allow '
+                                      'a month · you budgeted '
                                       '$_currency${_money.format(set.round())}'
                                 : 'You spend about '
                                       '$_currency${_money.format(h.amount.round())} '
@@ -1044,22 +1055,33 @@ class _SortFlowPageState extends State<SortFlowPage> {
             // tappable. Unlabelled it was the screen's worst moment: a large
             // blue number with no way to tell what it referred to.
             Padding(
-              padding: const EdgeInsets.fromLTRB(15, 0, 14, 14),
+              padding: const EdgeInsets.fromLTRB(15, 0, 14, 12),
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: _busy ? null : () => _editBudget(h),
                 child: Container(
-                  padding: const EdgeInsets.fromLTRB(13, 11, 11, 11),
+                  padding: const EdgeInsets.fromLTRB(13, 10, 10, 10),
                   decoration: BoxDecoration(
-                    color: taken
+                    color: edited
+                        ? _brand.withValues(alpha: 0.1)
+                        : taken
                         ? const Color(0xffF2F6FF)
                         : Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: edited
+                          ? _brand.withValues(alpha: 0.5)
+                          : Colors.transparent,
+                    ),
                   ),
                   child: Row(
                     children: [
                       Text(
-                        h.isTracked ? 'Set budget to' : 'Start at',
+                        edited
+                            ? 'Your budget'
+                            : h.isTracked
+                            ? 'Set budget to'
+                            : 'Start at',
                         style: TextStyle(
                           fontSize: 12.5,
                           color: Colors.grey.shade700,
@@ -1076,18 +1098,37 @@ class _SortFlowPageState extends State<SortFlowPage> {
                           ),
                         ),
                       ),
-                      Icon(
-                        Icons.edit_outlined,
-                        size: 15,
-                        color: Colors.grey.shade500,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Change',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade600,
+                      // A pill, so it reads as something to press. As plain
+                      // grey text beside a figure it read as a caption, and a
+                      // caption is not a control.
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.edit_outlined,
+                              size: 13,
+                              color: Colors.grey.shade700,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Change',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -1095,6 +1136,56 @@ class _SortFlowPageState extends State<SortFlowPage> {
                 ),
               ),
             ),
+            // Proof the change landed. Editing used to alter one figure in a
+            // strip and nothing else, so a user who set a number close to the
+            // one already there had no way to tell whether the sheet had done
+            // anything at all.
+            if (edited)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(17, 0, 14, 12),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 13,
+                      color: _brand,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Changed by you, from '
+                        '$_currency${_money.format(h.amount.round())}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: _brand,
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: _busy
+                          ? null
+                          : () => setState(
+                              () => _budgetEdits.remove(h.categoryId),
+                            ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        child: Text(
+                          'Undo',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (h.months.length > 1)
               Padding(
                 padding: const EdgeInsets.fromLTRB(15, 0, 14, 12),
