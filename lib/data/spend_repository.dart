@@ -1494,12 +1494,10 @@ class SpendRepository {
     final current = await trackedItemsWithBudgets();
 
     return all.where((s) {
-      if (!s.isTracked) return true;
       final raw = current[s.categoryName];
       final set =
           double.tryParse((raw ?? '').replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
-      if (set <= 0) return true; // nothing set: always worth offering
-      return (s.amount - set).abs() / set > 0.1;
+      return suggestionWorthShowing(s, set);
     }).toList();
   }
 

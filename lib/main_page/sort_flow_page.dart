@@ -35,6 +35,7 @@ import '../parsing/bank_alert.dart';
 import '../parsing/category_matcher.dart';
 import 'batch_tag_page.dart';
 import 'sort_flow.dart';
+import 'widget/budget_picker.dart';
 import 'widget/budget_suggestion_sheet.dart';
 import 'widget/bulk_sort_sheet.dart';
 import 'widget/category_picker.dart';
@@ -74,6 +75,26 @@ class _SortFlowPageState extends State<SortFlowPage> {
   /// True once the budget offer has been answered either way. Declining is an
   /// answer; re-offering it is what turned the old banner into furniture.
   bool _budgetsSettled = false;
+
+  /// What the user currently has set, by category name, so a proposal can be
+  /// shown against the figure it would replace instead of appearing to
+  /// contradict it out of nowhere.
+  Map<String, double> _currentBudgets = {};
+
+  /// Proposals the user has ticked.
+  ///
+  /// A category they already track starts ticked -- they came here to be
+  /// given figures. One they do not track starts unticked, because accepting
+  /// it adds a row to their home screen, and taking that by default is
+  /// deciding on their behalf.
+  final Set<String> _takingBudgets = {};
+
+  /// Proposals already given a starting tick, so a later refresh cannot
+  /// re-tick something the user has deliberately turned off.
+  final Set<String> _tickSeeded = {};
+
+  /// Figures the user changed on the card. Keyed by category id.
+  final Map<String, double> _budgetEdits = {};
 
   /// What the last answer settled on its own, waiting to be shown.
   CascadeStep? _cascade;
@@ -146,6 +167,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
     final readability = await SmsInbox.readability();
     final ownerName = await _repo.ownerName();
     final budgetHints = await _repo.budgetSuggestionsWorthShowing();
+    final setBudgets = await _repo.trackedItemsWithBudgets();
 
     // Self-transfers the migration proposed arrive already answered: the user
     // is confirming a suggestion, not deciding anything.
@@ -172,6 +194,12 @@ class _SortFlowPageState extends State<SortFlowPage> {
       _readability = readability;
       _ownerName = ownerName;
       _budgetHints = budgetHints;
+      _currentBudgets = {
+        for (final e in setBudgets.entries)
+          e.key:
+              double.tryParse(e.value.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0,
+      };
+      _seedTicks(budgetHints);
       _rows = [
         ...proposed,
         ...batchTagCandidates(
@@ -202,7 +230,10 @@ class _SortFlowPageState extends State<SortFlowPage> {
       if (await _repo.refreshBudgetSuggestions() == 0) return;
       final hints = await _repo.budgetSuggestionsWorthShowing();
       if (!mounted) return;
-      setState(() => _budgetHints = hints);
+      setState(() {
+        _budgetHints = hints;
+        _seedTicks(hints);
+      });
     } catch (_) {
       // A suggestion is a convenience. Failing to produce one must never take
       // the screen down with it.
@@ -371,7 +402,15 @@ class _SortFlowPageState extends State<SortFlowPage> {
       );
       if (category.name.isNotEmpty && !_tracked.contains(category.name)) {
         final started = await _startTracking(category);
-        if (!started) return;
+        // Backing out of the budget sheet used to abandon the whole thing in
+        // silence: the user tapped an answer, answered a question about it,
+        // changed their mind, and landed back on an unchanged card with no
+        // idea whether anything had happened. Nothing on this path may fail
+        // quietly.
+        if (!started) {
+          _say('${category.name} needs a budget before it can hold anything.');
+          return;
+        }
       }
     }
     await _answer(e, chosen);
@@ -384,6 +423,11 @@ class _SortFlowPageState extends State<SortFlowPage> {
   Future<void> _acceptGhost(CounterpartyEntry e, String name) async {
     final created = await _startNamed(name);
     if (created == null || !mounted) return;
+    // Stale guesses were worked out against a category list that did not have
+    // this in it. Clearing the unanswered ones lets the matcher reconsider
+    // every row that was waiting on it, which is what makes one answer settle
+    // several.
+    setState(() => _guesses.removeWhere((k, _) => !_choices.containsKey(k)));
     await _answer(e, CategoryChoice.category(created.id));
   }
 
@@ -478,23 +522,49 @@ class _SortFlowPageState extends State<SortFlowPage> {
   // Budgets from history -- the first card, and the biggest one
   // -------------------------------------------------------------------------
 
-  Future<void> _takeBudgets() async {
-    final current = await _repo.trackedItemsWithBudgets();
-    if (!mounted) return;
+  /// Gives a proposal its opening tick, once.
+  ///
+  /// Runs again whenever the proposals are recomputed, so it must never
+  /// re-tick something the user has turned off -- being overruled by a
+  /// background refresh is worse than not being offered at all.
+  void _seedTicks(List<BudgetSuggestion> hints) {
+    for (final h in hints) {
+      if (!_tickSeeded.add(h.categoryId)) continue;
+      if (h.isTracked) _takingBudgets.add(h.categoryId);
+    }
+  }
 
-    final chosen = await showBudgetSuggestionSheet(
+  double _amountFor(BudgetSuggestion h) =>
+      _budgetEdits[h.categoryId] ?? h.amount;
+
+  Future<void> _editBudget(BudgetSuggestion h) async {
+    final chosen = await showBudgetAmountSheet(
       context,
-      suggestions: _budgetHints,
-      currentBudgets: {
-        for (final e in current.entries)
-          e.key:
-              double.tryParse(e.value.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0,
-      },
+      categoryName: h.categoryName,
+      initial: _amountFor(h),
       currency: _currency,
+      history: h.months.map((m) => m.total).toList(),
     );
-    // Backing out of the sheet is not the same as declining the offer: the
-    // card stays, so a mis-tap costs nothing.
-    if (chosen == null || chosen.isEmpty || !mounted) return;
+    if (chosen == null || !mounted) return;
+    setState(() {
+      _budgetEdits[h.categoryId] = chosen;
+      // Changing a figure is a way of saying yes to it. Leaving it unticked
+      // after the user has just chosen its amount would throw the work away.
+      _takingBudgets.add(h.categoryId);
+    });
+  }
+
+  /// Writes the ticked budgets, then files everything they cover.
+  Future<void> _applyBudgets() async {
+    final chosen = [
+      for (final h in _budgetHints)
+        if (_takingBudgets.contains(h.categoryId))
+          h.copyWith(amount: _amountFor(h)),
+    ];
+    if (chosen.isEmpty) {
+      setState(() => _budgetsSettled = true);
+      return;
+    }
 
     setState(() => _busy = true);
     final before = _answered;
@@ -505,7 +575,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
 
       // The categories now exist and are tracked, so every counterparty the
       // matcher would file into them can be filed into them. This is the
-      // whole point of asking about budgets first.
+      // whole reason the budgets are asked about first.
       final categories = await _repo.pickerCategories();
       final tracked = await _repo.trackedCategoryNames();
       if (!mounted) return;
@@ -542,6 +612,13 @@ class _SortFlowPageState extends State<SortFlowPage> {
                 covered: covered,
               );
       });
+      if (covered.isEmpty) {
+        _say(
+          chosen.length == 1
+              ? '${chosen.first.categoryName} set.'
+              : '${chosen.length} budgets set.',
+        );
+      }
     } catch (e) {
       // ignore: avoid_print
       print('SORT: applying budgets failed: $e');
@@ -777,88 +854,260 @@ class _SortFlowPageState extends State<SortFlowPage> {
 
   Widget _budgetsCard(List<BudgetSuggestion> hints) {
     final read = _readability?.total ?? 0;
+    final taking = hints.where((h) => _takingBudgets.contains(h.categoryId));
+    final total = taking.fold(0.0, (t, h) => t + _amountFor(h));
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(22, 26, 22, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       children: [
-        Text(
-          read > 0
-              ? 'I read ${_money.format(read)} of your bank messages.'
-              : 'I read your bank messages.',
-          style: TextStyle(fontSize: 13.5, color: Colors.grey.shade600),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Here is where your money actually goes.',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: _ink,
-            height: 1.25,
+        // The tinted panel the old banner used, kept because it was the one
+        // part of that screen people noticed.
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          decoration: BoxDecoration(
+            color: const Color(0xffF4F7FF),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _brand.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 20,
+                    color: _brand,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      read > 0
+                          ? 'I read ${_money.format(read)} of your messages'
+                          : 'I read your bank messages',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _brand,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Here is what you have actually been spending.',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  color: _ink,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'These are not your budgets — they are what the months on your '
+                'phone add up to. Take the ones you want, change any figure, '
+                'and leave the rest.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.45,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 22),
-        for (final h in hints.take(5)) _hintRow(h),
         const SizedBox(height: 18),
-        Text(
-          'Set these as your budgets and everything they cover gets filed at '
-          'once. You can change any of them.',
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.45,
-            color: Colors.grey.shade600,
+        for (final h in hints) _budgetRow(h),
+        if (total > 0) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Ticked: $_currency${_money.format(total.round())} a month across '
+            '${taking.length} ${taking.length == 1 ? 'budget' : 'budgets'}.',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
           ),
-        ),
+        ],
       ],
     );
   }
 
-  Widget _hintRow(BudgetSuggestion h) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  h.categoryName,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
+  Widget _budgetRow(BudgetSuggestion h) {
+    final taken = _takingBudgets.contains(h.categoryId);
+    final amount = _amountFor(h);
+    final edited = _budgetEdits.containsKey(h.categoryId);
+    final set = _currentBudgets[h.categoryName] ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: taken ? const Color(0xffF7F9FF) : Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: taken
+                ? _brand.withValues(alpha: 0.45)
+                : Colors.grey.shade200,
+            width: taken ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            InkWell(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+                bottom: Radius.zero,
+              ),
+              onTap: _busy
+                  ? null
+                  : () => setState(
+                      () => taken
+                          ? _takingBudgets.remove(h.categoryId)
+                          : _takingBudgets.add(h.categoryId),
+                    ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 13, 12, 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      taken
+                          ? Icons.check_circle_rounded
+                          : Icons.circle_outlined,
+                      size: 21,
+                      color: taken ? _brand : Colors.grey.shade400,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  h.categoryName,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: _ink,
+                                  ),
+                                ),
+                              ),
+                              if (!h.isTracked) ...[
+                                const SizedBox(width: 7),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xffEFF3FF),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: const Text(
+                                    'NEW',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      letterSpacing: 0.6,
+                                      fontWeight: FontWeight.w700,
+                                      color: _brand,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            // Said as an observation, never as a correction.
+                            // A figure the user set is a decision; reporting
+                            // spending against it is help, and proposing a
+                            // replacement for it is an argument.
+                            set > 0
+                                ? 'You allow $_currency${_money.format(set.round())}. '
+                                      'You have been spending more.'
+                                : h.basis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              height: 1.35,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                if (!h.isTracked) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    'new',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: Colors.grey.shade500,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(47, 0, 10, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(9),
+                      onTap: _busy ? null : () => _editBudget(h),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              '$_currency${_money.format(amount.round())}',
+                              style: const TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w700,
+                                color: _brand,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'a month',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.edit_outlined,
+                              size: 15,
+                              color: Colors.grey.shade500,
+                            ),
+                            if (edited) ...[
+                              const SizedBox(width: 5),
+                              Text(
+                                'changed',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
+                  if (h.months.length > 1)
+                    BudgetSparkline(
+                      months: h.months,
+                      money: (v) => '$_currency${_money.format(v.round())}',
+                    ),
                 ],
-              ],
+              ),
             ),
-          ),
-          Text(
-            'about $_currency${_money.format(h.amount.round())} a month',
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: _brand,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   // -------------------------------------------------------------------------
   // The question
@@ -883,60 +1132,125 @@ class _SortFlowPageState extends State<SortFlowPage> {
     final answered = _choices.containsKey(e.key);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       children: [
-        Text(
-          'You have paid',
-          style: TextStyle(fontSize: 13.5, color: Colors.grey.shade600),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          e.key,
-          style: const TextStyle(
-            fontSize: 21,
-            fontWeight: FontWeight.w700,
-            color: _ink,
-            height: 1.25,
+        // The money in a panel of its own. On the list this was a grey
+        // subtitle reading "7 transactions", which is the one fact that does
+        // not help anybody decide anything.
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.grey.shade200),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _brand.withValues(alpha: 0.1),
+                    ),
+                    child: Icon(
+                      e.isMerchant
+                          ? Icons.storefront_outlined
+                          : Icons.person_outline_rounded,
+                      size: 18,
+                      color: _brand,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Text(
+                      'You have paid',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                e.key,
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  color: _ink,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    e.totalDebited > 0
+                        ? '$_currency${_money.format(e.totalDebited.round())}'
+                        : '${e.txCount}',
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: _brand,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      e.totalDebited > 0
+                          ? 'across ${e.txCount} '
+                                'payment${e.txCount == 1 ? '' : 's'}'
+                          : 'payment${e.txCount == 1 ? '' : 's'}',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 9),
-        // The figure, which is the fact the old list withheld. "7
-        // transactions" could be airtime or it could be rent, and nobody can
-        // answer the question without knowing which.
-        Text(
-          e.totalDebited > 0
-              ? '$_currency${_money.format(e.totalDebited.round())}'
-              : '${e.txCount} payment${e.txCount == 1 ? '' : 's'}',
-          style: const TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w800,
-            color: _brand,
-          ),
-        ),
-        if (e.totalDebited > 0) ...[
-          const SizedBox(height: 4),
-          Text(
-            'across ${e.txCount} payment${e.txCount == 1 ? '' : 's'}',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-          ),
-        ],
-        const SizedBox(height: 26),
-        Text(
-          'Which budget does this belong to?',
-          style: TextStyle(
-            fontSize: 14.5,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade900,
+        const SizedBox(height: 24),
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            'Which budget does this belong to?',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade900,
+            ),
           ),
         ),
         if (guess?.reason != null) ...[
           const SizedBox(height: 6),
-          Text(
-            guess!.reason,
-            style: TextStyle(
-              fontSize: 12.5,
-              height: 1.4,
-              color: Colors.grey.shade600,
+          Padding(
+            padding: const EdgeInsets.only(left: 4, right: 4),
+            child: Text(
+              guess!.reason,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                color: Colors.grey.shade600,
+              ),
             ),
           ),
         ],
@@ -1001,7 +1315,14 @@ class _SortFlowPageState extends State<SortFlowPage> {
       (c) => c.name.toLowerCase() == name.toLowerCase(),
       orElse: () => const Category(id: '', name: ''),
     );
-    if (category.id.isEmpty) return;
+    // A name on a button that resolves to nothing is a dead button. It can
+    // happen when the tracked list and the category list disagree, and doing
+    // nothing about it leaves the user tapping and watching the screen
+    // ignore them. The picker holds every category, so send them there.
+    if (category.id.isEmpty) {
+      await _openPicker(e);
+      return;
+    }
     await _answer(e, CategoryChoice.category(category.id));
   }
 
@@ -1083,58 +1404,98 @@ class _SortFlowPageState extends State<SortFlowPage> {
   Widget _cascadeCard(CascadeStep step) {
     final n = step.covered.length;
     final money = step.covered.fold(0.0, (s, e) => s + e.totalDebited);
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(22, 30, 22, 24),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
       children: [
-        Row(
-          children: [
-            const Icon(Icons.auto_awesome_rounded, size: 22, color: _brand),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                step.trigger.isEmpty
-                    ? 'That set your budgets.'
-                    : '✓  ${step.categoryName}',
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          decoration: BoxDecoration(
+            color: const Color(0xffF4F7FF),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _brand.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 20,
+                    color: _brand,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      step.trigger.isEmpty
+                          ? 'That set your budgets'
+                          : 'Filed under ${step.categoryName}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _brand,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                n == 1
+                    ? 'One more was filed on its own.'
+                    : '$n more were filed on their own.',
                 style: const TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w700,
                   color: _ink,
+                  height: 1.25,
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          n == 1
-              ? 'One more payment was filed on its own.'
-              : '$n more were filed on their own.',
-          style: TextStyle(
-            fontSize: 14.5,
-            height: 1.4,
-            color: Colors.grey.shade700,
+              if (money > 0) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'That is $_currency${_money.format(money.round())} sorted '
+                  'without being asked about.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.45,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        const SizedBox(height: 18),
-        for (final e in step.covered.take(6)) _coveredRow(e),
-        if (n > 6) ...[
-          const SizedBox(height: 4),
-          Text(
-            'and ${n - 6} more',
-            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.grey.shade200),
           ),
-        ],
-        const SizedBox(height: 18),
-        if (money > 0)
-          Text(
-            'That is $_currency${_money.format(money.round())} sorted in one '
-            'answer.',
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
-              color: _brand,
-            ),
+          child: Column(
+            children: [
+              for (final e in step.covered.take(6)) _coveredRow(e),
+              if (n > 6)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'and ${n - 6} more',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -1304,11 +1665,13 @@ class _SortFlowPageState extends State<SortFlowPage> {
       caption,
     ) = switch (step) {
       SetBudgetsStep() => (
-        'Use these',
-        _takeBudgets,
-        'Set my own',
+        _takingBudgets.isEmpty ? null : 'Use ${_takingBudgets.length}',
+        _applyBudgets,
+        'Not now',
         () => setState(() => _budgetsSettled = true),
-        'One tap sets them all',
+        _takingBudgets.isEmpty
+            ? 'Tick the ones you want'
+            : 'Everything they cover gets filed at once',
       ),
       CascadeStep() => (
         'Keep going',

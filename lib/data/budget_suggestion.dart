@@ -46,6 +46,15 @@ class BudgetSuggestion {
   /// screen is a bigger thing than changing a number on one.
   final bool isTracked;
 
+  BudgetSuggestion copyWith({double? amount}) => BudgetSuggestion(
+        categoryId: categoryId,
+        categoryName: categoryName,
+        amount: amount ?? this.amount,
+        typical: typical,
+        months: months,
+        isTracked: isTracked,
+      );
+
   int get monthsObserved => months.length;
 
   /// Three months is where a figure stops being one month's accident.
@@ -62,6 +71,25 @@ class BudgetSuggestion {
         2 => 'Based on 2 months — still settling',
         _ => 'Based on your last ${months.length} months',
       };
+}
+
+/// Whether a proposal is worth putting in front of the user at all.
+///
+/// [currentBudget] is what they have set for it, or zero for nothing set.
+///
+/// The rule used to be a tenth either way, which made this screen argue with
+/// the one before it: a user who set ten thousand for Internet and spends six
+/// was told, immediately after typing it, that the app thought six. That is
+/// not a correction, it is a disagreement about a decision the app was not
+/// asked to make -- a budget above what someone spends is a ceiling they
+/// chose, and the whole point of choosing it is that it is not last month.
+///
+/// What is worth saying is the other direction, and only by enough to matter.
+bool suggestionWorthShowing(BudgetSuggestion s, double currentBudget) {
+  if (!s.isTracked) return true; // money going somewhere untracked
+  if (currentBudget <= 0) return true; // nothing set at all
+  if (s.amount <= currentBudget) return false; // their ceiling, their call
+  return (s.amount - currentBudget) / currentBudget > 0.25;
 }
 
 /// Categories that exist to absorb what has not been decided yet.
