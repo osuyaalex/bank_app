@@ -35,8 +35,10 @@ double _monthBudget(dynamic listItems) {
   var total = 0.0;
   for (final item in listItems) {
     if (item is! Map) continue;
-    total += double.tryParse(
-            '${item['budgetSet']}'.replaceAll(RegExp(r'[^0-9.]'), '')) ??
+    total +=
+        double.tryParse(
+          '${item['budgetSet']}'.replaceAll(RegExp(r'[^0-9.]'), ''),
+        ) ??
         0;
   }
   return total;
@@ -57,13 +59,15 @@ Color _statusColour(BudgetLevel level) {
 
 class _HomePageState extends State<HomePage> {
   int _needsSorting = 0;
+  int _untagged = 0;
   String _currentMonth = '';
-  Map<String, dynamic> _data ={};
+  Map<String, dynamic> _data = {};
   List<String> _currentMonthDocs = [];
   Map<String, dynamic> _monthData = {};
   ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
   ValueNotifier<bool> _updateDailySpend = ValueNotifier<bool>(false);
   int _lastPage = 0;
+
   /// Held true until the first scan finishes, so the page renders once with
   /// settled figures instead of drawing, then jumping when the scan lands.
   bool _preparing = true;
@@ -71,7 +75,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _getAllCurrentMonthDocs() async {
     try {
       // Fetch all months
-      QuerySnapshot snapshot = await FirebaseFirestore.instance.collection("track_items").get();
+      QuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collection("track_items")
+          .get();
       String currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
       // Clear the list to avoid duplicates
@@ -108,8 +114,7 @@ class _HomePageState extends State<HomePage> {
         await SpendRepository().ensureMonthInitialised();
         if ((await SpendRepository().trackedCategoryNames()).isEmpty &&
             context.mounted) {
-          final next =
-              await MigrationGate.initialRoute(SpendRepository().uid);
+          final next = await MigrationGate.initialRoute(SpendRepository().uid);
           if (context.mounted) context.go(next);
           return;
         }
@@ -121,8 +126,6 @@ class _HomePageState extends State<HomePage> {
       print('Error retrieving documents: $e');
     }
   }
-
-
 
   Stream<List<DocumentSnapshot>> _combineStreams() {
     List<Stream<DocumentSnapshot>> streams = _currentMonthDocs.map((month) {
@@ -136,7 +139,6 @@ class _HomePageState extends State<HomePage> {
 
     return Rx.combineLatestList(streams);
   }
-
 
   // Future<void> _getTrackItems() async {
   //   try {
@@ -176,8 +178,18 @@ class _HomePageState extends State<HomePage> {
 
   int _getMonthIndex(String monthYear) {
     const List<String> monthOrder = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
 
     String month = monthYear.substring(0, monthYear.length - 4);
@@ -201,6 +213,7 @@ class _HomePageState extends State<HomePage> {
       return yearA.compareTo(yearB);
     });
   }
+
   Future<TimeOfDay?> _selectTime(BuildContext context) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
@@ -208,12 +221,14 @@ class _HomePageState extends State<HomePage> {
     );
     return picked;
   }
+
   String formatTimeOfDay(TimeOfDay time) {
     final now = DateTime.now();
     final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
     final format = DateFormat.jm(); // 'jm' is a format for 'hh:mm a'
     return format.format(dt);
   }
+
   Future<void> _scheduleUserNotification(BuildContext context) async {
     // Prompt user to pick a time
     TimeOfDay? selectedTime = await _selectTime(context);
@@ -222,85 +237,89 @@ class _HomePageState extends State<HomePage> {
       // reminder that used to say "This is your scheduled notification".
       await PendingNotifications.scheduleDigest(selectedTime);
       String formattedTime = formatTimeOfDay(selectedTime);
-        snack(context, 'Daily summary set for $formattedTime');
+      snack(context, 'Daily summary set for $formattedTime');
     }
   }
-  _scheduleNotificationAlert()async{
-     SharedPreferences prefs = await SharedPreferences.getInstance();
+
+  _scheduleNotificationAlert() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
     showDialog(
-        context: context,
-        builder: (context){
-          return AlertDialog(
-            title: Text('Schedule Notification'),
-            titleTextStyle: TextStyle(
-              color: Colors.black54,
-              fontSize: 18,
-              fontWeight: FontWeight.bold
-            ),
-            content: SizedBox(
-              height: MediaQuery.of(context).size.height*0.4,
-              width: double.infinity,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text("Your SMS is now connected and"
-                                    " your spending is tracked automatically,"
-                                  " so you can enjoy a more relaxed experience.",
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Schedule Notification'),
+          titleTextStyle: TextStyle(
+            color: Colors.black54,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+          content: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.4,
+            width: double.infinity,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    "Your SMS is now connected and"
+                    " your spending is tracked automatically,"
+                    " so you can enjoy a more relaxed experience.",
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       color: Colors.black54,
-                      fontSize: 15
-                    ),
+                      fontSize: 15,
                     ),
                   ),
-                  Text("  To keep everything up to date, "
-                      "it's important to regularly check the app to review your spending."
-                      " We recommend setting a daily notification to remind you to open the"
-                      " app and ensure your spending is accurately tracked."
-                      " This way, you can stay on top of any unexpected charges or deductions"
-                      " and keep your budget on track.",
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 13
-                  ),
-                  )
-                ],
-              ),
+                ),
+                Text(
+                  "  To keep everything up to date, "
+                  "it's important to regularly check the app to review your spending."
+                  " We recommend setting a daily notification to remind you to open the"
+                  " app and ensure your spending is accurately tracked."
+                  " This way, you can stay on top of any unexpected charges or deductions"
+                  " and keep your budget on track.",
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                  onPressed: (){
-                    _scheduleUserNotification(context).then((v){
-                      Navigator.pop(context);
-                    });
-                    prefs.setBool('setNotify', true);
-                  },
-                  child: Text('Okay!')
-              ),
-              TextButton(
-                  onPressed: (){
-                    Navigator.pop(context);
-                    prefs.setBool('setNotify', true);
-                  },
-                  child: Text('Later')
-              ),
-            ],
-          );
-        }
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _scheduleUserNotification(context).then((v) {
+                  Navigator.pop(context);
+                });
+                prefs.setBool('setNotify', true);
+              },
+              child: Text('Okay!'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                prefs.setBool('setNotify', true);
+              },
+              child: Text('Later'),
+            ),
+          ],
+        );
+      },
     );
   }
+
   _manuallyUpdateDailySpend() async {
     try {
       DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
           .collection("track_items")
-          .doc(_currentMonthDataNotifier.value) // Replace with actual month identifier
+          .doc(
+            _currentMonthDataNotifier.value,
+          ) // Replace with actual month identifier
           .collection("monthUsers")
           .doc(FirebaseAuth.instance.currentUser!.uid)
           .get();
 
       if (documentSnapshot.exists) {
-        Map<String, dynamic> data = documentSnapshot.data() as Map<String, dynamic>;
+        Map<String, dynamic> data =
+            documentSnapshot.data() as Map<String, dynamic>;
         List<dynamic> listItems = data['listItems'];
 
         bool foundSpend = false;
@@ -308,7 +327,7 @@ class _HomePageState extends State<HomePage> {
           if (item['dailySpend'] != null && item['dailySpend'] > 0) {
             foundSpend = true;
             break;
-          }else{
+          } else {
             foundSpend = false;
           }
         }
@@ -344,14 +363,104 @@ class _HomePageState extends State<HomePage> {
   //   }
   // }
 
+  /// Signing out, behind a name and a confirmation.
+  ///
+  /// It used to be an unlabelled arrow glyph sitting beside the inbox icon --
+  /// the most destructive control on the screen, one tap from the most used
+  /// one, with nothing on it to say which was which.
+  void _confirmSignOut() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Are you sure?'),
+        content: const Text(
+          'Are you sure you want to sign out of this account?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (!mounted) return;
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const SignInPage()),
+              );
+            },
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _loadNeedsSorting() async {
     try {
-      final count = await SpendRepository().pendingCount();
-      if (mounted) setState(() => _needsSorting = count);
+      final repo = SpendRepository();
+      final count = await repo.pendingCount();
+      final untagged = await repo.pendingTagCount();
+      if (mounted) {
+        setState(() {
+          _needsSorting = count;
+          _untagged = untagged;
+        });
+      }
     } catch (_) {
-      // Only a badge; never let it break the screen.
+      // An extra; never let it break the screen.
     }
+  }
+
+  /// The same banner the summary carries, saying the same thing.
+  ///
+  /// This screen used to report it as a numeral on an unlabelled white glyph
+  /// sitting between a bell and a sign-out button. One fact, two designs, and
+  /// the one the user meets first was the one that looked like nothing.
+  Widget _sortBanner() {
+    if (_needsSorting == 0 && _untagged == 0) return const SizedBox.shrink();
+    final needsSorting = _needsSorting > 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: const Color(0xff5AA5E2).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () async {
+            await context.push(needsSorting ? '/pending' : '/batchTag');
+            await _loadNeedsSorting();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.receipt_long_outlined,
+                  color: Color(0xff5AA5E2),
+                  size: 19,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    needsSorting
+                        ? '$_needsSorting payment'
+                              '${_needsSorting == 1 ? '' : 's'} need sorting'
+                        : '$_untagged more places to sort',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.black38),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -386,16 +495,19 @@ class _HomePageState extends State<HomePage> {
     // Asked separately, because the scan is no longer the thing that reports
     // it. Cheap, and it is the one outcome the user has to act on.
     if (!await Permission.sms.isGranted && mounted) {
-      snack(context,
-          'Your SMS is required for the tracking process. Please enable SMS permissions in the app settings.');
+      snack(
+        context,
+        'Your SMS is required for the tracking process. Please enable SMS permissions in the app settings.',
+      );
     }
   }
+
   @override
   Widget build(BuildContext context) {
     if (_preparing) return const ScanningView();
 
     _sortMonthYear(_currentMonthDocs);
-    if(_currentMonthDocs.isNotEmpty){
+    if (_currentMonthDocs.isNotEmpty) {
       setState(() {
         _currentMonthDataNotifier.value = _currentMonthDocs.last;
       });
@@ -403,460 +515,569 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      body:_currentMonthDocs.isNotEmpty? Stack(
-        children: [
-          Container(
-            width: MediaQuery.of(context).size.width,
-            height: MediaQuery.of(context).size.height*0.4,
-            decoration: const BoxDecoration(
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(32),
-                bottomRight: Radius.circular(32),
-              ),
-              color: Color(0xff5AA5E2)
-            ),
-            child: StreamBuilder<List<DocumentSnapshot>>(
-              stream: _combineStreams(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No data available'));
-                }
-                List<DocumentSnapshot> documents = snapshot.data!;
-                return ValueListenableBuilder<String>(
-                    valueListenable: _currentMonthDataNotifier,
-                    builder: (context, currentMonthData, child) {
-                    return CarouselSlider.builder(
-                      options: CarouselOptions(
-                          // This month, not this month and slivers of two
-                          // others. At 0.7 the neighbours were wide enough to
-                          // compete with the figure the screen exists to show.
-                          viewportFraction: 0.86,
-                          aspectRatio: 16/9,
-                          height: MediaQuery.of(context).size.width*0.43,
-                          autoPlay: false,
-                          initialPage: _lastPage,
-                          enableInfiniteScroll: false,
-                          enlargeCenterPage: true,
-                        onPageChanged: (index, reason) {
-                            _currentMonthDataNotifier.value = _currentMonthDocs[index];
-                            _manuallyUpdateDailySpend();
-                              _monthData = documents[index].data() as Map<String, dynamic>;
+      body: _currentMonthDocs.isNotEmpty
+          ? Stack(
+              children: [
+                Container(
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height * 0.4,
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(32),
+                      bottomRight: Radius.circular(32),
+                    ),
+                    color: Color(0xff5AA5E2),
+                  ),
+                  child: StreamBuilder<List<DocumentSnapshot>>(
+                    stream: _combineStreams(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const Center(child: Text('No data available'));
+                      }
+                      List<DocumentSnapshot> documents = snapshot.data!;
+                      return ValueListenableBuilder<String>(
+                        valueListenable: _currentMonthDataNotifier,
+                        builder: (context, currentMonthData, child) {
+                          return CarouselSlider.builder(
+                            options: CarouselOptions(
+                              // This month, not this month and slivers of two
+                              // others. At 0.7 the neighbours were wide enough to
+                              // compete with the figure the screen exists to show.
+                              viewportFraction: 0.86,
+                              aspectRatio: 16 / 9,
+                              height: MediaQuery.of(context).size.width * 0.43,
+                              autoPlay: false,
+                              initialPage: _lastPage,
+                              enableInfiniteScroll: false,
+                              enlargeCenterPage: true,
+                              onPageChanged: (index, reason) {
+                                _currentMonthDataNotifier.value =
+                                    _currentMonthDocs[index];
+                                _manuallyUpdateDailySpend();
+                                _monthData =
+                                    documents[index].data()
+                                        as Map<String, dynamic>;
+                              },
+                            ),
+                            itemCount: documents.length,
+                            itemBuilder: (BuildContext context, int index, int realIndex) {
+                              String month = _currentMonthDocs[index];
 
-                        },
-                      ),
-                      itemCount: documents.length,
-                        itemBuilder: (BuildContext context, int index, int realIndex) {
-                          String month = _currentMonthDocs[index];
+                              //Map<String, dynamic> monthData = _data[month] ?? {};
+                              DocumentSnapshot document = documents[index];
+                              Map<String, dynamic> monthData =
+                                  document.data() as Map<String, dynamic>;
 
-                          //Map<String, dynamic> monthData = _data[month] ?? {};
-                          DocumentSnapshot document = documents[index];
-                          Map<String, dynamic> monthData = document.data() as Map<String, dynamic>;
-
-                          return Center(
-                          child: Column(
-                            children: [
-                              SizedBox(height: MediaQuery.of(context).size.width*0.12,),
-                              Text('${monthData['currency']} ${_formatNumber(monthData['monthlySpend'])}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 17,
-                                color: Colors.white
-                              ),
-                              ),
-                               Padding(
-                                padding: EdgeInsets.only(top: 10.0),
-                                child:  Text( month == _currentMonth?
-                                  'spent this month':monthData['currentMonthName'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white
-                                ),
-                                ),
-                              ),
-                              // What it is measured against. A figure on its
-                              // own says what was spent, never whether that
-                              // was too much.
-                              Builder(builder: (_) {
-                                final budget =
-                                    _monthBudget(monthData['listItems']);
-                                if (budget <= 0) return const SizedBox.shrink();
-                                final spent = (monthData['monthlySpend']
-                                            as num?)
-                                        ?.toDouble() ??
-                                    0;
-                                final status = BudgetStatus.of(
-                                    spent: spent, budget: budget);
-                                return Padding(
-                                  padding: const EdgeInsets.fromLTRB(26, 9, 26, 0),
-                                  child: Column(
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: LinearProgressIndicator(
-                                          value:
-                                              status.fraction.clamp(0.0, 1.0),
-                                          minHeight: 5,
-                                          backgroundColor: Colors.white
-                                              .withValues(alpha: 0.28),
-                                          valueColor: AlwaysStoppedAnimation(
-                                              status.isOver
-                                                  ? const Color(0xffFFC9C2)
-                                                  : Colors.white),
+                              return Center(
+                                child: Column(
+                                  children: [
+                                    SizedBox(
+                                      height:
+                                          MediaQuery.of(context).size.width *
+                                          0.12,
+                                    ),
+                                    Text(
+                                      '${monthData['currency']} ${_formatNumber(monthData['monthlySpend'])}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 17,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: EdgeInsets.only(top: 10.0),
+                                      child: Text(
+                                        month == _currentMonth
+                                            ? 'spent this month'
+                                            : monthData['currentMonthName'],
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.white,
                                         ),
                                       ),
-                                      const SizedBox(height: 6),
+                                    ),
+                                    // What it is measured against. A figure on its
+                                    // own says what was spent, never whether that
+                                    // was too much.
+                                    Builder(
+                                      builder: (_) {
+                                        final budget = _monthBudget(
+                                          monthData['listItems'],
+                                        );
+                                        if (budget <= 0)
+                                          return const SizedBox.shrink();
+                                        final spent =
+                                            (monthData['monthlySpend'] as num?)
+                                                ?.toDouble() ??
+                                            0;
+                                        final status = BudgetStatus.of(
+                                          spent: spent,
+                                          budget: budget,
+                                        );
+                                        return Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            26,
+                                            9,
+                                            26,
+                                            0,
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                child: LinearProgressIndicator(
+                                                  value: status.fraction.clamp(
+                                                    0.0,
+                                                    1.0,
+                                                  ),
+                                                  minHeight: 5,
+                                                  backgroundColor: Colors.white
+                                                      .withValues(alpha: 0.28),
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation(
+                                                        status.isOver
+                                                            ? const Color(
+                                                                0xffFFC9C2,
+                                                              )
+                                                            : Colors.white,
+                                                      ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                'of ${monthData['currency']} '
+                                                '${_formatNumber(budget)} budgeted',
+                                                style: TextStyle(
+                                                  fontSize: 11.5,
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.88),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                Positioned(
+                  top: 35,
+                  left: 10,
+                  child: IconButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  ),
+                ),
+                // One control, not three unlabelled white glyphs in a row with
+                // sign-out at the end of them. The inbox that used to sit here is
+                // gone: it carried the needs-sorting count as a numeral on an icon,
+                // and the banner over the list says the same thing in words.
+                Positioned(
+                  top: 35,
+                  right: 10,
+                  child: PopupMenuButton<String>(
+                    tooltip: 'More',
+                    icon: const Icon(Icons.more_vert, color: Colors.white),
+                    onSelected: (value) {
+                      if (value == 'reminders') {
+                        _scheduleNotificationAlert();
+                        return;
+                      }
+                      _confirmSignOut();
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'reminders',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.edit_notifications_outlined,
+                              size: 19,
+                              color: Colors.black54,
+                            ),
+                            SizedBox(width: 12),
+                            Text('Reminders'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'signout',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.exit_to_app,
+                              size: 19,
+                              color: Colors.black54,
+                            ),
+                            SizedBox(width: 12),
+                            Text('Sign out'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ValueListenableBuilder(
+                  valueListenable: _updateDailySpend,
+                  builder: (context, value, child) {
+                    return value == true
+                        ? Positioned(
+                            bottom: MediaQuery.of(context).size.height * 0.65,
+                            right: 30,
+                            // A chip, not bare white text floating over the header. It
+                            // read as something left in by mistake, which is a poor look
+                            // for a control that rewrites the month's total.
+                            child: Material(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(20),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () {
+                                  DailyResets().resetDailySpend(
+                                    _currentMonthDataNotifier.value,
+                                  );
+                                },
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.refresh_rounded,
+                                        size: 14,
+                                        color: Colors.white,
+                                      ),
+                                      SizedBox(width: 6),
                                       Text(
-                                        'of ${monthData['currency']} '
-                                        '${_formatNumber(budget)} budgeted',
+                                        'Update monthly spend',
                                         style: TextStyle(
+                                          color: Colors.white,
                                           fontSize: 11.5,
-                                          color: Colors.white
-                                              .withValues(alpha: 0.88),
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                     ],
                                   ),
-                                );
-                              }),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  }
-                );
-              }
-            ),
-          ),
-          Positioned(
-              top: 35,
-              left: 10,
-              child: IconButton(
-                  onPressed: (){
-                    Navigator.pop(context);
-                  }, icon: const Icon(Icons.arrow_back, color: Colors.white,)
-              )
-          ),
-          Positioned(
-            top: 35,
-              right: 45,
-              child: IconButton(
-                  onPressed: _scheduleNotificationAlert,
-                  tooltip: 'Reminders',
-                  icon: Icon(Icons.edit_notifications_outlined,color: Colors.white,)
-              ),
-          ),
-          // Transactions the app could not file on its own.
-          Positioned(
-            top: 35,
-            right: 80,
-            child: IconButton(
-              onPressed: () async {
-                await context.push('/pending');
-                await _loadNeedsSorting();
-              },
-              tooltip: 'Needs sorting',
-              icon: _needsSorting > 0
-                  ? Badge(
-                      label: Text('$_needsSorting'),
-                      child: const Icon(Icons.inbox_outlined,
-                          color: Colors.white),
-                    )
-                  : const Icon(Icons.inbox_outlined, color: Colors.white),
-            ),
-          ),
-          Positioned(
-              top: 35,
-              right: 10,
-              child: IconButton(
-                  onPressed: (){
-                    showDialog(
-                        context: context,
-                        builder: (context){
-                          return AlertDialog(
-                            title: const Text("Are You Sure?"),
-                            content: const Text('Are you sure you want to sign out of '
-                                'this account?'),
-                            actions: [
-                              TextButton(
-                                  onPressed: ()async{
-                                    await FirebaseAuth.instance.signOut();
-                                    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context){
-                                      return const SignInPage();
-                                    }));
-                                  },
-                                  child: const Text("yes")
+                                ),
                               ),
-                              TextButton(
-                                  onPressed: (){
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text("no")
-                              ),
-                            ],
-                          );
-                        }
-                    );
+                            ),
+                          )
+                        : Container(); // You can replace Container with any other widget if needed.
                   },
-                  tooltip: 'Sign out',
-                  icon: const Icon(Icons.exit_to_app, color: Colors.white,)
-              )
-          ),
-          ValueListenableBuilder(
-            valueListenable: _updateDailySpend,
-            builder: (context, value, child) {
-              return value == true
-                  ? Positioned(
-                bottom: MediaQuery.of(context).size.height * 0.65,
-                right: 30,
-                // A chip, not bare white text floating over the header. It
-                // read as something left in by mistake, which is a poor look
-                // for a control that rewrites the month's total.
-                child: Material(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () {
-                      DailyResets()
-                          .resetDailySpend(_currentMonthDataNotifier.value);
-                    },
-                    child: const Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.refresh_rounded,
-                              size: 14, color: Colors.white),
-                          SizedBox(width: 6),
-                          Text('Update monthly spend',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                  ),
                 ),
-              )
-                  : Container(); // You can replace Container with any other widget if needed.
-            },
-          ),
-          Center(
-            child: Column(
-              children: [
-                SizedBox(height:MediaQuery.of(context).size.height*0.3 ,),
-                SizedBox(
-                  height:MediaQuery.of(context).size.height*0.7,
-                  width: MediaQuery.of(context).size.width*0.85,
-                  child:
-                  ValueListenableBuilder<String>(
-                      valueListenable: _currentMonthDataNotifier,
-                      builder: (context, docId, child) {
-                        if (docId == '') {
-                          return StreamWidget(
-                            streamValue: _combineStreams(),
-                              actualMonthValue: docId
-                          );
-                        }
-                      return StreamBuilder<DocumentSnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection("track_items")
-                              .doc(docId)
-                              .collection("monthUsers")
-                              .doc(FirebaseAuth.instance.currentUser!.uid)
-                              .snapshots(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
+                Center(
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.3,
+                      ),
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.7,
+                        width: MediaQuery.of(context).size.width * 0.85,
+                        child: ValueListenableBuilder<String>(
+                          valueListenable: _currentMonthDataNotifier,
+                          builder: (context, docId, child) {
+                            if (docId == '') {
+                              return StreamWidget(
+                                streamValue: _combineStreams(),
+                                actualMonthValue: docId,
+                              );
                             }
-
-                            if (!snapshot.hasData || !snapshot.data!.exists) {
-                              return const Center(child: Text('No data available'));
-                            }
-
-                            Map<String, dynamic> monthData = snapshot.data!.data() as Map<String, dynamic>;
-
-                            return ListView.builder(
-                                itemCount: monthData['listItems'].length+1,
-                                itemBuilder: (context, index){
-                                  if (index == monthData['listItems'].length){
-                                    return Center(
-                                      child: TextButton(
-                                          onPressed: (){
-                                            Navigator.push(context, MaterialPageRoute(builder: (context){
-                                              // The rebuilt setup screen,
-                                              // not the old one it replaced.
-                                              // `returnOnDone` hands the user
-                                              // back here rather than into
-                                              // the scan and batch screen.
-                                              return const SelectTrackItems(
-                                                  returnOnDone: true);
-                                            }));
-                                          },
-                                          child: const Text('Tap to add more items')
-                                      ),
-                                    );
-                                  }
-
-                                  var listedItems = monthData['listItems'][index];
-                                  double progress = 0;
-                                  double maxValue = double.parse(listedItems['budgetSet'].replaceAll(',', ''));
-                                  // The whole month, today included: totals are
-                                  // now derived from the transaction records
-                                  // rather than rolled up nightly, so this no
-                                  // longer needs dailySpend added to it.
-                                  double currentValue =
-                                      (listedItems['totalAmountSpent'] as num?)?.toDouble() ?? 0;
-                                  progress = (maxValue > 0) ? (currentValue / maxValue) : 0.0;
-                                  progress = progress.isFinite ? progress : 0.0;
-                                  // One rule for the colour and the wording,
-                                  // shared with the notification, so the card
-                                  // and the alert can never disagree.
-                                  final status = BudgetStatus.of(
-                                      spent: currentValue, budget: maxValue);
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 8.0),
-                                    child: GestureDetector(
-                                      onTap: (){
-                                        Navigator.push(context, MaterialPageRoute(builder: (context){
-                                          return ItemDetails(
-                                            itemDetails: listedItems,
-                                            monthDetails: monthData,
-                                            actualMonth: docId,
-                                            index: index,
-                                            edit: true,
-                                          );
-                                        }));
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(18),
-                                            color: Colors.white,
-                                            // A quiet outline rather than a
-                                            // filled alarm: it has to read at
-                                            // a glance without making the
-                                            // whole screen look broken.
-                                            border: Border.all(
-                                              color: _statusColour(status.level)
-                                                  .withValues(alpha:
-                                                      status.level ==
-                                                              BudgetLevel.ok
-                                                          ? 0
-                                                          : 0.55),
-                                              width: 1.4,
-                                            )
-                                        ),
-                                        child: Column(
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    listedItems['image'] != ""?
-                                                    SvgPicture.asset(listedItems['image'],height: 20,):
-                                                    Text(listedItems['name'][0],
-                                                      style: TextStyle(
-                                                          fontSize: 20,
-                                                          color: Colors.black54,
-                                                          fontWeight: FontWeight.w600
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 30,),
-                                                    Text(listedItems['name'])
-
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 10,),
-                                            ProgressIndicatorWidget(
-                                              currentValue: currentValue,
-                                              maxValue: maxValue,
-                                              progress: progress,
-                                              currency: monthData['currency'],
-                                            ),
-                                            if (status.level != BudgetLevel.ok) ...[
-                                              const SizedBox(height: 10),
-                                              Row(
-                                                children: [
-                                                  Icon(
-                                                    status.isOver
-                                                        ? Icons.error_outline
-                                                        : Icons
-                                                            .info_outline_rounded,
-                                                    size: 15,
-                                                    color: _statusColour(
-                                                        status.level),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Expanded(
-                                                    child: Text(
-                                                      // The figures, not just
-                                                      // the fact: "over
-                                                      // budget" alone says
-                                                      // there is a problem
-                                                      // without saying how
-                                                      // big it is.
-                                                      status.describe(
-                                                          '${monthData['currency'] ?? ''}'),
-                                                      style: TextStyle(
-                                                        fontSize: 12.5,
-                                                        height: 1.35,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: _statusColour(
-                                                            status.level),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                            const SizedBox(height: 15,),
-                                            const Divider()
-                                          ],
-                                        ),
-                                      ),
-                                    ),
+                            return StreamBuilder<DocumentSnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection("track_items")
+                                  .doc(docId)
+                                  .collection("monthUsers")
+                                  .doc(FirebaseAuth.instance.currentUser!.uid)
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
                                   );
                                 }
-                            );
-                          }
-                      );
-                    }
-                  ),
-                )
-              ],
-            ),
-          ),
-        ],
-      ):Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: CircularProgressIndicator(),
-            ),
-            SizedBox(
-              width: MediaQuery.of(context).size.width*0.9,
-                child: Text('Make sure you have stable internet connection',
-                textAlign: TextAlign.center,
-                )
-            )
 
-          ],
-        ),
-      ),
+                                if (!snapshot.hasData ||
+                                    !snapshot.data!.exists) {
+                                  return const Center(
+                                    child: Text('No data available'),
+                                  );
+                                }
+
+                                Map<String, dynamic> monthData =
+                                    snapshot.data!.data()
+                                        as Map<String, dynamic>;
+
+                                return Column(
+                                  children: [
+                                    _sortBanner(),
+                                    Expanded(
+                                      child: ListView.builder(
+                                        itemCount:
+                                            monthData['listItems'].length + 1,
+                                        itemBuilder: (context, index) {
+                                          if (index ==
+                                              monthData['listItems'].length) {
+                                            return Center(
+                                              child: TextButton(
+                                                onPressed: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (context) {
+                                                        // The rebuilt setup screen,
+                                                        // not the old one it replaced.
+                                                        // `returnOnDone` hands the user
+                                                        // back here rather than into
+                                                        // the scan and batch screen.
+                                                        return const SelectTrackItems(
+                                                          returnOnDone: true,
+                                                        );
+                                                      },
+                                                    ),
+                                                  );
+                                                },
+                                                child: const Text(
+                                                  'Tap to add more items',
+                                                ),
+                                              ),
+                                            );
+                                          }
+
+                                          var listedItems =
+                                              monthData['listItems'][index];
+                                          double progress = 0;
+                                          double maxValue = double.parse(
+                                            listedItems['budgetSet'].replaceAll(
+                                              ',',
+                                              '',
+                                            ),
+                                          );
+                                          // The whole month, today included: totals are
+                                          // now derived from the transaction records
+                                          // rather than rolled up nightly, so this no
+                                          // longer needs dailySpend added to it.
+                                          double currentValue =
+                                              (listedItems['totalAmountSpent']
+                                                      as num?)
+                                                  ?.toDouble() ??
+                                              0;
+                                          progress = (maxValue > 0)
+                                              ? (currentValue / maxValue)
+                                              : 0.0;
+                                          progress = progress.isFinite
+                                              ? progress
+                                              : 0.0;
+                                          // One rule for the colour and the wording,
+                                          // shared with the notification, so the card
+                                          // and the alert can never disagree.
+                                          final status = BudgetStatus.of(
+                                            spent: currentValue,
+                                            budget: maxValue,
+                                          );
+
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 8.0,
+                                            ),
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) {
+                                                      return ItemDetails(
+                                                        itemDetails:
+                                                            listedItems,
+                                                        monthDetails: monthData,
+                                                        actualMonth: docId,
+                                                        index: index,
+                                                        edit: true,
+                                                      );
+                                                    },
+                                                  ),
+                                                );
+                                              },
+                                              child: Container(
+                                                padding: const EdgeInsets.all(
+                                                  12,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(18),
+                                                  color: Colors.white,
+                                                  // A quiet outline rather than a
+                                                  // filled alarm: it has to read at
+                                                  // a glance without making the
+                                                  // whole screen look broken.
+                                                  border: Border.all(
+                                                    color:
+                                                        _statusColour(
+                                                          status.level,
+                                                        ).withValues(
+                                                          alpha:
+                                                              status.level ==
+                                                                  BudgetLevel.ok
+                                                              ? 0
+                                                              : 0.55,
+                                                        ),
+                                                    width: 1.4,
+                                                  ),
+                                                ),
+                                                child: Column(
+                                                  children: [
+                                                    Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .spaceBetween,
+                                                      children: [
+                                                        Row(
+                                                          children: [
+                                                            listedItems['image'] !=
+                                                                    ""
+                                                                ? SvgPicture.asset(
+                                                                    listedItems['image'],
+                                                                    height: 20,
+                                                                  )
+                                                                : Text(
+                                                                    listedItems['name'][0],
+                                                                    style: TextStyle(
+                                                                      fontSize:
+                                                                          20,
+                                                                      color: Colors
+                                                                          .black54,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w600,
+                                                                    ),
+                                                                  ),
+                                                            const SizedBox(
+                                                              width: 30,
+                                                            ),
+                                                            Text(
+                                                              listedItems['name'],
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 10),
+                                                    ProgressIndicatorWidget(
+                                                      currentValue:
+                                                          currentValue,
+                                                      maxValue: maxValue,
+                                                      progress: progress,
+                                                      currency:
+                                                          monthData['currency'],
+                                                    ),
+                                                    if (status.level !=
+                                                        BudgetLevel.ok) ...[
+                                                      const SizedBox(
+                                                        height: 10,
+                                                      ),
+                                                      Row(
+                                                        children: [
+                                                          Icon(
+                                                            status.isOver
+                                                                ? Icons
+                                                                      .error_outline
+                                                                : Icons
+                                                                      .info_outline_rounded,
+                                                            size: 15,
+                                                            color:
+                                                                _statusColour(
+                                                                  status.level,
+                                                                ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 6,
+                                                          ),
+                                                          Expanded(
+                                                            child: Text(
+                                                              // The figures, not just
+                                                              // the fact: "over
+                                                              // budget" alone says
+                                                              // there is a problem
+                                                              // without saying how
+                                                              // big it is.
+                                                              status.describe(
+                                                                '${monthData['currency'] ?? ''}',
+                                                              ),
+                                                              style: TextStyle(
+                                                                fontSize: 12.5,
+                                                                height: 1.35,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color:
+                                                                    _statusColour(
+                                                                      status
+                                                                          .level,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                    const SizedBox(height: 15),
+                                                    const Divider(),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                  SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.9,
+                    child: Text(
+                      'Make sure you have stable internet connection',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }
