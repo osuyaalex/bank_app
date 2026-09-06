@@ -10,12 +10,18 @@
 /// people did.
 ///
 /// What that screen was good at is kept. Answering one counterparty still
-/// teaches the matcher something that settles others, and accepting the
-/// budgets drawn from history still files everything they cover. Both used to
-/// happen silently in the background; here each one is a card that says what
-/// it just did. The list itself survives as the last step, doing the job it
-/// was always good at -- checking twenty answers at a glance -- rather than
-/// the job it was bad at, which was collecting them.
+/// teaches the matcher something that settles others -- that used to happen
+/// silently in the background, and is now a card that says what it just did.
+/// The list itself survives as the last step, doing the job it was always
+/// good at -- checking twenty answers at a glance -- rather than the job it
+/// was bad at, which was collecting them.
+///
+/// It does not ask about budgets. It briefly opened on a card offering
+/// budgets worked out from history, which was a duplicate: the setup screen
+/// asks for exactly those, with the same picker and figures from the same
+/// months, one screen earlier. Spending in a category the user does not track
+/// is offered on the question card for the payment that revealed it, which is
+/// where it means something.
 library;
 
 import 'dart:async';
@@ -25,7 +31,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../data/budget_suggestion.dart';
 import '../data/category_catalogue.dart';
 import '../data/migration_plan.dart';
 import '../data/models.dart';
@@ -35,8 +40,6 @@ import '../parsing/bank_alert.dart';
 import '../parsing/category_matcher.dart';
 import 'batch_tag_page.dart';
 import 'sort_flow.dart';
-import 'widget/budget_picker.dart';
-import 'widget/budget_suggestion_sheet.dart';
 import 'widget/bulk_sort_sheet.dart';
 import 'widget/category_picker.dart';
 import 'widget/category_setup_sheet.dart';
@@ -70,31 +73,6 @@ class _SortFlowPageState extends State<SortFlowPage> {
   String? _ownerName;
   bool _smsGranted = true;
   ({int total, int parsed})? _readability;
-  List<BudgetSuggestion> _budgetHints = [];
-
-  /// True once the budget offer has been answered either way. Declining is an
-  /// answer; re-offering it is what turned the old banner into furniture.
-  bool _budgetsSettled = false;
-
-  /// What the user currently has set, by category name, so a proposal can be
-  /// shown against the figure it would replace instead of appearing to
-  /// contradict it out of nowhere.
-  Map<String, double> _currentBudgets = {};
-
-  /// Proposals the user has ticked.
-  ///
-  /// A category they already track starts ticked -- they came here to be
-  /// given figures. One they do not track starts unticked, because accepting
-  /// it adds a row to their home screen, and taking that by default is
-  /// deciding on their behalf.
-  final Set<String> _takingBudgets = {};
-
-  /// Proposals already given a starting tick, so a later refresh cannot
-  /// re-tick something the user has deliberately turned off.
-  final Set<String> _tickSeeded = {};
-
-  /// Figures the user changed on the card. Keyed by category id.
-  final Map<String, double> _budgetEdits = {};
 
   /// What the last answer settled on its own, waiting to be shown.
   CascadeStep? _cascade;
@@ -166,8 +144,6 @@ class _SortFlowPageState extends State<SortFlowPage> {
     final smsGranted = await _readSmsPermission();
     final readability = await SmsInbox.readability();
     final ownerName = await _repo.ownerName();
-    final budgetHints = await _repo.budgetSuggestionsWorthShowing();
-    final setBudgets = await _repo.trackedItemsWithBudgets();
 
     // Self-transfers the migration proposed arrive already answered: the user
     // is confirming a suggestion, not deciding anything.
@@ -193,13 +169,6 @@ class _SortFlowPageState extends State<SortFlowPage> {
       _smsGranted = smsGranted;
       _readability = readability;
       _ownerName = ownerName;
-      _budgetHints = budgetHints;
-      _currentBudgets = {
-        for (final e in setBudgets.entries)
-          e.key:
-              double.tryParse(e.value.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0,
-      };
-      _seedTicks(budgetHints);
       _rows = [
         ...proposed,
         ...batchTagCandidates(
@@ -212,7 +181,6 @@ class _SortFlowPageState extends State<SortFlowPage> {
     });
 
     unawaited(_autoAssignQuietly());
-    unawaited(_refreshBudgetHints());
   }
 
   Future<bool> _readSmsPermission() async {
@@ -222,21 +190,6 @@ class _SortFlowPageState extends State<SortFlowPage> {
       // Assume granted rather than accusing the user of withholding access
       // because a platform call failed.
       return true;
-    }
-  }
-
-  Future<void> _refreshBudgetHints() async {
-    try {
-      if (await _repo.refreshBudgetSuggestions() == 0) return;
-      final hints = await _repo.budgetSuggestionsWorthShowing();
-      if (!mounted) return;
-      setState(() {
-        _budgetHints = hints;
-        _seedTicks(hints);
-      });
-    } catch (_) {
-      // A suggestion is a convenience. Failing to produce one must never take
-      // the screen down with it.
     }
   }
 
@@ -519,128 +472,6 @@ class _SortFlowPageState extends State<SortFlowPage> {
   }
 
   // -------------------------------------------------------------------------
-  // Budgets from history -- the first card, and the biggest one
-  // -------------------------------------------------------------------------
-
-  /// Gives a proposal its opening tick, once.
-  ///
-  /// Runs again whenever the proposals are recomputed, so it must never
-  /// re-tick something the user has turned off -- being overruled by a
-  /// background refresh is worse than not being offered at all.
-  void _seedTicks(List<BudgetSuggestion> hints) {
-    for (final h in hints) {
-      if (!_tickSeeded.add(h.categoryId)) continue;
-      if (h.isTracked) _takingBudgets.add(h.categoryId);
-    }
-  }
-
-  double _amountFor(BudgetSuggestion h) =>
-      _budgetEdits[h.categoryId] ?? h.amount;
-
-  Future<void> _editBudget(BudgetSuggestion h) async {
-    final chosen = await showBudgetAmountSheet(
-      context,
-      categoryName: h.categoryName,
-      initial: _amountFor(h),
-      currency: _currency,
-      history: h.months.map((m) => m.total).toList(),
-    );
-    if (chosen == null || !mounted) return;
-    // Saving the figure it opened on is not a change. Recording it as one
-    // would label the row "changed from N35,000" beside N35,000.
-    if ((chosen - _amountFor(h)).abs() < 1) {
-      setState(() => _takingBudgets.add(h.categoryId));
-      return;
-    }
-    setState(() {
-      _budgetEdits[h.categoryId] = chosen;
-      // Changing a figure is a way of saying yes to it. Leaving it unticked
-      // after the user has just chosen its amount would throw the work away.
-      _takingBudgets.add(h.categoryId);
-    });
-    _say(
-      '${h.categoryName} set to '
-      '$_currency${_money.format(chosen.round())} a month.',
-    );
-  }
-
-  /// Writes the ticked budgets, then files everything they cover.
-  Future<void> _applyBudgets() async {
-    final chosen = [
-      for (final h in _budgetHints)
-        if (_takingBudgets.contains(h.categoryId))
-          h.copyWith(amount: _amountFor(h)),
-    ];
-    if (chosen.isEmpty) {
-      setState(() => _budgetsSettled = true);
-      return;
-    }
-
-    setState(() => _busy = true);
-    final before = _answered;
-    try {
-      for (final s in chosen) {
-        await _repo.applyBudgetSuggestion(s);
-      }
-
-      // The categories now exist and are tracked, so every counterparty the
-      // matcher would file into them can be filed into them. This is the
-      // whole reason the budgets are asked about first.
-      final categories = await _repo.pickerCategories();
-      final tracked = await _repo.trackedCategoryNames();
-      if (!mounted) return;
-      setState(() {
-        _categories = categories.where((c) => c.active).toList()
-          ..sort(
-            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-          );
-        _tracked = tracked;
-        _guesses.removeWhere((k, _) => !_choices.containsKey(k));
-      });
-
-      await _autoAssign();
-      final left = await _repo.budgetSuggestionsWorthShowing();
-      if (!mounted) return;
-
-      final covered = cascadedBy(
-        trigger: '',
-        before: before,
-        after: _answered,
-        rows: _rows,
-      );
-      setState(() {
-        _budgetHints = left;
-        _budgetsSettled = true;
-        _busy = false;
-        _cascade = covered.isEmpty
-            ? null
-            : CascadeStep(
-                trigger: '',
-                categoryName: chosen.length == 1
-                    ? chosen.first.categoryName
-                    : 'your budgets',
-                covered: covered,
-              );
-      });
-      if (covered.isEmpty) {
-        _say(
-          chosen.length == 1
-              ? '${chosen.first.categoryName} set.'
-              : '${chosen.length} budgets set.',
-        );
-      }
-    } catch (e) {
-      // ignore: avoid_print
-      print('SORT: applying budgets failed: $e');
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _budgetsSettled = true;
-      });
-      _say('Could not set those budgets. Check your connection.');
-    }
-  }
-
   // -------------------------------------------------------------------------
   // Leaving
   // -------------------------------------------------------------------------
@@ -766,8 +597,6 @@ class _SortFlowPageState extends State<SortFlowPage> {
         : nextStep(
             rows: _rows,
             answered: _answered,
-            budgetHints: _budgetHints,
-            budgetsSettled: _budgetsSettled,
             skipped: _skipped,
             cascade: _cascade,
           );
@@ -778,16 +607,10 @@ class _SortFlowPageState extends State<SortFlowPage> {
       // carries a way back and a way out, which is what was actually missing.
       canPop: false,
       child: Scaffold(
-        // The budget step is a preamble, not one of the questions, and it is
-        // told apart by the room it is in rather than by a line of text
-        // saying so. Everything after it sits on the same grey.
-        backgroundColor: step is SetBudgetsStep
-            ? const Color(0xffF3F6FF)
-            : Colors.grey.shade50,
+        backgroundColor: Colors.grey.shade50,
         appBar: _appBar(step, progress),
         body: SafeArea(
           child: switch (step) {
-            SetBudgetsStep(suggestions: final s) => _budgetsCard(s),
             CascadeStep() => _cascadeCard(step),
             AskStep(entry: final e) => _askCard(e, progress),
             ReviewStep() => _reviewList(progress),
@@ -800,10 +623,9 @@ class _SortFlowPageState extends State<SortFlowPage> {
 
   PreferredSizeWidget _appBar(SortStep step, SortProgress p) {
     final canGoBack = !_reviewing && step is AskStep && _asked.isNotEmpty;
-    final preamble = step is SetBudgetsStep;
     return AppBar(
       automaticallyImplyLeading: false,
-      backgroundColor: preamble ? const Color(0xffF3F6FF) : Colors.white,
+      backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
@@ -816,11 +638,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
             )
           : null,
       title: Text(
-        preamble
-            ? 'Before we start'
-            : _reviewing
-            ? 'Your answers'
-            : 'Sort your spending',
+        _reviewing ? 'Your answers' : 'Sort your spending',
         style: const TextStyle(
           color: Colors.black,
           fontSize: 16,
@@ -828,7 +646,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
         ),
       ),
       actions: [
-        if (!_reviewing && !preamble)
+        if (!_reviewing)
           TextButton(
             onPressed: _busy ? null : () => setState(() => _reviewing = true),
             style: TextButton.styleFrom(foregroundColor: _brand),
@@ -838,19 +656,15 @@ class _SortFlowPageState extends State<SortFlowPage> {
             ),
           ),
       ],
-      // No progress bar on the preamble. It is not one of the questions, and
-      // a bar reading zero of twenty above it says the opposite.
-      bottom: preamble
-          ? null
-          : PreferredSize(
-              preferredSize: const Size.fromHeight(3),
-              child: LinearProgressIndicator(
-                value: p.total == 0 ? 1 : p.answered / p.total,
-                minHeight: 3,
-                backgroundColor: Colors.grey.shade200,
-                valueColor: const AlwaysStoppedAnimation(_brand),
-              ),
-            ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(3),
+        child: LinearProgressIndicator(
+          value: p.total == 0 ? 1 : p.answered / p.total,
+          minHeight: 3,
+          backgroundColor: Colors.grey.shade200,
+          valueColor: const AlwaysStoppedAnimation(_brand),
+        ),
+      ),
     );
   }
 
@@ -870,334 +684,6 @@ class _SortFlowPageState extends State<SortFlowPage> {
       _cascade = null;
       _revisiting = entry;
     });
-  }
-
-  // -------------------------------------------------------------------------
-  // Card zero: budgets from history
-  // -------------------------------------------------------------------------
-
-  Widget _budgetsCard(List<BudgetSuggestion> hints) {
-    final read = _readability?.total ?? 0;
-    final months = hints
-        .map((h) => h.months.length)
-        .fold(0, (a, b) => a > b ? a : b);
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
-      children: [
-        // A header, not a paragraph. Everything this screen has to explain is
-        // explained on the rows, where the user is looking when the question
-        // actually arises. Prose above a list is prose nobody reads.
-        Row(
-          children: [
-            const Icon(Icons.auto_awesome_rounded, size: 17, color: _brand),
-            const SizedBox(width: 7),
-            Expanded(
-              child: Text(
-                months > 1
-                    ? 'FROM YOUR LAST $months MONTHS'
-                    : read > 0
-                    ? 'FROM ${_money.format(read)} MESSAGES'
-                    : 'FROM YOUR BANK MESSAGES',
-                style: const TextStyle(
-                  fontSize: 10.5,
-                  letterSpacing: 1,
-                  fontWeight: FontWeight.w800,
-                  color: _brand,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'This is what you\nactually spend',
-          style: TextStyle(
-            fontSize: 27,
-            fontWeight: FontWeight.w800,
-            color: _ink,
-            height: 1.2,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Tick what you want to budget.',
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-        ),
-        const SizedBox(height: 22),
-        for (final h in hints) _budgetRow(h),
-      ],
-    );
-  }
-
-  Widget _budgetRow(BudgetSuggestion h) {
-    final taken = _takingBudgets.contains(h.categoryId);
-    final amount = _amountFor(h);
-    final edited = _budgetEdits.containsKey(h.categoryId);
-    final set = _currentBudgets[h.categoryName] ?? 0;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: taken
-                ? _brand.withValues(alpha: 0.55)
-                : Colors.grey.shade200,
-            width: taken ? 1.6 : 1,
-          ),
-          boxShadow: [
-            if (taken)
-              BoxShadow(
-                color: _brand.withValues(alpha: 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 3),
-              ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-              onTap: _busy
-                  ? null
-                  : () => setState(
-                      () => taken
-                          ? _takingBudgets.remove(h.categoryId)
-                          : _takingBudgets.add(h.categoryId),
-                    ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(15, 14, 14, 12),
-                child: Row(
-                  children: [
-                    Icon(
-                      taken
-                          ? Icons.check_circle_rounded
-                          : Icons.circle_outlined,
-                      size: 22,
-                      color: taken ? _brand : Colors.grey.shade400,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  h.categoryName,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: _ink,
-                                  ),
-                                ),
-                              ),
-                              if (!h.isTracked) ...[
-                                const SizedBox(width: 7),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xffEFF3FF),
-                                    borderRadius: BorderRadius.circular(5),
-                                  ),
-                                  child: const Text(
-                                    'NOT BUDGETED',
-                                    style: TextStyle(
-                                      fontSize: 8.5,
-                                      letterSpacing: 0.6,
-                                      fontWeight: FontWeight.w800,
-                                      color: _brand,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          // One line, and it names both figures so neither
-                          // can be mistaken for the other. A bare number in
-                          // blue underneath a sentence about a different
-                          // number explains nothing.
-                          Text(
-                            set > 0
-                                ? 'You spend about '
-                                      '$_currency${_money.format(h.amount.round())} '
-                                      'a month · you budgeted '
-                                      '$_currency${_money.format(set.round())}'
-                                : 'You spend about '
-                                      '$_currency${_money.format(h.amount.round())} '
-                                      'a month',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              height: 1.35,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // The figure that will actually be written, labelled as such and
-            // tappable. Unlabelled it was the screen's worst moment: a large
-            // blue number with no way to tell what it referred to.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(15, 0, 14, 12),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: _busy ? null : () => _editBudget(h),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(13, 10, 10, 10),
-                  decoration: BoxDecoration(
-                    color: edited
-                        ? _brand.withValues(alpha: 0.1)
-                        : taken
-                        ? const Color(0xffF2F6FF)
-                        : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: edited
-                          ? _brand.withValues(alpha: 0.5)
-                          : Colors.transparent,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        edited
-                            ? 'Your budget'
-                            : h.isTracked
-                            ? 'Set budget to'
-                            : 'Start at',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          '$_currency${_money.format(amount.round())}',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: taken ? _brand : Colors.grey.shade700,
-                          ),
-                        ),
-                      ),
-                      // A pill, so it reads as something to press. As plain
-                      // grey text beside a figure it read as a caption, and a
-                      // caption is not a control.
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.edit_outlined,
-                              size: 13,
-                              color: Colors.grey.shade700,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Change',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.grey.shade800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Proof the change landed. Editing used to alter one figure in a
-            // strip and nothing else, so a user who set a number close to the
-            // one already there had no way to tell whether the sheet had done
-            // anything at all.
-            if (edited)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(17, 0, 14, 12),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.check_circle_rounded,
-                      size: 13,
-                      color: _brand,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Changed by you, from '
-                        '$_currency${_money.format(h.amount.round())}',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: _brand,
-                        ),
-                      ),
-                    ),
-                    InkWell(
-                      onTap: _busy
-                          ? null
-                          : () => setState(
-                              () => _budgetEdits.remove(h.categoryId),
-                            ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 3,
-                        ),
-                        child: Text(
-                          'Undo',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (h.months.length > 1)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(15, 0, 14, 12),
-                child: BudgetSparkline(
-                  months: h.months,
-                  money: (v) => '$_currency${_money.format(v.round())}',
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 
   // -------------------------------------------------------------------------
@@ -1755,15 +1241,6 @@ class _SortFlowPageState extends State<SortFlowPage> {
       onSecondary,
       caption,
     ) = switch (step) {
-      SetBudgetsStep() => (
-        _takingBudgets.isEmpty ? null : 'Use ${_takingBudgets.length}',
-        _applyBudgets,
-        'Not now',
-        () => setState(() => _budgetsSettled = true),
-        _takingBudgets.isEmpty
-            ? 'Tick the ones you want'
-            : 'Everything they cover gets filed at once',
-      ),
       CascadeStep() => (
         'Keep going',
         () => setState(() => _cascade = null),
@@ -1795,7 +1272,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
       decoration: BoxDecoration(
-        color: step is SetBudgetsStep ? const Color(0xffF3F6FF) : Colors.white,
+        color: Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),

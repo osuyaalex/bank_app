@@ -9,26 +9,22 @@
 /// The rules here are the whole difference. One question at a time, the
 /// biggest money first, and every answer that settles other rows says so out
 /// loud instead of resolving them silently in the background.
+///
+/// The flow used to open on a card offering budgets worked out from history.
+/// It was removed: the setup screen asks for exactly those budgets, with the
+/// same picker and the same figures drawn from the same months, one screen
+/// earlier -- so the card re-asked a question the user had just answered, and
+/// showed different numbers while doing it. What it uniquely knew, that money
+/// is going somewhere untracked, the question cards already say better: they
+/// offer to create the category for a payment the user is looking at, at the
+/// moment it comes up, rather than as a list of abstractions beforehand.
 library;
 
-import '../data/budget_suggestion.dart';
 import '../data/models.dart';
 
 /// One thing to put in front of the user.
 sealed class SortStep {
   const SortStep();
-}
-
-/// Budgets drawn from the user's own history, offered before anything else.
-///
-/// This was a banner sitting third in a stack of five, behind a `See` button.
-/// It is the largest single collapse in the flow -- accepting it sets several
-/// budgets at once and files every counterparty they cover -- so it goes
-/// first, where one tap can finish most of the work before the user has been
-/// asked a single question.
-class SetBudgetsStep extends SortStep {
-  const SetBudgetsStep(this.suggestions);
-  final List<BudgetSuggestion> suggestions;
 }
 
 /// Where one counterparty's payments belong.
@@ -82,15 +78,10 @@ class ReviewStep extends SortStep {
 SortStep nextStep({
   required List<CounterpartyEntry> rows,
   required Set<String> answered,
-  required List<BudgetSuggestion> budgetHints,
-  required bool budgetsSettled,
   Set<String> skipped = const {},
   CascadeStep? cascade,
 }) {
   if (cascade != null) return cascade;
-  if (!budgetsSettled && budgetHints.isNotEmpty) {
-    return SetBudgetsStep(budgetHints);
-  }
   for (final r in rows) {
     if (!answered.contains(r.key) && !skipped.contains(r.key)) {
       return AskStep(r);

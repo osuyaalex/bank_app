@@ -1,4 +1,3 @@
-import 'package:banking_app/data/budget_suggestion.dart';
 import 'package:banking_app/data/models.dart';
 import 'package:banking_app/main_page/sort_flow.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,88 +5,58 @@ import 'package:flutter_test/flutter_test.dart';
 CounterpartyEntry _cp(String key, {int count = 1, double spent = 0}) =>
     CounterpartyEntry(key: key, txCount: count, totalDebited: spent);
 
-const _hint = BudgetSuggestion(
-  categoryId: 'groceries',
-  categoryName: 'Groceries',
-  amount: 48000,
-  typical: 47300,
-  months: [],
-);
-
 void main() {
   group('what to ask next', () {
     final rows = [_cp('EBEANO', spent: 48000), _cp('ALIYU', spent: 20000)];
 
-    test('budgets come before any counterparty', () {
-      // One tap here sets several budgets and files everything they cover.
-      // Asking about a single shop first spends the user's attention on the
-      // smallest thing available.
-      final step = nextStep(
-        rows: rows,
-        answered: const {},
-        budgetHints: const [_hint],
-        budgetsSettled: false,
-      );
-      expect(step, isA<SetBudgetsStep>());
-    });
-
-    test('with no history to draw on, it opens on the first question', () {
-      final step = nextStep(
-        rows: rows,
-        answered: const {},
-        budgetHints: const [],
-        budgetsSettled: false,
-      );
-      expect((step as AskStep).entry.key, 'EBEANO');
-    });
-
-    test('the budget offer is not made twice', () {
-      // Declining is an answer. Re-offering it is how the banner became
-      // something to scroll past.
-      final step = nextStep(
-        rows: rows,
-        answered: const {},
-        budgetHints: const [_hint],
-        budgetsSettled: true,
-      );
+    test('it opens on the first question', () {
+      // Nothing precedes it. The flow briefly began with a card offering
+      // budgets worked out from history, which was a duplicate -- the setup
+      // screen asks for exactly those, with the same picker and figures from
+      // the same months, one screen earlier.
+      final step = nextStep(rows: rows, answered: const {});
       expect((step as AskStep).entry.key, 'EBEANO');
     });
 
     test('answered rows are skipped', () {
+      final step = nextStep(rows: rows, answered: const {'EBEANO'});
+      expect((step as AskStep).entry.key, 'ALIYU');
+    });
+
+    test('a row passed over is not put back straight away', () {
       final step = nextStep(
         rows: rows,
-        answered: const {'EBEANO'},
-        budgetHints: const [],
-        budgetsSettled: true,
+        answered: const {},
+        skipped: const {'EBEANO'},
       );
       expect((step as AskStep).entry.key, 'ALIYU');
     });
 
     test('the review list is the end, not a question', () {
+      final step = nextStep(rows: rows, answered: const {'EBEANO', 'ALIYU'});
+      expect(step, isA<ReviewStep>());
+    });
+
+    test('a skipped row still ends at the review list', () {
+      // It stays unanswered and turns up there, which is the whole difference
+      // between skipping something and answering it.
       final step = nextStep(
         rows: rows,
-        answered: const {'EBEANO', 'ALIYU'},
-        budgetHints: const [],
-        budgetsSettled: true,
+        answered: const {'ALIYU'},
+        skipped: const {'EBEANO'},
       );
       expect(step, isA<ReviewStep>());
     });
 
     test('a cascade jumps the queue', () {
       // It is the consequence of the answer just given. Held back until after
-      // the next question it would explain the wrong thing.
+      // the next question, it would explain the wrong thing.
       final cascade = CascadeStep(
         trigger: 'ALIYU',
         categoryName: 'Family',
         covered: [_cp('FATIMA')],
       );
-      final step = nextStep(
-        rows: rows,
-        answered: const {},
-        budgetHints: const [_hint],
-        budgetsSettled: false,
-        cascade: cascade,
-      );
+      final step = nextStep(rows: rows, answered: const {}, cascade: cascade);
       expect(step, same(cascade));
     });
   });
