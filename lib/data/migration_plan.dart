@@ -108,6 +108,7 @@ Map<String, CounterpartyEntry> seedCounterparties(
       creditCount: existing?.creditCount ?? 0,
       roundAmounts:
           (existing?.roundAmounts ?? 0) + (_isRoundAmount(a.amount) ? 1 : 0),
+      totalDebited: (existing?.totalDebited ?? 0) + (a.amount ?? 0),
       lastSeen: (existing?.lastSeen == null ||
               (seen != null && seen.isAfter(existing!.lastSeen!)))
           ? (seen ?? existing?.lastSeen)
@@ -139,8 +140,18 @@ bool _isRoundAmount(double? amount) {
   return amount % 500 == 0;
 }
 
-/// Ranks counterparties for the batch-tag screen: most frequent first, so the
-/// smallest number of taps covers the largest share of transactions.
+/// Ranks counterparties for the sorting flow: biggest spend first, so the
+/// smallest number of answers covers the largest share of the user's money.
+///
+/// It used to rank by transaction count, which is a proxy for the same thing
+/// and a bad one. Twelve ₦100 airtime top-ups outrank one ₦400,000 rent
+/// payment, so the user answered the trivia first and met the question that
+/// actually shapes their month somewhere near the bottom, if they got there.
+///
+/// Counts remain the tie-break, and remain the whole ordering for anyone
+/// whose entries were written before spending was recorded per counterparty:
+/// those carry a total of zero, and falling back leaves them exactly as they
+/// were rather than shuffling them arbitrarily.
 List<CounterpartyEntry> batchTagCandidates(
   Map<String, CounterpartyEntry> map, {
   int limit = 20,
@@ -160,7 +171,11 @@ List<CounterpartyEntry> batchTagCandidates(
       // seeing the work done is worth more than a shorter list. Hiding them
       // meant the user's evidence that anything happened was an absence.
       .toList()
-    ..sort((a, b) => b.txCount.compareTo(a.txCount));
+    ..sort((a, b) {
+      final byMoney = b.totalDebited.compareTo(a.totalDebited);
+      if (byMoney != 0) return byMoney;
+      return b.txCount.compareTo(a.txCount);
+    });
   return list.take(limit).toList();
 }
 
@@ -192,6 +207,7 @@ Map<String, CounterpartyEntry> canonicaliseKeys(
     var count = entry.txCount;
     var credits = entry.creditCount;
     var round = entry.roundAmounts;
+    var spent = entry.totalDebited;
     var disposition = entry.disposition;
 
     for (final other in keys) {
@@ -209,6 +225,7 @@ Map<String, CounterpartyEntry> canonicaliseKeys(
       count += map[other]!.txCount;
       credits += map[other]!.creditCount;
       round += map[other]!.roundAmounts;
+      spent += map[other]!.totalDebited;
       // A self-transfer detected under any spelling applies to all of them.
       if (map[other]!.disposition == Disposition.notSpending) {
         disposition = Disposition.notSpending;
@@ -221,6 +238,9 @@ Map<String, CounterpartyEntry> canonicaliseKeys(
       // carries the same evidence about them.
       creditCount: credits,
       roundAmounts: round,
+      // Merged for the same reason as the count: three truncations of one
+      // name are one person, and their spending is one figure.
+      totalDebited: spent,
       aliases: aliases,
       disposition: disposition,
       isMerchant: entry.isMerchant ||

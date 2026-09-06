@@ -23,7 +23,7 @@ import 'data/spend_repository.dart';
 import 'firebase_options.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
-import 'main_page/batch_tag_page.dart';
+import 'main_page/sort_flow_page.dart';
 import 'main_page/how_it_works_page.dart';
 import 'main_page/select_track_items.dart';
 import 'main_page/pending_page.dart';
@@ -166,8 +166,11 @@ class MyApp extends StatelessWidget {
             builder: (_, __) => const SelectTrackItems()
         ),
         GoRoute(
+            // The path is unchanged deliberately. The migration gate, the
+            // summary banner and the preparing screen all push it, and the
+            // dismissal flag they read is the same one.
             path: '/batchTag',
-            builder: (_, __) => const BatchTagPage()
+            builder: (_, __) => const SortFlowPage()
         ),
         GoRoute(
             path: '/pending',

@@ -118,6 +118,10 @@ class SpendRepository {
         txCount: (m['txCount'] ?? 0) as int,
         creditCount: (m['creditCount'] ?? 0) as int,
         roundAmounts: (m['roundAmounts'] ?? 0) as int,
+        // Absent on entries written before spending was recorded per
+        // counterparty. Zero reads as "not known", which the screen shows as
+        // a count rather than a figure it would otherwise be inventing.
+        totalDebited: ((m['totalDebited'] ?? 0) as num).toDouble(),
         aliases: List<String>.from(m['aliases'] ?? const []),
       );
     }
