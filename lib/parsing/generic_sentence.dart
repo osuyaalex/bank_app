@@ -1,7 +1,7 @@
 // Reads bank alerts written as sentences rather than as labelled forms.
 //
 // Nigerian banks write in two shapes. Most of the ones this app was built on
-// send a form -- `Amt:`, `Desc:`, `Bal:` -- and `_parseGenericLegacy` handles
+// send a form -- `Amt:`, `Desc:`, `Bal:` -- and `_parseGenericForm` handles
 // those. A growing number send English instead:
 //
 //     You paid NGN8,500 at PRINCE EBEANO SUPERMARKET on 20-Aug-2026 17:22.
@@ -10,11 +10,14 @@
 // there may be no labels at all. Amounts are often whole naira with no
 // separator, which makes them look like reference numbers.
 //
-// This file was written by a coding agent, iterating against the evaluation in
-// `agent/`. It went in because it took the score on ten bank formats the app
-// had never been taught from 5/10 to 7/10 without disturbing any of the 29
-// formats that already worked, and without a single disagreement across 5,401
-// real messages. See agent/README.md for the measurement.
+// This file was written by a coding agent iterating against a held-out
+// evaluation, and it went in on the measurement rather than on the pedigree:
+// across twenty-five bank formats the app had never been taught it took the
+// parser from 17/25 to 21/25, disturbed none of the 29 formats that already
+// worked, and did not disagree with the old reader once across 5,401 real
+// messages. The twenty-one are in `test/held_out_banks_test.dart`; the
+// evaluation harness that produced them lives on the `agent-parser-repair`
+// branch.
 library;
 
 import 'package:banking_app/parsing/bank_alert.dart';
