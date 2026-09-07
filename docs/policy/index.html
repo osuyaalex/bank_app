@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BankAL — Privacy Policy</title>
+<style>
+  :root { --ink:#1C1939; --muted:#5b5875; --brand:#2E5BFF; --line:#e6e8f0; --bg:#ffffff; --code:#f6f7fb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#eceaf5; --muted:#a5a2b8; --line:#2b2940; --bg:#15141f; --code:#1e1d2b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 22px 96px; }
+  h1 { font-size: 30px; line-height:1.2; margin:0 0 6px; letter-spacing:-0.02em; }
+  .updated { color:var(--muted); font-size:14px; margin:0 0 36px; }
+  h2 { font-size:19px; margin:40px 0 12px; letter-spacing:-0.01em; }
+  h3 { font-size:15px; margin:26px 0 8px; }
+  p, li { color:var(--ink); }
+  p { margin:0 0 14px; }
+  ul { margin:0 0 14px; padding-left:22px; }
+  li { margin-bottom:7px; }
+  strong { font-weight:650; }
+  a { color:var(--brand); }
+  pre { background:var(--code); border:1px solid var(--line); border-radius:10px;
+        padding:14px 16px; overflow-x:auto; font-size:13px; line-height:1.5; margin:0 0 14px; }
+  .lead { font-size:17px; color:var(--muted); margin-bottom:28px; }
+  .callout { background:var(--code); border:1px solid var(--line); border-left:3px solid var(--brand);
+             border-radius:10px; padding:16px 18px; margin:0 0 18px; }
+  .callout p:last-child { margin-bottom:0; }
+  hr { border:0; border-top:1px solid var(--line); margin:40px 0; }
+  footer { color:var(--muted); font-size:14px; }
+  table { border-collapse:collapse; width:100%; margin:0 0 16px; font-size:14.5px; }
+  th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>BankAL Privacy Policy</h1>
+  <p class="updated">Last updated 7 September 2026</p>
+
+  <p class="lead">BankAL reads the transaction alerts your bank already sends you, so it can
+  show you where your money goes. This page explains exactly what it reads, what
+  stays on your phone, and the one thing that only leaves it if you ask.</p>
+
+  <h2>SMS access and what we read</h2>
+
+  <p>BankAL asks for permission to read your SMS messages. It looks only for bank
+  transaction alerts — messages containing financial terms such as
+  <em>debit</em>, <em>credit</em>, <em>Amt</em> or <em>account</em> — and from
+  those it extracts:</p>
+
+  <ul>
+    <li>the transaction amount</li>
+    <li>the merchant name or description</li>
+    <li>the transaction date</li>
+    <li>the account balance, where the message states one</li>
+  </ul>
+
+  <p>Personal messages, one-time passwords and anything that is not a bank alert
+  are ignored.</p>
+
+  <div class="callout">
+    <p><strong>SMS messages are read and processed entirely on your device.</strong>
+    Their contents are never uploaded, with one exception that only happens if you
+    ask for it: if BankAL cannot understand your bank's alerts, you can offer to
+    send us the <em>layout</em> of one, with every digit and every name removed on
+    your device first. That is described in
+    <a href="#reporting">Reporting a bank we cannot read</a> below.</p>
+  </div>
+
+  <h2 id="reporting">Reporting a bank we cannot read</h2>
+
+  <p>BankAL can only read a bank's alerts once it has been taught that bank's
+  format. If yours is one it does not recognise, the app will offer to send us the
+  <strong>shape</strong> of one of those messages so we can add support for it.</p>
+
+  <h3>It is optional</h3>
+  <p>Nothing is sent unless you tap <em>Send this</em>. You can use the app whether
+  you help or not.</p>
+
+  <h3>We show you exactly what would be sent, before you decide</h3>
+  <p>Every digit is replaced with <code>#</code>, and every word that is not
+  standard banking vocabulary is replaced with a placeholder — on your device,
+  before anything is transmitted. A message like this:</p>
+
+<pre>Acct:2211234558
+DT:23/08/2026 09:06:35 PM
+NIP CR/MOB/ABUBAKAR ALIYU/PAL
+DR Amt:300.00
+Bal:142.92</pre>
+
+  <p>is sent to us as this:</p>
+
+<pre>Acct:##########
+DT:##/##/#### ##:##:## PM
+NIP CR/MOB/&lt;name&gt; &lt;name&gt;/&lt;w&gt;
+DR Amt:###.##
+Bal:###.##</pre>
+
+  <p>The app shows you this comparison in full before it asks.</p>
+
+  <h3>What we receive, and what we do not</h3>
+
+  <table>
+    <tr><th>We receive</th><th>We do not receive</th></tr>
+    <tr>
+      <td>
+        The redacted layout above<br>
+        The sender ID, which names the bank<br>
+        Your account identifier, so we can reach you<br>
+        The app version and the time you sent it
+      </td>
+      <td>
+        The message itself<br>
+        The amount or your balance<br>
+        Your account number<br>
+        The name of anyone you paid
+      </td>
+    </tr>
+  </table>
+
+  <h3>Your email address, only if you offer it</h3>
+  <p>After a report is sent, we ask separately whether you would like to be told
+  when your bank is supported. It is optional, it is used for that and nothing
+  else, and we do not add you to any mailing list.</p>
+
+  <h3>Withdrawing a report</h3>
+  <p>Email us and we will delete any report linked to your account. Because
+  reports carry your account identifier, we can find them.</p>
+
+  <h2>How we store and share data</h2>
+
+  <p>Your account and your spending records are stored in Firebase Firestore,
+  operated by Google LLC, which acts as our storage provider. Format reports are
+  stored there too.</p>
+
+  <p>We do not sell, rent or share your personal data with third parties for
+  marketing purposes. We may disclose information if required to do so by law or
+  in response to a valid legal request.</p>
+
+  <h2>How long we keep it</h2>
+
+  <ul>
+    <li><strong>Authentication data</strong> — for as long as your account is
+    active.</li>
+    <li><strong>Spending records</strong> — the processed transaction summaries,
+    for as long as your account is active.</li>
+    <li><strong>Raw SMS messages</strong> — never stored and never transmitted.
+    Only the processed summaries are kept, and — where you have explicitly chosen
+    to send one — the redacted layout of an unreadable alert.</li>
+    <li><strong>Format reports</strong> — until the bank format they describe is
+    supported, and for up to twelve months afterwards so we can confirm the fix
+    still holds.</li>
+    <li><strong>Email addresses given with a report</strong> — deleted once we
+    have written to you, or immediately on request.</li>
+  </ul>
+
+  <h2>Security</h2>
+
+  <p>Data is transmitted over HTTPS and stored using Google's encryption
+  protocols. Access is restricted to authorised personnel and secured by
+  authentication controls.</p>
+
+  <h2>Your controls</h2>
+
+  <ul>
+    <li>Revoke SMS access at any time in your device settings. BankAL will stop
+    reading new alerts immediately.</li>
+    <li>Request deletion of your data from within the app, or by email.</li>
+    <li>Request deletion of any format report you have sent.</li>
+    <li>Decline to send a format report and continue using the app as normal.</li>
+  </ul>
+
+  <h2>Children</h2>
+  <p>BankAL is not directed at children under 13, and we do not knowingly collect
+  data from them.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If we change how BankAL handles your data, we will update this page and
+  change the date at the top. Material changes will be brought to your attention
+  in the app.</p>
+
+  <h2>Contact</h2>
+  <p>Questions, or a deletion request: <a href="mailto:aolfiligre@gmail.com">aolfiligre@gmail.com</a></p>
+
+  <hr>
+  <footer>BankAL · com.alexosuya.bankal</footer>
+
+</main>
+</body>
+</html>

@@ -10,6 +10,11 @@ import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/widget/progress_bar.dart';
+import 'package:banking_app/data/models.dart' show slugifyCategory;
+import 'package:banking_app/data/sms_inbox.dart';
+import 'package:banking_app/main_page/widget/share_format_sheet.dart';
+import 'package:banking_app/data/unseen_activity.dart';
+import 'package:flutter/services.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -60,6 +65,9 @@ Color _statusColour(BudgetLevel level) {
 class _HomePageState extends State<HomePage> {
   int _needsSorting = 0;
   int _untagged = 0;
+
+  /// What has been filed since the user last opened each budget.
+  UnseenTally _unseen = const UnseenTally();
   String _currentMonth = '';
   Map<String, dynamic> _data = {};
   List<String> _currentMonthDocs = [];
@@ -363,6 +371,30 @@ class _HomePageState extends State<HomePage> {
   //   }
   // }
 
+  /// Offers to send the shape of alerts the parser could not read.
+  ///
+  /// Reachable from inside the app, not only from the screen that blocks the
+  /// way in. Somebody whose bank half works -- most alerts read, one format
+  /// not -- never sees that screen at all, and they are exactly the person
+  /// whose missing format is worth having.
+  Future<void> _offerToShareFormat() async {
+    final found = await SmsInbox.unreadableAlerts();
+    if (!mounted) return;
+    if (found.bodies.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Every bank message here is already being read.'),
+        ),
+      );
+      return;
+    }
+    await showShareFormatSheet(
+      context,
+      bodies: found.bodies,
+      senders: found.senders,
+    );
+  }
+
   /// Signing out, behind a name and a confirmation.
   ///
   /// It used to be an unlabelled arrow glyph sitting beside the inbox icon --
@@ -402,15 +434,87 @@ class _HomePageState extends State<HomePage> {
       final repo = SpendRepository();
       final count = await repo.pendingCount();
       final untagged = await repo.pendingTagCount();
+      final unseen = await UnseenActivity.load();
       if (mounted) {
         setState(() {
           _needsSorting = count;
           _untagged = untagged;
+          _unseen = unseen;
         });
+        await _deliverNudge(unseen);
       }
     } catch (_) {
       // An extra; never let it break the screen.
     }
+  }
+
+  /// Says something once, when a budget the user has already walked past
+  /// collects more spending.
+  ///
+  /// Delivered here rather than where the transaction is recorded, because
+  /// the app is usually not open when money moves and a message nobody is
+  /// there to read is not a message. Once per budget per run of unseen
+  /// spending: the marker itself carries the news after that, and a reminder
+  /// that repeats is a reminder people learn to ignore.
+  Future<void> _deliverNudge(UnseenTally tally) async {
+    if (tally.pendingNudge.isEmpty) return;
+    final names = tally.pendingNudge.toList();
+    await UnseenActivity.clearNudges();
+    if (!mounted) return;
+    setState(() => _unseen = tally.nudged());
+
+    HapticFeedback.mediumImpact();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          names.length == 1
+              ? 'More spending went into one of your budgets. Worth a look.'
+              : 'More spending went into ${names.length} of your budgets. '
+                    'Worth a look.',
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  /// One line, for when marking each budget would light the whole screen.
+  Widget _unseenSummary() {
+    if (_unseen.total == 0 || _unseen.markIndividually) {
+      return const SizedBox.shrink();
+    }
+    final n = _unseen.total;
+    final where = _unseen.marked.length;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xff5AA5E2).withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.auto_awesome_rounded,
+              size: 18,
+              color: Color(0xff5AA5E2),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Text(
+                '$n new payment${n == 1 ? '' : 's'} across $where budgets '
+                'since you last looked',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// The same banner the summary carries, saying the same thing.
@@ -697,6 +801,10 @@ class _HomePageState extends State<HomePage> {
                         _scheduleNotificationAlert();
                         return;
                       }
+                      if (value == 'format') {
+                        _offerToShareFormat();
+                        return;
+                      }
                       _confirmSignOut();
                     },
                     itemBuilder: (_) => const [
@@ -711,6 +819,20 @@ class _HomePageState extends State<HomePage> {
                             ),
                             SizedBox(width: 12),
                             Text('Reminders'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'format',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.sms_failed_outlined,
+                              size: 19,
+                              color: Colors.black54,
+                            ),
+                            SizedBox(width: 12),
+                            Text('Bank not showing up?'),
                           ],
                         ),
                       ),
@@ -829,6 +951,7 @@ class _HomePageState extends State<HomePage> {
                                 return Column(
                                   children: [
                                     _sortBanner(),
+                                    _unseenSummary(),
                                     Expanded(
                                       child: ListView.builder(
                                         itemCount:
@@ -894,155 +1017,283 @@ class _HomePageState extends State<HomePage> {
                                             budget: maxValue,
                                           );
 
+                                          // Filed here since the user last
+                                          // opened it. Marked only while a
+                                          // few budgets carry anything: past
+                                          // that the summary line above says
+                                          // it once instead.
+                                          final categoryId = slugifyCategory(
+                                            '${listedItems['name']}',
+                                          );
+                                          final unseenHere = _unseen.countIn(
+                                            categoryId,
+                                          );
+                                          final marked =
+                                              unseenHere > 0 &&
+                                              _unseen.markIndividually;
+
                                           return Padding(
                                             padding: const EdgeInsets.only(
                                               bottom: 8.0,
                                             ),
-                                            child: GestureDetector(
-                                              onTap: () {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) {
-                                                      return ItemDetails(
-                                                        itemDetails:
-                                                            listedItems,
-                                                        monthDetails: monthData,
-                                                        actualMonth: docId,
-                                                        index: index,
-                                                        edit: true,
-                                                      );
-                                                    },
-                                                  ),
-                                                );
-                                              },
-                                              child: Container(
-                                                padding: const EdgeInsets.all(
-                                                  12,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(18),
-                                                  color: Colors.white,
-                                                  // A quiet outline rather than a
-                                                  // filled alarm: it has to read at
-                                                  // a glance without making the
-                                                  // whole screen look broken.
-                                                  border: Border.all(
-                                                    color:
-                                                        _statusColour(
-                                                          status.level,
-                                                        ).withValues(
-                                                          alpha:
-                                                              status.level ==
-                                                                  BudgetLevel.ok
-                                                              ? 0
-                                                              : 0.55,
+                                            child: Stack(
+                                              children: [
+                                                GestureDetector(
+                                                  onTap: () async {
+                                                    // The breakdown clears the
+                                                    // marker, not this. It has to
+                                                    // read which transactions
+                                                    // were unseen *before* they
+                                                    // stop being unseen, or the
+                                                    // rows it is meant to point
+                                                    // at arrive already cleared.
+                                                    await Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) {
+                                                          return ItemDetails(
+                                                            itemDetails:
+                                                                listedItems,
+                                                            monthDetails:
+                                                                monthData,
+                                                            actualMonth: docId,
+                                                            index: index,
+                                                            edit: true,
+                                                          );
+                                                        },
+                                                      ),
+                                                    );
+                                                    await _loadNeedsSorting();
+                                                  },
+                                                  child: AnimatedContainer(
+                                                    duration: const Duration(
+                                                      milliseconds: 260,
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          12,
                                                         ),
-                                                    width: 1.4,
-                                                  ),
-                                                ),
-                                                child: Column(
-                                                  children: [
-                                                    Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceBetween,
+                                                    decoration: BoxDecoration(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            18,
+                                                          ),
+                                                      color: Colors.white,
+                                                      // A quiet outline rather
+                                                      // than a filled alarm: it
+                                                      // has to read at a glance
+                                                      // without making the whole
+                                                      // screen look broken.
+                                                      //
+                                                      // Uniform, and it has to
+                                                      // stay uniform. A rounded
+                                                      // corner on a border that
+                                                      // differs side to side is
+                                                      // rejected outright, and
+                                                      // the card paints as an
+                                                      // empty white box -- which
+                                                      // is exactly what a rail
+                                                      // drawn as a left border
+                                                      // did. The rail is a
+                                                      // separate widget below.
+                                                      border: Border.all(
+                                                        color:
+                                                            _statusColour(
+                                                              status.level,
+                                                            ).withValues(
+                                                              alpha:
+                                                                  status.level ==
+                                                                      BudgetLevel
+                                                                          .ok
+                                                                  ? 0
+                                                                  : 0.55,
+                                                            ),
+                                                        width: 1.4,
+                                                      ),
+                                                    ),
+                                                    child: Column(
                                                       children: [
                                                         Row(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .spaceBetween,
                                                           children: [
-                                                            listedItems['image'] !=
-                                                                    ""
-                                                                ? SvgPicture.asset(
-                                                                    listedItems['image'],
-                                                                    height: 20,
-                                                                  )
-                                                                : Text(
-                                                                    listedItems['name'][0],
-                                                                    style: TextStyle(
-                                                                      fontSize:
-                                                                          20,
-                                                                      color: Colors
-                                                                          .black54,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w600,
+                                                            Row(
+                                                              children: [
+                                                                listedItems['image'] !=
+                                                                        ""
+                                                                    ? SvgPicture.asset(
+                                                                        listedItems['image'],
+                                                                        height:
+                                                                            20,
+                                                                      )
+                                                                    : Text(
+                                                                        listedItems['name'][0],
+                                                                        style: TextStyle(
+                                                                          fontSize:
+                                                                              20,
+                                                                          color:
+                                                                              Colors.black54,
+                                                                          fontWeight:
+                                                                              FontWeight.w600,
+                                                                        ),
+                                                                      ),
+                                                                const SizedBox(
+                                                                  width: 30,
+                                                                ),
+                                                                Text(
+                                                                  listedItems['name'],
+                                                                ),
+                                                                // How many, not
+                                                                // merely that
+                                                                // there are some.
+                                                                // "Something
+                                                                // happened here"
+                                                                // is a reason to
+                                                                // look; "three
+                                                                // payments" is a
+                                                                // reason to look
+                                                                // now.
+                                                                if (marked) ...[
+                                                                  const SizedBox(
+                                                                    width: 9,
+                                                                  ),
+                                                                  Container(
+                                                                    padding: const EdgeInsets.symmetric(
+                                                                      horizontal:
+                                                                          8,
+                                                                      vertical:
+                                                                          3,
+                                                                    ),
+                                                                    decoration: BoxDecoration(
+                                                                      color: const Color(
+                                                                        0xff2E5BFF,
+                                                                      ),
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                            20,
+                                                                          ),
+                                                                    ),
+                                                                    child: Text(
+                                                                      unseenHere ==
+                                                                              1
+                                                                          ? '1 new'
+                                                                          : '$unseenHere new',
+                                                                      style: const TextStyle(
+                                                                        fontSize:
+                                                                            10.5,
+                                                                        height:
+                                                                            1.1,
+                                                                        fontWeight:
+                                                                            FontWeight.w800,
+                                                                        color: Colors
+                                                                            .white,
+                                                                      ),
                                                                     ),
                                                                   ),
-                                                            const SizedBox(
-                                                              width: 30,
-                                                            ),
-                                                            Text(
-                                                              listedItems['name'],
+                                                                ],
+                                                              ],
                                                             ),
                                                           ],
                                                         ),
-                                                      ],
-                                                    ),
-                                                    const SizedBox(height: 10),
-                                                    ProgressIndicatorWidget(
-                                                      currentValue:
-                                                          currentValue,
-                                                      maxValue: maxValue,
-                                                      progress: progress,
-                                                      currency:
-                                                          monthData['currency'],
-                                                    ),
-                                                    if (status.level !=
-                                                        BudgetLevel.ok) ...[
-                                                      const SizedBox(
-                                                        height: 10,
-                                                      ),
-                                                      Row(
-                                                        children: [
-                                                          Icon(
-                                                            status.isOver
-                                                                ? Icons
-                                                                      .error_outline
-                                                                : Icons
-                                                                      .info_outline_rounded,
-                                                            size: 15,
-                                                            color:
-                                                                _statusColour(
-                                                                  status.level,
-                                                                ),
-                                                          ),
+                                                        const SizedBox(
+                                                          height: 10,
+                                                        ),
+                                                        ProgressIndicatorWidget(
+                                                          currentValue:
+                                                              currentValue,
+                                                          maxValue: maxValue,
+                                                          progress: progress,
+                                                          currency:
+                                                              monthData['currency'],
+                                                        ),
+                                                        if (status.level !=
+                                                            BudgetLevel.ok) ...[
                                                           const SizedBox(
-                                                            width: 6,
+                                                            height: 10,
                                                           ),
-                                                          Expanded(
-                                                            child: Text(
-                                                              // The figures, not just
-                                                              // the fact: "over
-                                                              // budget" alone says
-                                                              // there is a problem
-                                                              // without saying how
-                                                              // big it is.
-                                                              status.describe(
-                                                                '${monthData['currency'] ?? ''}',
-                                                              ),
-                                                              style: TextStyle(
-                                                                fontSize: 12.5,
-                                                                height: 1.35,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
+                                                          Row(
+                                                            children: [
+                                                              Icon(
+                                                                status.isOver
+                                                                    ? Icons
+                                                                          .error_outline
+                                                                    : Icons
+                                                                          .info_outline_rounded,
+                                                                size: 15,
                                                                 color:
                                                                     _statusColour(
                                                                       status
                                                                           .level,
                                                                     ),
                                                               ),
-                                                            ),
+                                                              const SizedBox(
+                                                                width: 6,
+                                                              ),
+                                                              Expanded(
+                                                                child: Text(
+                                                                  // The figures, not just
+                                                                  // the fact: "over
+                                                                  // budget" alone says
+                                                                  // there is a problem
+                                                                  // without saying how
+                                                                  // big it is.
+                                                                  status.describe(
+                                                                    '${monthData['currency'] ?? ''}',
+                                                                  ),
+                                                                  style: TextStyle(
+                                                                    fontSize:
+                                                                        12.5,
+                                                                    height:
+                                                                        1.35,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                    color: _statusColour(
+                                                                      status
+                                                                          .level,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ],
-                                                      ),
-                                                    ],
-                                                    const SizedBox(height: 15),
-                                                    const Divider(),
-                                                  ],
+                                                        const SizedBox(
+                                                          height: 15,
+                                                        ),
+                                                        const Divider(),
+                                                      ],
+                                                    ),
+                                                  ),
                                                 ),
-                                              ),
+                                                // The rail. Its own widget,
+                                                // over the card rather than
+                                                // part of its border, so the
+                                                // card keeps its rounded
+                                                // corners and its status
+                                                // outline and the two markers
+                                                // never fight over one
+                                                // border.
+                                                if (marked)
+                                                  Positioned(
+                                                    left: 0,
+                                                    top: 14,
+                                                    bottom: 22,
+                                                    child: Container(
+                                                      width: 4,
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(
+                                                          0xff2E5BFF,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              3,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
                                           );
                                         },
