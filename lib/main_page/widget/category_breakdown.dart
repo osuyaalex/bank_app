@@ -347,6 +347,14 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
     ),
   );
 
+  /// The counterparties behind the new payments, so "who this went to" can be
+  /// marked as well as the individual transactions.
+  Set<String> get _freshKeys => {
+    for (final t in _txns)
+      if (_unseen.contains(t.smsId) && t.counterpartyKey != null)
+        t.counterpartyKey!,
+  };
+
   /// What has arrived since the user last opened this category.
   ///
   /// The marker on the home screen gets somebody to tap once. This is what
@@ -412,15 +420,26 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
 
   Widget _contributorRow(({String key, int count, double total}) row) {
     final initial = row.key.trim().isEmpty ? '?' : row.key.trim()[0];
+    final fresh = _freshKeys.contains(row.key);
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: Colors.grey.shade50,
+        color: fresh ? brandBlue.withValues(alpha: 0.07) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () => _switch(row),
-          child: Padding(
+          child: Container(
+            // No radius on this one either: the Material rounds and clips it,
+            // and a rounded corner on a one-sided border is not allowed.
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: fresh ? brandBlue : Colors.transparent,
+                  width: fresh ? 3 : 0,
+                ),
+              ),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             child: Row(
               children: [
@@ -556,8 +575,11 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
                 borderRadius: BorderRadius.circular(11),
                 onTap: () => _correct(t),
                 child: Container(
+                  // No radius here: the Material above rounds and clips this,
+                  // and a rounded corner on a border that differs side to
+                  // side is rejected outright -- the row paints as an empty
+                  // white box.
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(11),
                     border: Border(
                       left: BorderSide(
                         color: _unseen.contains(t.smsId)

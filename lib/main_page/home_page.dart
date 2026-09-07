@@ -422,17 +422,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  /// The outline that says whether a budget is over or near its limit.
-  ///
-  /// A quiet outline rather than a filled alarm: it has to read at a glance
-  /// without making the whole screen look broken.
-  BorderSide _statusSide(BudgetStatus status) => BorderSide(
-    color: _statusColour(
-      status.level,
-    ).withValues(alpha: status.level == BudgetLevel.ok ? 0 : 0.55),
-    width: status.level == BudgetLevel.ok ? 0 : 1.4,
-  );
-
   /// Says something once, when a budget the user has already walked past
   /// collects more spending.
   ///
@@ -1003,216 +992,264 @@ class _HomePageState extends State<HomePage> {
                                             padding: const EdgeInsets.only(
                                               bottom: 8.0,
                                             ),
-                                            child: GestureDetector(
-                                              onTap: () async {
-                                                // The breakdown clears the
-                                                // marker, not this. It has to
-                                                // read which transactions
-                                                // were unseen *before* they
-                                                // stop being unseen, or the
-                                                // rows it is meant to point
-                                                // at arrive already cleared.
-                                                await Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) {
-                                                      return ItemDetails(
-                                                        itemDetails:
-                                                            listedItems,
-                                                        monthDetails: monthData,
-                                                        actualMonth: docId,
-                                                        index: index,
-                                                        edit: true,
-                                                      );
-                                                    },
-                                                  ),
-                                                );
-                                                await _loadNeedsSorting();
-                                              },
-                                              child: AnimatedContainer(
-                                                duration: const Duration(
-                                                  milliseconds: 260,
-                                                ),
-                                                padding: const EdgeInsets.all(
-                                                  12,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(18),
-                                                  color: Colors.white,
-                                                  // The unseen mark is a rail
-                                                  // down the leading edge, not
-                                                  // a pulse. Something that
-                                                  // may sit there for days
-                                                  // has to be legible for
-                                                  // days, and a glow that
-                                                  // never stops becomes
-                                                  // either wallpaper or an
-                                                  // irritant.
-                                                  border: Border(
-                                                    left: BorderSide(
-                                                      color: marked
-                                                          ? const Color(
-                                                              0xff2E5BFF,
-                                                            )
-                                                          : Colors.transparent,
-                                                      width: marked ? 4 : 0,
+                                            child: Stack(
+                                              children: [
+                                                GestureDetector(
+                                                  onTap: () async {
+                                                    // The breakdown clears the
+                                                    // marker, not this. It has to
+                                                    // read which transactions
+                                                    // were unseen *before* they
+                                                    // stop being unseen, or the
+                                                    // rows it is meant to point
+                                                    // at arrive already cleared.
+                                                    await Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) {
+                                                          return ItemDetails(
+                                                            itemDetails:
+                                                                listedItems,
+                                                            monthDetails:
+                                                                monthData,
+                                                            actualMonth: docId,
+                                                            index: index,
+                                                            edit: true,
+                                                          );
+                                                        },
+                                                      ),
+                                                    );
+                                                    await _loadNeedsSorting();
+                                                  },
+                                                  child: AnimatedContainer(
+                                                    duration: const Duration(
+                                                      milliseconds: 260,
                                                     ),
-                                                    top: _statusSide(status),
-                                                    right: _statusSide(status),
-                                                    bottom: _statusSide(status),
-                                                  ),
-                                                ),
-                                                child: Column(
-                                                  children: [
-                                                    Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceBetween,
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          12,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            18,
+                                                          ),
+                                                      color: Colors.white,
+                                                      // A quiet outline rather
+                                                      // than a filled alarm: it
+                                                      // has to read at a glance
+                                                      // without making the whole
+                                                      // screen look broken.
+                                                      //
+                                                      // Uniform, and it has to
+                                                      // stay uniform. A rounded
+                                                      // corner on a border that
+                                                      // differs side to side is
+                                                      // rejected outright, and
+                                                      // the card paints as an
+                                                      // empty white box -- which
+                                                      // is exactly what a rail
+                                                      // drawn as a left border
+                                                      // did. The rail is a
+                                                      // separate widget below.
+                                                      border: Border.all(
+                                                        color:
+                                                            _statusColour(
+                                                              status.level,
+                                                            ).withValues(
+                                                              alpha:
+                                                                  status.level ==
+                                                                      BudgetLevel
+                                                                          .ok
+                                                                  ? 0
+                                                                  : 0.55,
+                                                            ),
+                                                        width: 1.4,
+                                                      ),
+                                                    ),
+                                                    child: Column(
                                                       children: [
                                                         Row(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .spaceBetween,
                                                           children: [
-                                                            listedItems['image'] !=
-                                                                    ""
-                                                                ? SvgPicture.asset(
-                                                                    listedItems['image'],
-                                                                    height: 20,
-                                                                  )
-                                                                : Text(
-                                                                    listedItems['name'][0],
-                                                                    style: TextStyle(
-                                                                      fontSize:
-                                                                          20,
-                                                                      color: Colors
-                                                                          .black54,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w600,
-                                                                    ),
+                                                            Row(
+                                                              children: [
+                                                                listedItems['image'] !=
+                                                                        ""
+                                                                    ? SvgPicture.asset(
+                                                                        listedItems['image'],
+                                                                        height:
+                                                                            20,
+                                                                      )
+                                                                    : Text(
+                                                                        listedItems['name'][0],
+                                                                        style: TextStyle(
+                                                                          fontSize:
+                                                                              20,
+                                                                          color:
+                                                                              Colors.black54,
+                                                                          fontWeight:
+                                                                              FontWeight.w600,
+                                                                        ),
+                                                                      ),
+                                                                const SizedBox(
+                                                                  width: 30,
+                                                                ),
+                                                                Text(
+                                                                  listedItems['name'],
+                                                                ),
+                                                                // How many, not
+                                                                // merely that
+                                                                // there are some.
+                                                                // "Something
+                                                                // happened here"
+                                                                // is a reason to
+                                                                // look; "three
+                                                                // payments" is a
+                                                                // reason to look
+                                                                // now.
+                                                                if (marked) ...[
+                                                                  const SizedBox(
+                                                                    width: 9,
                                                                   ),
-                                                            const SizedBox(
-                                                              width: 30,
-                                                            ),
-                                                            Text(
-                                                              listedItems['name'],
-                                                            ),
-                                                            // How many, not
-                                                            // merely that
-                                                            // there are some.
-                                                            // "Something
-                                                            // happened here"
-                                                            // is a reason to
-                                                            // look; "three
-                                                            // payments" is a
-                                                            // reason to look
-                                                            // now.
-                                                            if (marked) ...[
-                                                              const SizedBox(
-                                                                width: 9,
-                                                              ),
-                                                              Container(
-                                                                padding:
-                                                                    const EdgeInsets.symmetric(
+                                                                  Container(
+                                                                    padding: const EdgeInsets.symmetric(
                                                                       horizontal:
                                                                           8,
                                                                       vertical:
                                                                           3,
                                                                     ),
-                                                                decoration: BoxDecoration(
-                                                                  color: const Color(
-                                                                    0xff2E5BFF,
-                                                                  ),
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        20,
+                                                                    decoration: BoxDecoration(
+                                                                      color: const Color(
+                                                                        0xff2E5BFF,
                                                                       ),
-                                                                ),
-                                                                child: Text(
-                                                                  unseenHere ==
-                                                                          1
-                                                                      ? '1 new'
-                                                                      : '$unseenHere new',
-                                                                  style: const TextStyle(
-                                                                    fontSize:
-                                                                        10.5,
-                                                                    height: 1.1,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w800,
-                                                                    color: Colors
-                                                                        .white,
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                            20,
+                                                                          ),
+                                                                    ),
+                                                                    child: Text(
+                                                                      unseenHere ==
+                                                                              1
+                                                                          ? '1 new'
+                                                                          : '$unseenHere new',
+                                                                      style: const TextStyle(
+                                                                        fontSize:
+                                                                            10.5,
+                                                                        height:
+                                                                            1.1,
+                                                                        fontWeight:
+                                                                            FontWeight.w800,
+                                                                        color: Colors
+                                                                            .white,
+                                                                      ),
+                                                                    ),
                                                                   ),
-                                                                ),
-                                                              ),
-                                                            ],
+                                                                ],
+                                                              ],
+                                                            ),
                                                           ],
                                                         ),
-                                                      ],
-                                                    ),
-                                                    const SizedBox(height: 10),
-                                                    ProgressIndicatorWidget(
-                                                      currentValue:
-                                                          currentValue,
-                                                      maxValue: maxValue,
-                                                      progress: progress,
-                                                      currency:
-                                                          monthData['currency'],
-                                                    ),
-                                                    if (status.level !=
-                                                        BudgetLevel.ok) ...[
-                                                      const SizedBox(
-                                                        height: 10,
-                                                      ),
-                                                      Row(
-                                                        children: [
-                                                          Icon(
-                                                            status.isOver
-                                                                ? Icons
-                                                                      .error_outline
-                                                                : Icons
-                                                                      .info_outline_rounded,
-                                                            size: 15,
-                                                            color:
-                                                                _statusColour(
-                                                                  status.level,
-                                                                ),
-                                                          ),
+                                                        const SizedBox(
+                                                          height: 10,
+                                                        ),
+                                                        ProgressIndicatorWidget(
+                                                          currentValue:
+                                                              currentValue,
+                                                          maxValue: maxValue,
+                                                          progress: progress,
+                                                          currency:
+                                                              monthData['currency'],
+                                                        ),
+                                                        if (status.level !=
+                                                            BudgetLevel.ok) ...[
                                                           const SizedBox(
-                                                            width: 6,
+                                                            height: 10,
                                                           ),
-                                                          Expanded(
-                                                            child: Text(
-                                                              // The figures, not just
-                                                              // the fact: "over
-                                                              // budget" alone says
-                                                              // there is a problem
-                                                              // without saying how
-                                                              // big it is.
-                                                              status.describe(
-                                                                '${monthData['currency'] ?? ''}',
-                                                              ),
-                                                              style: TextStyle(
-                                                                fontSize: 12.5,
-                                                                height: 1.35,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
+                                                          Row(
+                                                            children: [
+                                                              Icon(
+                                                                status.isOver
+                                                                    ? Icons
+                                                                          .error_outline
+                                                                    : Icons
+                                                                          .info_outline_rounded,
+                                                                size: 15,
                                                                 color:
                                                                     _statusColour(
                                                                       status
                                                                           .level,
                                                                     ),
                                                               ),
-                                                            ),
+                                                              const SizedBox(
+                                                                width: 6,
+                                                              ),
+                                                              Expanded(
+                                                                child: Text(
+                                                                  // The figures, not just
+                                                                  // the fact: "over
+                                                                  // budget" alone says
+                                                                  // there is a problem
+                                                                  // without saying how
+                                                                  // big it is.
+                                                                  status.describe(
+                                                                    '${monthData['currency'] ?? ''}',
+                                                                  ),
+                                                                  style: TextStyle(
+                                                                    fontSize:
+                                                                        12.5,
+                                                                    height:
+                                                                        1.35,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                    color: _statusColour(
+                                                                      status
+                                                                          .level,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ],
-                                                      ),
-                                                    ],
-                                                    const SizedBox(height: 15),
-                                                    const Divider(),
-                                                  ],
+                                                        const SizedBox(
+                                                          height: 15,
+                                                        ),
+                                                        const Divider(),
+                                                      ],
+                                                    ),
+                                                  ),
                                                 ),
-                                              ),
+                                                // The rail. Its own widget,
+                                                // over the card rather than
+                                                // part of its border, so the
+                                                // card keeps its rounded
+                                                // corners and its status
+                                                // outline and the two markers
+                                                // never fight over one
+                                                // border.
+                                                if (marked)
+                                                  Positioned(
+                                                    left: 0,
+                                                    top: 14,
+                                                    bottom: 22,
+                                                    child: Container(
+                                                      width: 4,
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(
+                                                          0xff2E5BFF,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              3,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
                                           );
                                         },
