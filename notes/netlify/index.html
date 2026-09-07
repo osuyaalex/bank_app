@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BankAL — Data and account access</title>
+<style>
+  :root { --ink:#1C1939; --muted:#5b5875; --brand:#2E5BFF; --line:#e6e8f0; --bg:#ffffff; --code:#f6f7fb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#eceaf5; --muted:#a5a2b8; --line:#2b2940; --bg:#15141f; --code:#1e1d2b; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  main { max-width:680px; margin:0 auto; padding:48px 22px 90px; }
+  h1 { font-size:28px; line-height:1.2; margin:0 0 6px; letter-spacing:-0.02em; }
+  .updated { color:var(--muted); font-size:14px; margin:0 0 32px; }
+  h2 { font-size:18px; margin:36px 0 12px; }
+  p { margin:0 0 14px; }
+  ul { margin:0 0 14px; padding-left:22px; } li { margin-bottom:7px; }
+  a { color:var(--brand); }
+  code { background:var(--code); padding:1px 5px; border-radius:4px; font-size:14px; }
+  .callout { background:var(--code); border:1px solid var(--line); border-left:3px solid var(--brand);
+             border-radius:10px; padding:16px 18px; margin:0 0 20px; }
+  .callout p:last-child { margin-bottom:0; }
+  hr { border:0; border-top:1px solid var(--line); margin:38px 0; }
+  footer { color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>BankAL — data and account access</h1>
+  <p class="updated">Last updated 7 September 2026</p>
+
+  <div class="callout">
+    <p><strong>BankAL does not access your Google account, and it does not read
+    your email.</strong></p>
+    <p>An earlier version requested Google's <code>gmail.readonly</code>
+    permission so it could look for transaction receipts in your inbox. That was
+    removed. The app no longer signs in with Google, requests no Google
+    permissions, and has no access to any Google service on your behalf.</p>
+  </div>
+
+  <h2>What BankAL does instead</h2>
+
+  <p>BankAL reads the transaction alerts your bank already sends to your phone by
+  SMS, and turns them into a record of your spending. Those messages are read on
+  your device, and their contents are never uploaded.</p>
+
+  <p>You sign in with an email address and a password. That is the only account
+  the app has.</p>
+
+  <h2>If you gave the old version access to Gmail</h2>
+
+  <p>That access is no longer used or requested, and you can withdraw it at any
+  time at
+  <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.
+  Removing it will not affect BankAL.</p>
+
+  <h2>Everything else</h2>
+
+  <p>What the app reads, what it stores, how long it keeps it and how to have it
+  deleted are all set out in the privacy policy:</p>
+
+  <p><a href="https://osuyaalex.github.io/bank_app/policy/"><strong>BankAL Privacy
+  Policy</strong></a></p>
+
+  <h2>Contact</h2>
+  <ul>
+    <li><a href="mailto:osuyaale85@gmail.com">osuyaale85@gmail.com</a></li>
+    <li><a href="tel:+2347068808118">+234 706 880 8118</a></li>
+  </ul>
+
+  <hr>
+  <footer>BankAL &middot; Lagos, Nigeria &middot; com.alexosuya.bankal</footer>
+
+</main>
+</body>
+</html>
