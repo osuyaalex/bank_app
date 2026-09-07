@@ -42,35 +42,90 @@
   <h1>BankAL Privacy Policy</h1>
   <p class="updated">Last updated 7 September 2026</p>
 
-  <p class="lead">BankAL reads the transaction alerts your bank already sends you, so it can
-  show you where your money goes. This page explains exactly what it reads, what
-  stays on your phone, and the one thing that only leaves it if you ask.</p>
+  <p class="lead">BankAL reads the transaction alerts your bank already sends to your phone,
+  and turns them into a picture of where your money goes. This page says exactly
+  what it reads, what stays on your phone, what does not, and what you can do
+  about any of it.</p>
 
-  <h2>SMS access and what we read</h2>
+  <p>BankAL is operated from Lagos, Nigeria, by Alexander Osuya. Where Nigerian
+  data-protection law applies, we are the data controller for the information
+  described here.</p>
 
-  <p>BankAL asks for permission to read your SMS messages. It looks only for bank
-  transaction alerts — messages containing financial terms such as
-  <em>debit</em>, <em>credit</em>, <em>Amt</em> or <em>account</em> — and from
-  those it extracts:</p>
-
-  <ul>
-    <li>the transaction amount</li>
-    <li>the merchant name or description</li>
-    <li>the transaction date</li>
-    <li>the account balance, where the message states one</li>
-  </ul>
-
-  <p>Personal messages, one-time passwords and anything that is not a bank alert
-  are ignored.</p>
+  <h2>The short version</h2>
 
   <div class="callout">
-    <p><strong>SMS messages are read and processed entirely on your device.</strong>
-    Their contents are never uploaded, with one exception that only happens if you
-    ask for it: if BankAL cannot understand your bank's alerts, you can offer to
-    send us the <em>layout</em> of one, with every digit and every name removed on
-    your device first. That is described in
-    <a href="#reporting">Reporting a bank we cannot read</a> below.</p>
+    <p>Your bank messages are read <strong>on your phone</strong> and are never
+    uploaded. What reaches our servers is the result — amounts, dates, and who
+    you paid — not the messages themselves.</p>
+    <p>There is one exception, and it only happens if you tap a button: if we
+    cannot read your bank's format, you can send us the redacted
+    <em>layout</em> of an alert. That is covered in
+    <a href="#reporting">Reporting a bank we cannot read</a>.</p>
+    <p>We do not sell your data, we do not show ads, we run no analytics or
+    tracking, and no artificial-intelligence service sees anything of yours.</p>
   </div>
+
+  <h2>What BankAL reads on your phone</h2>
+
+  <h3>Your bank alerts (SMS)</h3>
+
+  <p>BankAL asks for permission to read SMS. It looks only for bank transaction
+  alerts — messages containing terms such as <em>debit</em>, <em>credit</em>,
+  <em>Amt</em>, <em>Bal</em> or <em>account</em> — and from those it works out:</p>
+
+  <ul>
+    <li>the amount</li>
+    <li>whether money went out or came in</li>
+    <li>the date and time</li>
+    <li>who was paid, or who paid you, as written in the message</li>
+    <li>the balance, where the message states one</li>
+    <li>which bank sent it</li>
+  </ul>
+
+  <p>Personal messages, one-time passwords, delivery notifications and anything
+  else are ignored. All of this happens on your device. <strong>The text of your
+  messages is never uploaded, stored on our servers, or shown to anyone.</strong>
+  What is saved is the result: a list of transactions.</p>
+
+  <h3>It also reads in the background</h3>
+
+  <p>So that new spending appears without you having to open the app, BankAL
+  re-checks recent messages periodically while it is closed, and after your phone
+  restarts. This is the same reading described above, done on your device, and it
+  stops the moment you revoke SMS access.</p>
+
+  <h3>Your location, once, to pick a currency</h3>
+
+  <p>When BankAL first sets up your account it asks for location so it can show
+  budgets in the right currency. It takes a single position reading, converts it
+  to a country using your device's geocoding service — which is provided by
+  Google on Android — and keeps only the resulting currency symbol.</p>
+
+  <p><strong>Your coordinates are not stored and are never sent to us.</strong> If
+  you decline, BankAL uses the Nigerian naira and everything else works normally.</p>
+
+  <h3>Biometrics</h3>
+
+  <p>If you switch on fingerprint or face unlock, that check is performed by
+  Android on your device. BankAL is told only whether it succeeded. We never
+  receive or store your fingerprint or face data.</p>
+
+  <h2>What you give us</h2>
+
+  <ul>
+    <li><strong>Your account</strong> — first name, last name and email address,
+    with a password, handled by Firebase Authentication. We never see your
+    password.</li>
+    <li><strong>Pictures you choose to add</strong> — if you add an image to a
+    budget category, it is uploaded to Firebase Storage and linked to your
+    account.</li>
+    <li><strong>Your budgets and corrections</strong> — the categories you create,
+    the amounts you set, and the times you tell BankAL it filed something in the
+    wrong place.</li>
+    <li><strong>A notification token</strong> — an identifier from Firebase Cloud
+    Messaging so we can send you alerts about your own spending. It identifies
+    the app on your device, not you personally.</li>
+  </ul>
 
   <h2 id="reporting">Reporting a bank we cannot read</h2>
 
@@ -79,8 +134,8 @@
   <strong>shape</strong> of one of those messages so we can add support for it.</p>
 
   <h3>It is optional</h3>
-  <p>Nothing is sent unless you tap <em>Send this</em>. You can use the app whether
-  you help or not.</p>
+  <p>Nothing is sent unless you tap <em>Send this</em>. You can use the app
+  whether you help or not.</p>
 
   <h3>We show you exactly what would be sent, before you decide</h3>
   <p>Every digit is replaced with <code>#</code>, and every word that is not
@@ -103,8 +158,6 @@ Bal:###.##</pre>
 
   <p>The app shows you this comparison in full before it asks.</p>
 
-  <h3>What we receive, and what we do not</h3>
-
   <table>
     <tr><th>We receive</th><th>We do not receive</th></tr>
     <tr>
@@ -112,7 +165,7 @@ Bal:###.##</pre>
         The redacted layout above<br>
         The sender ID, which names the bank<br>
         Your account identifier, so we can reach you<br>
-        The app version and the time you sent it
+        The app version, and the time you sent it
       </td>
       <td>
         The message itself<br>
@@ -129,72 +182,105 @@ Bal:###.##</pre>
   else, and we do not add you to any mailing list.</p>
 
   <h3>Withdrawing a report</h3>
-  <p>Email us and we will delete any report linked to your account. Because
-  reports carry your account identifier, we can find them.</p>
+  <p>Ask us and we will delete any report linked to your account. Because reports
+  carry your account identifier, we can find them.</p>
 
-  <h2>How we store and share data</h2>
+  <h2>Where your data is stored, and who else sees it</h2>
 
-  <p>Your account and your spending records are stored in Firebase Firestore,
-  operated by Google LLC, which acts as our storage provider. Format reports are
-  stored there too.</p>
-
-  <p>We do not sell, rent or share your personal data with third parties for
-  marketing purposes. We may disclose information if required to do so by law or
-  in response to a valid legal request.</p>
-
-  <h2>How long we keep it</h2>
+  <p>BankAL runs on Google Firebase, which processes data on our behalf:</p>
 
   <ul>
-    <li><strong>Authentication data</strong> — for as long as your account is
-    active.</li>
-    <li><strong>Spending records</strong> — the processed transaction summaries,
-    for as long as your account is active.</li>
-    <li><strong>Raw SMS messages</strong> — never stored and never transmitted.
-    Only the processed summaries are kept, and — where you have explicitly chosen
-    to send one — the redacted layout of an unreadable alert.</li>
+    <li><strong>Firebase Authentication</strong> — your sign-in details.</li>
+    <li><strong>Cloud Firestore</strong> — your transactions, budgets and
+    categories.</li>
+    <li><strong>Firebase Storage</strong> — images you add.</li>
+    <li><strong>Firebase Cloud Messaging</strong> — notifications.</li>
+    <li><strong>Firebase App Check</strong> — confirms requests come from the real
+    app and not from something impersonating it.</li>
+  </ul>
+
+  <p>Google stores this on servers that may be outside Nigeria. No one else
+  receives your data. We do not sell it, rent it, or share it for advertising, and
+  we will disclose it only if the law requires us to.</p>
+
+  <h2>What BankAL does not do</h2>
+
+  <ul>
+    <li>It does not read your email. BankAL once used Google's Gmail permission;
+    it no longer does, and that access has been removed.</li>
+    <li>It does not send anything to an artificial-intelligence service. Earlier
+    versions used one to categorise spending; it was removed because it performed
+    no better than the app's own rules.</li>
+    <li>It runs no analytics, no crash reporting, no advertising and no
+    third-party tracking of any kind.</li>
+    <li>It does not connect to your bank, and it cannot move your money. It only
+    reads messages your bank has already sent you.</li>
+    <li>It never uploads the text of your SMS messages.</li>
+  </ul>
+
+  <h2>How long we keep things</h2>
+
+  <ul>
+    <li><strong>Your account and your records</strong> — for as long as your
+    account exists. Delete your account and they go with it.</li>
+    <li><strong>The text of your SMS messages</strong> — never stored at all,
+    anywhere, at any point.</li>
     <li><strong>Format reports</strong> — until the bank format they describe is
-    supported, and for up to twelve months afterwards so we can confirm the fix
-    still holds.</li>
-    <li><strong>Email addresses given with a report</strong> — deleted once we
-    have written to you, or immediately on request.</li>
+    supported, and up to twelve months afterwards so we can confirm the fix still
+    holds.</li>
+    <li><strong>An email address given with a report</strong> — deleted once we
+    have written to you, or sooner if you ask.</li>
+    <li><strong>Your location</strong> — not kept. Only the currency symbol it
+    produced.</li>
   </ul>
 
   <h2>Security</h2>
 
-  <p>Data is transmitted over HTTPS and stored using Google's encryption
-  protocols. Access is restricted to authorised personnel and secured by
-  authentication controls.</p>
+  <p>Data travels over HTTPS and is stored using Google's encryption. Access rules
+  on our database restrict every record to the account that owns it, and format
+  reports cannot be read by the app at all — only written to. Access on our side
+  is limited to the operator of the app.</p>
 
-  <h2>Your controls</h2>
+  <h2>Your rights and controls</h2>
+
+  <p>Under the Nigeria Data Protection Act you may ask us for a copy of your data,
+  ask us to correct it, ask us to delete it, or object to how we use it. You can
+  also:</p>
 
   <ul>
-    <li>Revoke SMS access at any time in your device settings. BankAL will stop
-    reading new alerts immediately.</li>
-    <li>Request deletion of your data from within the app, or by email.</li>
-    <li>Request deletion of any format report you have sent.</li>
-    <li>Decline to send a format report and continue using the app as normal.</li>
+    <li>Revoke SMS access in your device settings at any time. BankAL stops
+    reading new alerts immediately, and everything already saved stays yours to
+    view or delete.</li>
+    <li>Revoke location access. The app keeps working.</li>
+    <li>Turn off notifications.</li>
+    <li>Delete individual transactions, categories, or your whole account, from
+    inside the app.</li>
+    <li>Decline to send a format report, or ask us to delete one you sent.</li>
   </ul>
 
+  <p>Write to us using the details below and we will answer within 30 days. If you
+  are not satisfied, you may complain to the Nigeria Data Protection Commission.</p>
+
   <h2>Children</h2>
-  <p>BankAL is not directed at children under 13, and we do not knowingly collect
-  data from them.</p>
+  <p>BankAL is not intended for anyone under 18, and we do not knowingly collect
+  data from children.</p>
 
   <h2>Changes to this policy</h2>
-  <p>If we change how BankAL handles your data, we will update this page and
-  change the date at the top. Material changes will be brought to your attention
-  in the app.</p>
+  <p>This page is kept in the app's own source repository, so it changes in step
+  with the app itself. If we change what BankAL collects, this page changes in the
+  same release and the date at the top moves. Anything material will be brought to
+  your attention inside the app.</p>
 
   <h2>Contact</h2>
-  <p>Questions, or a request to delete your data or a format report you have
-  sent:</p>
+  <p>Questions, or a request to see, correct or delete your data:</p>
   <ul>
     <li><a href="mailto:osuyaale85@gmail.com">osuyaale85@gmail.com</a></li>
     <li><a href="tel:+2347068808118">+234 706 880 8118</a></li>
   </ul>
-  <p>BankAL is operated from Lagos, Nigeria.</p>
+  <p>BankAL &middot; Lagos, Nigeria</p>
 
   <hr>
-  <footer>BankAL · com.alexosuya.bankal</footer>
+  <footer>BankAL &middot; com.alexosuya.bankal</footer>
 
 </main>
 </body>
