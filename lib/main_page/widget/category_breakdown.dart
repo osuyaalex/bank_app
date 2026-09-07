@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../data/models.dart';
 import '../../data/spend_repository.dart';
+import '../../data/unseen_activity.dart';
 import 'category_picker.dart';
 
 /// What made up a category's spending, and the controls to change it.
@@ -43,6 +44,15 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
   List<TransactionRecord> _txns = [];
   List<Category> _categories = [];
   Set<String> _tracked = {};
+
+  /// The transactions filed here since the user last opened this category.
+  ///
+  /// Read once, on the way in, and cleared immediately: opening the category
+  /// is looking at it. The set is kept in memory for this visit so the rows
+  /// can still be pointed at, which is the whole reason for coming.
+  Set<String> _unseen = {};
+  DateTime? _lastLooked;
+
   bool _loading = true;
 
   @override
@@ -57,13 +67,24 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       final txns = await _repo.transactionsForCategory(widget.categoryId);
       final categories = await _repo.loadCategories();
       final tracked = await _repo.trackedCategoryNames();
+
+      final tally = await UnseenActivity.load();
+      final unseen = tally.unseenIn(widget.categoryId);
+      final lastLooked = tally.lastSeen[widget.categoryId];
+      if (unseen.isNotEmpty) {
+        await UnseenActivity.markSeen(widget.categoryId);
+      }
       if (!mounted) return;
       setState(() {
         _contributors = contributors;
         _txns = txns;
         _categories = categories.where((c) => c.active).toList()
-          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          ..sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
         _tracked = tracked;
+        _unseen = unseen;
+        _lastLooked = lastLooked;
         _loading = false;
       });
     } catch (_) {
@@ -76,7 +97,7 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
 
   /// Transactions grouped by day, newest day first.
   List<({DateTime day, List<TransactionRecord> items, double total})>
-      get _byDay {
+  get _byDay {
     final buckets = <DateTime, List<TransactionRecord>>{};
     for (final t in _txns) {
       final d = t.occurredAt;
@@ -90,8 +111,7 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
         (
           day: day,
           items: buckets[day]!,
-          total: buckets[day]!
-              .fold<double>(0, (s, t) => s + (t.amount ?? 0)),
+          total: buckets[day]!.fold<double>(0, (s, t) => s + (t.amount ?? 0)),
         ),
     ];
   }
@@ -112,7 +132,9 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
 
   Future<void> _switch(({String key, int count, double total}) row) async {
     final target = await _chooseCategory(
-        row.key, 'Move ${row.key} and everything from them');
+      row.key,
+      'Move ${row.key} and everything from them',
+    );
     if (target == null) return;
     if (!mounted) return;
 
@@ -157,11 +179,15 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       await _load();
       EasyLoading.dismiss();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(moveHistory
-            ? '${row.key} moved to ${target.name}, along with this month.'
-            : '${row.key} will go to ${target.name} from now on.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            moveHistory
+                ? '${row.key} moved to ${target.name}, along with this month.'
+                : '${row.key} will go to ${target.name} from now on.',
+          ),
+        ),
+      );
     } catch (e) {
       // Previously this threw past the snackbar and the user was told
       // nothing, leaving them looking at a list that had not changed with no
@@ -170,9 +196,11 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       // ignore: avoid_print
       print('Move counterparty failed: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not move ${row.key}. Nothing was changed.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not move ${row.key}. Nothing was changed.'),
+        ),
+      );
     }
   }
 
@@ -198,10 +226,14 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       await _load();
       EasyLoading.dismiss();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Moved to ${target.name}. Only this one — later '
-            'payments are unchanged.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Moved to ${target.name}. Only this one — later '
+            'payments are unchanged.',
+          ),
+        ),
+      );
     } catch (e) {
       EasyLoading.dismiss();
       // ignore: avoid_print
@@ -227,9 +259,9 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
         child: Text(
           widget.legacyTotal > 0
               ? 'The ${_money(widget.legacyTotal)} under '
-                  '${widget.categoryName} was recorded before the app kept '
-                  'individual transactions, so it cannot be broken down yet. '
-                  'New spending will appear here.'
+                    '${widget.categoryName} was recorded before the app kept '
+                    'individual transactions, so it cannot be broken down yet. '
+                    'New spending will appear here.'
               : 'Nothing recorded under ${widget.categoryName} yet this month.',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.grey.shade600, height: 1.4),
@@ -237,8 +269,7 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       );
     }
 
-    final itemised =
-        _txns.fold<double>(0, (s, t) => s + (t.amount ?? 0));
+    final itemised = _txns.fold<double>(0, (s, t) => s + (t.amount ?? 0));
     final unaccounted = widget.legacyTotal - itemised;
 
     return Padding(
@@ -247,6 +278,7 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _summary(itemised),
+          _whatIsNew(),
           if (unaccounted > 1) _reconciliation(itemised, unaccounted),
           const SizedBox(height: 22),
           _heading('WHO THIS WENT TO', _contributors.length),
@@ -264,66 +296,119 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
   /// The category's own total, so the panel stands on its own rather than
   /// making the reader hold the figure from the card above.
   Widget _summary(double itemised) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: brandBlue.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: BoxDecoration(
+      color: brandBlue.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _money(itemised),
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            color: brandBlue,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_money(itemised),
-                style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: brandBlue)),
-            const SizedBox(height: 2),
-            Text(
-              '${_txns.length} transaction${_txns.length == 1 ? '' : 's'} '
-              'across ${_contributors.length} '
-              'place${_contributors.length == 1 ? '' : 's'}',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-          ],
+        const SizedBox(height: 2),
+        Text(
+          '${_txns.length} transaction${_txns.length == 1 ? '' : 's'} '
+          'across ${_contributors.length} '
+          'place${_contributors.length == 1 ? '' : 's'}',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
-      );
+      ],
+    ),
+  );
 
   /// Explains a gap between the category total and what is itemised.
   ///
   /// After the cutover both come from the same records, so this should never
   /// appear -- it stays as a tripwire for the two drifting apart again.
   Widget _reconciliation(double itemised, double unaccounted) => Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(top: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        decoration: BoxDecoration(
-          color: Colors.amber.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          '${_money(unaccounted)} of this category is not itemised yet — '
-          'it is still waiting in Needs sorting.',
-          style: TextStyle(
-              fontSize: 11.5, height: 1.4, color: Colors.brown.shade700),
-        ),
-      );
+    width: double.infinity,
+    margin: const EdgeInsets.only(top: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+    decoration: BoxDecoration(
+      color: Colors.amber.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Text(
+      '${_money(unaccounted)} of this category is not itemised yet — '
+      'it is still waiting in Needs sorting.',
+      style: TextStyle(
+        fontSize: 11.5,
+        height: 1.4,
+        color: Colors.brown.shade700,
+      ),
+    ),
+  );
 
-  Widget _heading(String text, int count) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+  /// What has arrived since the user last opened this category.
+  ///
+  /// The marker on the home screen gets somebody to tap once. This is what
+  /// makes them tap again: a figure they did not have, at the top, instead of
+  /// the same list they already knew with two rows quietly outlined somewhere
+  /// inside it.
+  Widget _whatIsNew() {
+    if (_unseen.isEmpty) return const SizedBox.shrink();
+    final fresh = _txns.where((t) => _unseen.contains(t.smsId)).toList();
+    if (fresh.isEmpty) return const SizedBox.shrink();
+    final total = fresh.fold<double>(0, (s, t) => s + (t.amount ?? 0));
+    final n = fresh.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+        decoration: BoxDecoration(
+          color: brandBlue.withValues(alpha: 0.09),
+          borderRadius: BorderRadius.circular(14),
+        ),
         child: Row(
           children: [
-            Text(text,
+            const Icon(Icons.auto_awesome_rounded, size: 18, color: brandBlue),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Text(
+                _lastLooked == null
+                    ? '${_money(total)} in $n new '
+                          'payment${n == 1 ? '' : 's'}'
+                    : '${_money(total)} in $n '
+                          'payment${n == 1 ? '' : 's'} since you last looked',
                 style: const TextStyle(
-                    fontSize: 10.5,
-                    letterSpacing: 0.9,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black38)),
-            const SizedBox(width: 8),
-            Expanded(child: Container(height: 1, color: Colors.grey.shade200)),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
+              ),
+            ),
           ],
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _heading(String text, int count) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: Row(
+      children: [
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 10.5,
+            letterSpacing: 0.9,
+            fontWeight: FontWeight.w700,
+            color: Colors.black38,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Container(height: 1, color: Colors.grey.shade200)),
+      ],
+    ),
+  );
 
   Widget _contributorRow(({String key, int count, double total}) row) {
     final initial = row.key.trim().isEmpty ? '?' : row.key.trim()[0];
@@ -347,27 +432,37 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
                     shape: BoxShape.circle,
                     color: brandBlue.withValues(alpha: 0.14),
                   ),
-                  child: Text(initial.toUpperCase(),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: brandBlue)),
+                  child: Text(
+                    initial.toUpperCase(),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: brandBlue,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 11),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(row.key,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 14)),
+                      Text(
+                        row.key,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
                       const SizedBox(height: 2),
                       Text(
-                          '${row.count} transaction${row.count == 1 ? '' : 's'}',
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade500)),
+                        '${row.count} transaction${row.count == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -375,20 +470,30 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(_money(row.total),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 13)),
+                    Text(
+                      _money(row.total),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 2),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('Move all',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: brandBlue.withValues(alpha: 0.9))),
-                        Icon(Icons.chevron_right,
-                            size: 14, color: brandBlue.withValues(alpha: 0.9)),
+                        Text(
+                          'Move all',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: brandBlue.withValues(alpha: 0.9),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 14,
+                          color: brandBlue.withValues(alpha: 0.9),
+                        ),
                       ],
                     ),
                   ],
@@ -402,93 +507,127 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
   }
 
   Widget _dayGroup(
-          ({DateTime day, List<TransactionRecord> items, double total}) g) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 7),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(DateFormat('EEEE, d MMM').format(g.day),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 12.5)),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 9, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                        '${_money(g.total)} · ${g.items.length}',
-                        style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade600)),
-                  ),
-                ],
-              ),
-            ),
-            for (final t in g.items)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 5),
-                child: Material(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(11),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(11),
-                    onTap: () => _correct(t),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(t.counterpartyKey ?? t.narration,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w600)),
-                                if (t.occurredAt != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                      DateFormat('h:mm a')
-                                          .format(t.occurredAt!),
-                                      style: TextStyle(
-                                          fontSize: 10.5,
-                                          color: Colors.grey.shade500)),
-                                ],
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(_money(t.amount ?? 0),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 12.5)),
-                          const SizedBox(width: 8),
-                          Text('Just this one',
-                              style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade500)),
-                          Icon(Icons.chevron_right,
-                              size: 13, color: Colors.grey.shade400),
-                        ],
-                      ),
-                    ),
+    ({DateTime day, List<TransactionRecord> items, double total}) g,
+  ) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 7),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  DateFormat('EEEE, d MMM').format(g.day),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
                   ),
                 ),
               ),
-          ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_money(g.total)} · ${g.items.length}',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      );
+        for (final t in g.items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 5),
+            child: Material(
+              color: _unseen.contains(t.smsId)
+                  ? brandBlue.withValues(alpha: 0.07)
+                  : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(11),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(11),
+                onTap: () => _correct(t),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border(
+                      left: BorderSide(
+                        color: _unseen.contains(t.smsId)
+                            ? brandBlue
+                            : Colors.transparent,
+                        width: _unseen.contains(t.smsId) ? 3 : 0,
+                      ),
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              t.counterpartyKey ?? t.narration,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (t.occurredAt != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                DateFormat('h:mm a').format(t.occurredAt!),
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _money(t.amount ?? 0),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Just this one',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 13,
+                        color: Colors.grey.shade400,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
 }

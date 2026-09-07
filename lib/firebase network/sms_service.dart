@@ -5,6 +5,7 @@ import '../data/sms_inbox.dart';
 import '../data/models.dart';
 import '../data/pending_notifications.dart';
 import '../data/spend_repository.dart';
+import '../data/unseen_activity.dart';
 import '../parsing/bank_alert.dart';
 
 class SmsService{
@@ -76,6 +77,23 @@ class SmsService{
             smsId: message.id!.toString(),
             alert: alert,
           );
+          // Filed on its own, into a budget the user has not looked at
+          // since. Recorded so the home screen can say which one, instead of
+          // leaving them to open every category and try to remember what was
+          // there before.
+          //
+          // Guarded by `firstRun` for the same reason the notification below
+          // is: the first scan is a backfill of history, not news, and
+          // marking a hundred of them would light the whole screen on the
+          // one day the user has never seen any of it.
+          if (mirrored != null &&
+              mirrored.status == TxnStatus.labeled &&
+              mirrored.categoryId != null &&
+              !marker.firstRun) {
+            await UnseenActivity.record(
+                mirrored.categoryId!, message.id!.toString());
+          }
+
           if (mirrored != null && mirrored.status == TxnStatus.pending) {
             pending++;
             // Nothing else tells the user an unrecognised transaction is

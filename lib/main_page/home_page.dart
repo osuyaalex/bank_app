@@ -10,6 +10,9 @@ import 'package:banking_app/login%20pages/sign_in_page.dart';
 import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/widget/progress_bar.dart';
+import 'package:banking_app/data/models.dart' show slugifyCategory;
+import 'package:banking_app/data/unseen_activity.dart';
+import 'package:flutter/services.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:banking_app/utilities/snackbar.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -60,6 +63,9 @@ Color _statusColour(BudgetLevel level) {
 class _HomePageState extends State<HomePage> {
   int _needsSorting = 0;
   int _untagged = 0;
+
+  /// What has been filed since the user last opened each budget.
+  UnseenTally _unseen = const UnseenTally();
   String _currentMonth = '';
   Map<String, dynamic> _data = {};
   List<String> _currentMonthDocs = [];
@@ -402,15 +408,98 @@ class _HomePageState extends State<HomePage> {
       final repo = SpendRepository();
       final count = await repo.pendingCount();
       final untagged = await repo.pendingTagCount();
+      final unseen = await UnseenActivity.load();
       if (mounted) {
         setState(() {
           _needsSorting = count;
           _untagged = untagged;
+          _unseen = unseen;
         });
+        await _deliverNudge(unseen);
       }
     } catch (_) {
       // An extra; never let it break the screen.
     }
+  }
+
+  /// The outline that says whether a budget is over or near its limit.
+  ///
+  /// A quiet outline rather than a filled alarm: it has to read at a glance
+  /// without making the whole screen look broken.
+  BorderSide _statusSide(BudgetStatus status) => BorderSide(
+    color: _statusColour(
+      status.level,
+    ).withValues(alpha: status.level == BudgetLevel.ok ? 0 : 0.55),
+    width: status.level == BudgetLevel.ok ? 0 : 1.4,
+  );
+
+  /// Says something once, when a budget the user has already walked past
+  /// collects more spending.
+  ///
+  /// Delivered here rather than where the transaction is recorded, because
+  /// the app is usually not open when money moves and a message nobody is
+  /// there to read is not a message. Once per budget per run of unseen
+  /// spending: the marker itself carries the news after that, and a reminder
+  /// that repeats is a reminder people learn to ignore.
+  Future<void> _deliverNudge(UnseenTally tally) async {
+    if (tally.pendingNudge.isEmpty) return;
+    final names = tally.pendingNudge.toList();
+    await UnseenActivity.clearNudges();
+    if (!mounted) return;
+    setState(() => _unseen = tally.nudged());
+
+    HapticFeedback.mediumImpact();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          names.length == 1
+              ? 'More spending went into one of your budgets. Worth a look.'
+              : 'More spending went into ${names.length} of your budgets. '
+                    'Worth a look.',
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  /// One line, for when marking each budget would light the whole screen.
+  Widget _unseenSummary() {
+    if (_unseen.total == 0 || _unseen.markIndividually) {
+      return const SizedBox.shrink();
+    }
+    final n = _unseen.total;
+    final where = _unseen.marked.length;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xff5AA5E2).withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.auto_awesome_rounded,
+              size: 18,
+              color: Color(0xff5AA5E2),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Text(
+                '$n new payment${n == 1 ? '' : 's'} across $where budgets '
+                'since you last looked',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// The same banner the summary carries, saying the same thing.
@@ -829,6 +918,7 @@ class _HomePageState extends State<HomePage> {
                                 return Column(
                                   children: [
                                     _sortBanner(),
+                                    _unseenSummary(),
                                     Expanded(
                                       child: ListView.builder(
                                         itemCount:
@@ -894,13 +984,35 @@ class _HomePageState extends State<HomePage> {
                                             budget: maxValue,
                                           );
 
+                                          // Filed here since the user last
+                                          // opened it. Marked only while a
+                                          // few budgets carry anything: past
+                                          // that the summary line above says
+                                          // it once instead.
+                                          final categoryId = slugifyCategory(
+                                            '${listedItems['name']}',
+                                          );
+                                          final unseenHere = _unseen.countIn(
+                                            categoryId,
+                                          );
+                                          final marked =
+                                              unseenHere > 0 &&
+                                              _unseen.markIndividually;
+
                                           return Padding(
                                             padding: const EdgeInsets.only(
                                               bottom: 8.0,
                                             ),
                                             child: GestureDetector(
-                                              onTap: () {
-                                                Navigator.push(
+                                              onTap: () async {
+                                                // The breakdown clears the
+                                                // marker, not this. It has to
+                                                // read which transactions
+                                                // were unseen *before* they
+                                                // stop being unseen, or the
+                                                // rows it is meant to point
+                                                // at arrive already cleared.
+                                                await Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
                                                     builder: (context) {
@@ -915,8 +1027,12 @@ class _HomePageState extends State<HomePage> {
                                                     },
                                                   ),
                                                 );
+                                                await _loadNeedsSorting();
                                               },
-                                              child: Container(
+                                              child: AnimatedContainer(
+                                                duration: const Duration(
+                                                  milliseconds: 260,
+                                                ),
                                                 padding: const EdgeInsets.all(
                                                   12,
                                                 ),
@@ -924,22 +1040,27 @@ class _HomePageState extends State<HomePage> {
                                                   borderRadius:
                                                       BorderRadius.circular(18),
                                                   color: Colors.white,
-                                                  // A quiet outline rather than a
-                                                  // filled alarm: it has to read at
-                                                  // a glance without making the
-                                                  // whole screen look broken.
-                                                  border: Border.all(
-                                                    color:
-                                                        _statusColour(
-                                                          status.level,
-                                                        ).withValues(
-                                                          alpha:
-                                                              status.level ==
-                                                                  BudgetLevel.ok
-                                                              ? 0
-                                                              : 0.55,
-                                                        ),
-                                                    width: 1.4,
+                                                  // The unseen mark is a rail
+                                                  // down the leading edge, not
+                                                  // a pulse. Something that
+                                                  // may sit there for days
+                                                  // has to be legible for
+                                                  // days, and a glow that
+                                                  // never stops becomes
+                                                  // either wallpaper or an
+                                                  // irritant.
+                                                  border: Border(
+                                                    left: BorderSide(
+                                                      color: marked
+                                                          ? const Color(
+                                                              0xff2E5BFF,
+                                                            )
+                                                          : Colors.transparent,
+                                                      width: marked ? 4 : 0,
+                                                    ),
+                                                    top: _statusSide(status),
+                                                    right: _statusSide(status),
+                                                    bottom: _statusSide(status),
                                                   ),
                                                 ),
                                                 child: Column(
@@ -975,6 +1096,55 @@ class _HomePageState extends State<HomePage> {
                                                             Text(
                                                               listedItems['name'],
                                                             ),
+                                                            // How many, not
+                                                            // merely that
+                                                            // there are some.
+                                                            // "Something
+                                                            // happened here"
+                                                            // is a reason to
+                                                            // look; "three
+                                                            // payments" is a
+                                                            // reason to look
+                                                            // now.
+                                                            if (marked) ...[
+                                                              const SizedBox(
+                                                                width: 9,
+                                                              ),
+                                                              Container(
+                                                                padding:
+                                                                    const EdgeInsets.symmetric(
+                                                                      horizontal:
+                                                                          8,
+                                                                      vertical:
+                                                                          3,
+                                                                    ),
+                                                                decoration: BoxDecoration(
+                                                                  color: const Color(
+                                                                    0xff2E5BFF,
+                                                                  ),
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        20,
+                                                                      ),
+                                                                ),
+                                                                child: Text(
+                                                                  unseenHere ==
+                                                                          1
+                                                                      ? '1 new'
+                                                                      : '$unseenHere new',
+                                                                  style: const TextStyle(
+                                                                    fontSize:
+                                                                        10.5,
+                                                                    height: 1.1,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w800,
+                                                                    color: Colors
+                                                                        .white,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ],
                                                         ),
                                                       ],
