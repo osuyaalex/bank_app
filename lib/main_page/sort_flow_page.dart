@@ -577,6 +577,12 @@ class _SortFlowPageState extends State<SortFlowPage> {
       return UnreadableSmsView(
         permissionGranted: _smsGranted,
         messagesSeen: r?.total ?? 0,
+        // Somewhere to go that is not the app store. The screen used to
+        // offer "Close the app" as its only exit.
+        onContinue: () async {
+          await _repo.markBatchTagDismissed();
+          if (mounted) _leave();
+        },
         onRetry: () async {
           if (!mounted) return;
           setState(() => _loading = true);

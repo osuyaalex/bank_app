@@ -58,6 +58,43 @@ service cloud.firestore {
       }
     }
 
+    // ---------------------------------------------------------------------
+    // format_reports/{reportId}
+    //
+    // Bank formats the app cannot read, offered by the users stuck behind
+    // them. Write-only from the app and never readable by it: a report is for
+    // the developer, and one user must never be able to list what another has
+    // sent.
+    //
+    // What these rules can enforce is the envelope -- who wrote it, how big it
+    // is, and which fields it may carry. They cannot check the contents of a
+    // list, so "no digits in any shape" is enforced on the device by
+    // `looksRedacted`, which runs before the write and drops anything that
+    // fails it. Treat that as the guarantee; this is the cap on the blast
+    // radius if it is ever wrong.
+    //
+    // The one update allowed is the address, added after the fact by whoever
+    // wrote the report, because the email is asked for separately.
+    // ---------------------------------------------------------------------
+    match /format_reports/{reportId} {
+      allow read, delete: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.shapes is list
+        && request.resource.data.shapes.size() > 0
+        && request.resource.data.shapes.size() <= 8
+        && request.resource.data.keys().hasOnly([
+             'shapes', 'senders', 'uid', 'email', 'note', 'appVersion',
+             'createdAt', 'status'
+           ]);
+
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data)
+             .affectedKeys().hasOnly(['email']);
+    }
+
     // Anything not matched above is denied.
   }
 }
