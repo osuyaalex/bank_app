@@ -114,7 +114,9 @@ class _SignupPageState extends State<SignupPage> {
   }
 
   void _launchURL() async {
-    String url = 'https://bank-ai.netlify.app/policy';
+    // Served from `docs/` in this repository, so the page describing what the
+    // app collects and the code that collects it change in the same commit.
+    String url = 'https://osuyaalex.github.io/bank_app/policy/';
     Uri uri = Uri.parse(url);
     try{
       launchUrl(uri);

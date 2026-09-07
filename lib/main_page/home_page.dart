@@ -11,6 +11,8 @@ import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/widget/progress_bar.dart';
 import 'package:banking_app/data/models.dart' show slugifyCategory;
+import 'package:banking_app/data/sms_inbox.dart';
+import 'package:banking_app/main_page/widget/share_format_sheet.dart';
 import 'package:banking_app/data/unseen_activity.dart';
 import 'package:flutter/services.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
@@ -368,6 +370,30 @@ class _HomePageState extends State<HomePage> {
   //     print(e.toString());
   //   }
   // }
+
+  /// Offers to send the shape of alerts the parser could not read.
+  ///
+  /// Reachable from inside the app, not only from the screen that blocks the
+  /// way in. Somebody whose bank half works -- most alerts read, one format
+  /// not -- never sees that screen at all, and they are exactly the person
+  /// whose missing format is worth having.
+  Future<void> _offerToShareFormat() async {
+    final found = await SmsInbox.unreadableAlerts();
+    if (!mounted) return;
+    if (found.bodies.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Every bank message here is already being read.'),
+        ),
+      );
+      return;
+    }
+    await showShareFormatSheet(
+      context,
+      bodies: found.bodies,
+      senders: found.senders,
+    );
+  }
 
   /// Signing out, behind a name and a confirmation.
   ///
@@ -775,6 +801,10 @@ class _HomePageState extends State<HomePage> {
                         _scheduleNotificationAlert();
                         return;
                       }
+                      if (value == 'format') {
+                        _offerToShareFormat();
+                        return;
+                      }
                       _confirmSignOut();
                     },
                     itemBuilder: (_) => const [
@@ -789,6 +819,20 @@ class _HomePageState extends State<HomePage> {
                             ),
                             SizedBox(width: 12),
                             Text('Reminders'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'format',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.sms_failed_outlined,
+                              size: 19,
+                              color: Colors.black54,
+                            ),
+                            SizedBox(width: 12),
+                            Text('Bank not showing up?'),
                           ],
                         ),
                       ),

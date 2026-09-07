@@ -68,7 +68,9 @@ class SmsInbox {
   /// identical from the inside: they have no bank alerts, or they have plenty
   /// and none of them parse. Only the second is the app's fault, and only the
   /// second is worth saying out loud.
-  static Future<({int total, int parsed})> readability({int count = 300}) async {
+  static Future<({int total, int parsed})> readability({
+    int count = 300,
+  }) async {
     if (!await Permission.sms.isGranted) return (total: 0, parsed: 0);
     try {
       final messages = await readRecent(count: count);
@@ -83,16 +85,52 @@ class SmsInbox {
     }
   }
 
+  /// Messages that look like bank alerts and that the parser cannot read.
+  ///
+  /// The raw bodies, for one purpose only: reducing them to their shape so a
+  /// user can offer the format to be fixed. Nothing here is stored, sent or
+  /// written down until [shapeOf] has been through it.
+  ///
+  /// "Looks like a bank alert" is deliberately loose -- a sender that is a
+  /// name rather than a phone number, and a message with a figure in it. A
+  /// tighter test would use the parser, which is the thing that cannot read
+  /// these, so it would find nothing by definition.
+  static Future<({List<String> bodies, List<String> senders})>
+  unreadableAlerts({int count = 300, int limit = 20}) async {
+    if (!await Permission.sms.isGranted) {
+      return (bodies: <String>[], senders: <String>[]);
+    }
+    try {
+      final bodies = <String>[];
+      final senders = <String>{};
+      for (final m in await readRecent(count: count)) {
+        final sender = m.sender;
+        final body = m.body;
+        if (sender == null || body == null || body.trim().isEmpty) continue;
+        // A person texts from a number; a bank texts from a name.
+        if (!RegExp(r'[A-Za-z]{3}').hasMatch(sender)) continue;
+        if (!RegExp(r'\d').hasMatch(body)) continue;
+        if (parseAlert(sender, body) != null) continue;
+        bodies.add(body);
+        senders.add(sender);
+        if (bodies.length >= limit) break;
+      }
+      return (bodies: bodies, senders: senders.toList());
+    } catch (_) {
+      return (bodies: <String>[], senders: <String>[]);
+    }
+  }
+
   /// The recent slice used by the periodic scan, which only ever looks at
   /// today. Bounded on purpose: an unbounded read is a memory risk on the
   /// low-end devices this app runs on.
   static Future<List<SmsMessage>> readRecent({int count = 500}) =>
-      SmsQuery().querySms(
-        kinds: const [SmsQueryKind.inbox],
-        count: count,
-      );
+      SmsQuery().querySms(kinds: const [SmsQueryKind.inbox], count: count);
 
-  static void _collect(List<SmsMessage> messages, Map<String, InboxMessage> into) {
+  static void _collect(
+    List<SmsMessage> messages,
+    Map<String, InboxMessage> into,
+  ) {
     for (final m in messages) {
       if (m.id == null || m.body == null) continue;
       into[m.id!.toString()] = InboxMessage(
