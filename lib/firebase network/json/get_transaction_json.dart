@@ -80,7 +80,7 @@ class Data {
 class Meta {
   int? total;
   int? page;
-  Null? previous;
+  Null previous;
   String? next;
 
   Meta({this.total, this.page, this.previous, this.next});

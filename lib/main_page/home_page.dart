@@ -71,9 +71,7 @@ class _HomePageState extends State<HomePage> {
   /// What has been filed since the user last opened each budget.
   UnseenTally _unseen = const UnseenTally();
   String _currentMonth = '';
-  Map<String, dynamic> _data = {};
   List<String> _currentMonthDocs = [];
-  Map<String, dynamic> _monthData = {};
   ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
   ValueNotifier<bool> _updateDailySpend = ValueNotifier<bool>(false);
   int _lastPage = 0;
@@ -664,9 +662,6 @@ class _HomePageState extends State<HomePage> {
                                 _currentMonthDataNotifier.value =
                                     _currentMonthDocs[index];
                                 _manuallyUpdateDailySpend();
-                                _monthData =
-                                    documents[index].data()
-                                        as Map<String, dynamic>;
                               },
                             ),
                             itemCount: documents.length,
