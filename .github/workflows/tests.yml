@@ -1,0 +1,40 @@
+# Runs the checks that have to hold before anything is merged.
+#
+# It replaces an auto-generated Firebase Hosting preview job that had failed on
+# every pull request since the repository was created: it wanted a service
+# account secret that was never added, and it deployed `build/web` without ever
+# building it, for a site that exists to serve deep links rather than a web
+# app. A check that is always red is worse than no check, because it teaches
+# everyone to merge past a red check.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: analyze and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          # Pinned to the version the app is developed against. A runner that
+          # quietly moves to a newer Flutter turns an unrelated toolchain
+          # change into a failing pull request.
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # Fails on errors and warnings, not on style. Several hundred lint
+      # suggestions are outstanding because `flutter_lints` was never wired up
+      # correctly until now, and blocking merges on those would mean the check
+      # is red again by tomorrow, which is the thing this is replacing.
+      - run: flutter analyze --no-fatal-infos
+
+      - run: flutter test
