@@ -28,21 +28,25 @@ class FormatReports {
   /// report with nothing left in it is not written at all -- an empty
   /// document would be a row in a list promising a format that is not there.
   static Future<String?> submit({
-    required List<String> shapes,
-    required List<String> senders,
+    required List<ShapedAlert> shapes,
     String? email,
     String? note,
     String? appVersion,
   }) async {
-    final safe = shapes.where(looksRedacted).toList();
+    final safe = shapes.where((s) => looksRedacted(s.shape)).toList();
     if (safe.isEmpty) return null;
 
     final doc = _collection.doc();
     await doc.set({
-      'shapes': safe,
-      // Which bank, which is the whole point of the report. A sender id is
-      // the bank's name, not the user's.
-      'senders': senders.toSet().toList(),
+      // Each layout beside the bank that wrote it. As two separate lists a
+      // reader had to guess which went with which, and guessing wrong means
+      // writing a parser rule for the wrong bank.
+      'shapes': [
+        for (final s in safe) {'sender': s.sender, 'shape': s.shape},
+      ],
+      // Kept flat as well, so reports can be found by bank without reading
+      // into the layouts.
+      'senders': safe.map((s) => s.sender).toSet().toList(),
       'uid': FirebaseAuth.instance.currentUser?.uid,
       if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
       if (note != null && note.trim().isNotEmpty) 'note': note.trim(),

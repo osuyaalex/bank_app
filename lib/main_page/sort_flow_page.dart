@@ -864,7 +864,7 @@ class _SortFlowPageState extends State<SortFlowPage> {
           onTap: () => _openPicker(e),
         ),
         _option(
-          label: 'Not spending — my own account',
+          label: 'Not spending, my own account',
           hint: 'money moved between your own accounts',
           muted: true,
           onTap: () => _answer(e, const CategoryChoice.notSpending()),

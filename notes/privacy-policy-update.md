@@ -30,7 +30,7 @@ Its source is not in this repository. Everything below is ready to paste.
 **Replace with:**
 
 > Raw SMS messages are never stored or transmitted. Only processed transaction
-> summaries are retained, and — where you have explicitly chosen to send one —
+> summaries are retained, and , where you have explicitly chosen to send one ,
 > the redacted layout of an unreadable alert.
 
 ---
@@ -123,12 +123,12 @@ Update the form to match. The relevant answers:
 |---|---|
 | Does your app collect or share SMS data? | **Yes** |
 | Is it collected or shared? | **Collected** (we do not share it onward) |
-| Is it optional or required? | **Optional** — the user chooses per report |
-| Purpose | **App functionality** — adding support for their bank |
+| Is it optional or required? | **Optional** , the user chooses per report |
+| Purpose | **App functionality** , adding support for their bank |
 | Is it encrypted in transit? | **Yes** |
 | Can users request deletion? | **Yes** |
 
-Declare **Email address** too, as optional, purpose *App functionality* — you
+Declare **Email address** too, as optional, purpose *App functionality* , you
 use it to tell them when their bank works.
 
 The important nuance: what is collected is *derived from* SMS but is not the

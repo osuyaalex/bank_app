@@ -61,8 +61,8 @@ class CategoryGuess {
   /// language sets the same expectation and tells them what to do about it.
   String? get note {
     if (isCertain) return null;
-    if (confidence >= 0.65) return 'Best guess — tap if this is wrong';
-    return "Not sure about this one — worth a check";
+    if (confidence >= 0.65) return 'Best guess. Tap if this is wrong';
+    return "Not sure about this one. Worth a check";
   }
 }
 
@@ -466,9 +466,9 @@ CategoryGuess? guessCategory(
         categoryName: trackedBucket,
         confidence: mostlyRoundAmounts ? 0.56 : 0.52,
         reason: mostlyRoundAmounts
-            ? 'Round amounts sent to a person. Parked in $trackedBucket — '
+            ? 'Round amounts sent to a person. Parked in $trackedBucket. '
                 'move it if it belongs somewhere else.'
-            : 'Money sent to a person. Parked in $trackedBucket — '
+            : 'Money sent to a person. Parked in $trackedBucket. '
                 'move it if it belongs somewhere else.',
       );
     }

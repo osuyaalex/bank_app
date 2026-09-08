@@ -159,7 +159,7 @@ Future<void> _confirmDelete(
       title: const Text('Delete permanently?'),
       content: Text(
         'This erases $count transaction${count == 1 ? "" : "s"} from '
-        '$categoryName. They cannot be brought back — not by re-scanning, '
+        '$categoryName. They cannot be brought back, not by re-scanning, '
         'not by re-installing.',
         style: const TextStyle(height: 1.5),
       ),

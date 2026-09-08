@@ -8,8 +8,8 @@ Firestore, top-level collection **`format_reports`**, one document per report.
 
 ```
 format_reports/{autoId}
-  shapes      [string]   the redacted layouts, one per distinct format
-  senders     [string]   the sender ids they came from — this names the bank
+  shapes      [map]      {sender, shape} per distinct format
+  senders     [string]   the sender ids, flat, for finding reports by bank
   uid         string     who sent it, so a follow-up is possible
   email       string?    only if they asked to be told when their bank works
   note        string?    reserved; nothing writes it yet
@@ -25,7 +25,7 @@ descending. That is the whole workflow; there is nothing to install.
 
 The app cannot read this collection. `firestore.rules` denies `read` outright,
 because one user must never be able to list what another has sent. If you ever
-want this programmatically, it needs a service account and the Admin SDK — the
+want this programmatically, it needs a service account and the Admin SDK , the
 client is deliberately write-only.
 
 ## What a report actually contains
@@ -43,7 +43,7 @@ Bal:142.92                         Bal:###.##
 
 Every digit becomes `#`. Every word that is not bank vocabulary becomes
 `<name>` or `<w>`. What survives is the labels, the separators, the keywords,
-the order, the date format and the direction marker — which is the entire
+the order, the date format and the direction marker , which is the entire
 input to writing a parser rule.
 
 The redaction is an **allow-list**, deliberately: a deny-list of "things that
@@ -68,10 +68,10 @@ the write and drops anything that fails.
 
 Three things that are not code:
 
-- **Play Data Safety form** — declare that the app collects and transmits this,
+- **Play Data Safety form** , declare that the app collects and transmits this,
   what it is, and that it is optional.
-- **Privacy policy** — `bank-ai.netlify.app/policy` needs a clause covering it.
-- **In-app disclosure** — the sheet itself is the disclosure. It shows the exact
+- **Privacy policy** , `bank-ai.netlify.app/policy` needs a clause covering it.
+- **In-app disclosure** , the sheet itself is the disclosure. It shows the exact
   payload before asking, which is what makes the consent real. Do not replace
   that preview with a summary.
 

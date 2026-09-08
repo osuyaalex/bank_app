@@ -380,7 +380,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _offerToShareFormat() async {
     final found = await SmsInbox.unreadableAlerts();
     if (!mounted) return;
-    if (found.bodies.isEmpty) {
+    if (found.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Every bank message here is already being read.'),
@@ -388,11 +388,7 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
-    await showShareFormatSheet(
-      context,
-      bodies: found.bodies,
-      senders: found.senders,
-    );
+    await showShareFormatSheet(context, alerts: found);
   }
 
   /// Signing out, behind a name and a confirmation.

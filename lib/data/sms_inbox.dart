@@ -112,14 +112,13 @@ class SmsInbox {
   /// name rather than a phone number, and a message with a figure in it. A
   /// tighter test would use the parser, which is the thing that cannot read
   /// these, so it would find nothing by definition.
-  static Future<({List<String> bodies, List<String> senders})>
-  unreadableAlerts({int count = 300, int limit = 20}) async {
-    if (!await Permission.sms.isGranted) {
-      return (bodies: <String>[], senders: <String>[]);
-    }
+  static Future<List<({String sender, String body})>> unreadableAlerts({
+    int count = 300,
+    int limit = 20,
+  }) async {
+    if (!await Permission.sms.isGranted) return const [];
     try {
-      final bodies = <String>[];
-      final senders = <String>{};
+      final out = <({String sender, String body})>[];
       for (final m in await readRecent(count: count)) {
         final sender = m.sender;
         final body = m.body;
@@ -128,13 +127,13 @@ class SmsInbox {
         if (!RegExp(r'[A-Za-z]{3}').hasMatch(sender)) continue;
         if (!_looksLikeMoney.hasMatch(body)) continue;
         if (parseAlert(sender, body) != null) continue;
-        bodies.add(body);
-        senders.add(sender);
-        if (bodies.length >= limit) break;
+        // Paired, so a layout and the bank that wrote it stay together.
+        out.add((sender: sender, body: body));
+        if (out.length >= limit) break;
       }
-      return (bodies: bodies, senders: senders.toList());
+      return out;
     } catch (_) {
-      return (bodies: <String>[], senders: <String>[]);
+      return const [];
     }
   }
 

@@ -21,11 +21,10 @@ const _ink = Color(0xff1C1939);
 /// Shows the offer. Returns the report id if something was sent.
 Future<String?> showShareFormatSheet(
   BuildContext context, {
-  required List<String> bodies,
-  required List<String> senders,
+  required List<({String sender, String body})> alerts,
   String? appVersion,
 }) async {
-  final shapes = distinctShapes(bodies);
+  final shapes = distinctShapes(alerts);
   if (shapes.isEmpty) return null;
 
   return showModalBottomSheet<String>(
@@ -35,23 +34,15 @@ Future<String?> showShareFormatSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
     ),
-    builder: (sheetContext) => _ShareFormatSheet(
-      shapes: shapes,
-      senders: senders,
-      appVersion: appVersion,
-    ),
+    builder: (sheetContext) =>
+        _ShareFormatSheet(shapes: shapes, appVersion: appVersion),
   );
 }
 
 class _ShareFormatSheet extends StatefulWidget {
-  const _ShareFormatSheet({
-    required this.shapes,
-    required this.senders,
-    this.appVersion,
-  });
+  const _ShareFormatSheet({required this.shapes, this.appVersion});
 
-  final List<String> shapes;
-  final List<String> senders;
+  final List<ShapedAlert> shapes;
   final String? appVersion;
 
   @override
@@ -75,7 +66,6 @@ class _ShareFormatSheetState extends State<_ShareFormatSheet> {
     try {
       final id = await FormatReports.submit(
         shapes: widget.shapes,
-        senders: widget.senders,
         appVersion: widget.appVersion,
       );
       if (!mounted) return;
@@ -168,7 +158,7 @@ class _ShareFormatSheetState extends State<_ShareFormatSheet> {
       const SizedBox(height: 8),
       Text(
         'We can only teach the app a format once we have seen one. '
-        'Nothing personal leaves your phone — every digit and every name '
+        'Nothing personal leaves your phone. Every digit and every name '
         'is removed here, before anything is sent.',
         style: TextStyle(
           fontSize: 13.5,
@@ -213,7 +203,7 @@ class _ShareFormatSheetState extends State<_ShareFormatSheet> {
     ],
   );
 
-  Widget _shapeCard(String shape) => Container(
+  Widget _shapeCard(ShapedAlert shaped) => Container(
     width: double.infinity,
     margin: const EdgeInsets.only(bottom: 9),
     padding: const EdgeInsets.all(13),
@@ -222,13 +212,29 @@ class _ShareFormatSheetState extends State<_ShareFormatSheet> {
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: Colors.grey.shade200),
     ),
-    child: Text(
-      shape,
-      style: const TextStyle(
-        fontFamily: 'monospace',
-        fontSize: 11.5,
-        height: 1.5,
-      ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Which bank wrote it, on the shape itself.
+        Text(
+          shaped.sender.toUpperCase(),
+          style: TextStyle(
+            fontSize: 10,
+            letterSpacing: 0.8,
+            fontWeight: FontWeight.w800,
+            color: Colors.grey.shade500,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          shaped.shape,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 11.5,
+            height: 1.5,
+          ),
+        ),
+      ],
     ),
   );
 
@@ -311,8 +317,8 @@ class _ShareFormatSheetState extends State<_ShareFormatSheet> {
       Text(
         _emailSaved
             ? "We'll write to you when your bank works."
-            : 'Want us to tell you when your bank works? Leave an address '
-                  '— it is used for that and nothing else.',
+            : 'Want us to tell you when your bank works? Leave an address. '
+                  'It is used for that and nothing else.',
         style: TextStyle(
           fontSize: 13.5,
           height: 1.5,

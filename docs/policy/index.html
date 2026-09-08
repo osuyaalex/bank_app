@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BankAL — Privacy Policy</title>
+<title>BankAL Privacy Policy</title>
 <style>
   :root { --ink:#1C1939; --muted:#5b5875; --brand:#2E5BFF; --line:#e6e8f0; --bg:#ffffff; --code:#f6f7fb; }
   @media (prefers-color-scheme: dark) {
@@ -55,8 +55,8 @@
 
   <div class="callout">
     <p>Your bank messages are read <strong>on your phone</strong> and are never
-    uploaded. What reaches our servers is the result — amounts, dates, and who
-    you paid — not the messages themselves.</p>
+    uploaded. What reaches our servers is the result: amounts, dates, and who
+    you paid. Not the messages themselves.</p>
     <p>There is one exception, and it only happens if you tap a button: if we
     cannot read your bank's format, you can send us the redacted
     <em>layout</em> of an alert. That is covered in
@@ -70,8 +70,8 @@
   <h3>Your bank alerts (SMS)</h3>
 
   <p>BankAL asks for permission to read SMS. It looks only for bank transaction
-  alerts — messages containing terms such as <em>debit</em>, <em>credit</em>,
-  <em>Amt</em>, <em>Bal</em> or <em>account</em> — and from those it works out:</p>
+  alerts, meaning messages containing terms such as <em>debit</em>, <em>credit</em>,
+  <em>Amt</em>, <em>Bal</em> or <em>account</em>, and from those it works out:</p>
 
   <ul>
     <li>the amount</li>
@@ -98,8 +98,8 @@
 
   <p>When BankAL first sets up your account it asks for location so it can show
   budgets in the right currency. It takes a single position reading, converts it
-  to a country using your device's geocoding service — which is provided by
-  Google on Android — and keeps only the resulting currency symbol.</p>
+  to a country using your device's geocoding service, which is provided by
+  Google on Android, and keeps only the resulting currency symbol.</p>
 
   <p><strong>Your coordinates are not stored and are never sent to us.</strong> If
   you decline, BankAL uses the Nigerian naira and everything else works normally.</p>
@@ -113,16 +113,16 @@
   <h2>What you give us</h2>
 
   <ul>
-    <li><strong>Your account</strong> — first name, last name and email address,
+    <li><strong>Your account.</strong> First name, last name and email address,
     with a password, handled by Firebase Authentication. We never see your
     password.</li>
-    <li><strong>Pictures you choose to add</strong> — if you add an image to a
+    <li><strong>Pictures you choose to add.</strong> If you add an image to a
     budget category, it is uploaded to Firebase Storage and linked to your
     account.</li>
-    <li><strong>Your budgets and corrections</strong> — the categories you create,
+    <li><strong>Your budgets and corrections.</strong> The categories you create,
     the amounts you set, and the times you tell BankAL it filed something in the
     wrong place.</li>
-    <li><strong>A notification token</strong> — an identifier from Firebase Cloud
+    <li><strong>A notification token.</strong> An identifier from Firebase Cloud
     Messaging so we can send you alerts about your own spending. It identifies
     the app on your device, not you personally.</li>
   </ul>
@@ -139,7 +139,7 @@
 
   <h3>We show you exactly what would be sent, before you decide</h3>
   <p>Every digit is replaced with <code>#</code>, and every word that is not
-  standard banking vocabulary is replaced with a placeholder — on your device,
+  standard banking vocabulary is replaced with a placeholder, on your device,
   before anything is transmitted. A message like this:</p>
 
 <pre>Acct:2211234558
@@ -190,12 +190,12 @@ Bal:###.##</pre>
   <p>BankAL runs on Google Firebase, which processes data on our behalf:</p>
 
   <ul>
-    <li><strong>Firebase Authentication</strong> — your sign-in details.</li>
-    <li><strong>Cloud Firestore</strong> — your transactions, budgets and
+    <li><strong>Firebase Authentication.</strong> Your sign-in details.</li>
+    <li><strong>Cloud Firestore.</strong> Your transactions, budgets and
     categories.</li>
-    <li><strong>Firebase Storage</strong> — images you add.</li>
-    <li><strong>Firebase Cloud Messaging</strong> — notifications.</li>
-    <li><strong>Firebase App Check</strong> — confirms requests come from the real
+    <li><strong>Firebase Storage.</strong> Images you add.</li>
+    <li><strong>Firebase Cloud Messaging.</strong> Notifications.</li>
+    <li><strong>Firebase App Check.</strong> Confirms requests come from the real
     app and not from something impersonating it.</li>
   </ul>
 
@@ -221,16 +221,16 @@ Bal:###.##</pre>
   <h2>How long we keep things</h2>
 
   <ul>
-    <li><strong>Your account and your records</strong> — for as long as your
+    <li><strong>Your account and your records.</strong> Kept for as long as your
     account exists. Delete your account and they go with it.</li>
-    <li><strong>The text of your SMS messages</strong> — never stored at all,
+    <li><strong>The text of your SMS messages.</strong> Never stored at all,
     anywhere, at any point.</li>
-    <li><strong>Format reports</strong> — until the bank format they describe is
+    <li><strong>Format reports.</strong> Kept until the bank format they describe is
     supported, and up to twelve months afterwards so we can confirm the fix still
     holds.</li>
-    <li><strong>An email address given with a report</strong> — deleted once we
+    <li><strong>An email address given with a report.</strong> Deleted once we
     have written to you, or sooner if you ask.</li>
-    <li><strong>Your location</strong> — not kept. Only the currency symbol it
+    <li><strong>Your location.</strong> Not kept. Only the currency symbol it
     produced.</li>
   </ul>
 
@@ -238,7 +238,7 @@ Bal:###.##</pre>
 
   <p>Data travels over HTTPS and is stored using Google's encryption. Access rules
   on our database restrict every record to the account that owns it, and format
-  reports cannot be read by the app at all — only written to. Access on our side
+  reports cannot be read by the app at all, only written to. Access on our side
   is limited to the operator of the app.</p>
 
   <h2>Your rights and controls</h2>

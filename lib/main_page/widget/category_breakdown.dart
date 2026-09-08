@@ -229,7 +229,7 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Moved to ${target.name}. Only this one — later '
+            'Moved to ${target.name}. Only this one. Later '
             'payments are unchanged.',
           ),
         ),
@@ -337,8 +337,8 @@ class _CategoryBreakdownState extends State<CategoryBreakdown> {
       borderRadius: BorderRadius.circular(12),
     ),
     child: Text(
-      '${_money(unaccounted)} of this category is not itemised yet — '
-      'it is still waiting in Needs sorting.',
+      '${_money(unaccounted)} of this category is not itemised yet. '
+      'It is still waiting in Needs sorting.',
       style: TextStyle(
         fontSize: 11.5,
         height: 1.4,

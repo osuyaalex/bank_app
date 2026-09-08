@@ -119,35 +119,59 @@ Bal:142.92''';
   });
 
   group('choosing what to report', () {
+    ({String sender, String body}) from(String sender, String body) =>
+        (sender: sender, body: body);
+
     test('one bank writing one format is reported once', () {
       // Twenty copies teach nothing extra and give the sender twenty chances
       // to be identified by something that slipped through.
       final shapes = distinctShapes([
-        'Acct:1111 DR Amt:300.00 Bal:100.00',
-        'Acct:2222 DR Amt:900.00 Bal:400.00',
+        from('GTBank', 'Acct:1111 DR Amt:300.00 Bal:100.00'),
+        from('GTBank', 'Acct:2222 DR Amt:900.00 Bal:400.00'),
       ]);
       expect(shapes, hasLength(1));
     });
 
     test('genuinely different formats are all reported', () {
       final shapes = distinctShapes([
-        'Acct:1111 DR Amt:300.00',
-        'You paid NGN300 at somewhere',
+        from('GTBank', 'Acct:1111 DR Amt:300.00'),
+        from('GTBank', 'You paid NGN300 at somewhere'),
       ]);
       expect(shapes, hasLength(2));
+    });
+
+    test('the same layout from two banks is reported for each of them', () {
+      // Nigerian banks buy the same core banking software, so two of them
+      // writing an identical layout is ordinary. Collapsing those to one row
+      // would hide a bank the parser still cannot read.
+      final shapes = distinctShapes([
+        from('GTBank', 'Acct:1111 DR Amt:300.00'),
+        from('Fidelity', 'Acct:2222 DR Amt:900.00'),
+      ]);
+      expect(shapes, hasLength(2));
+      expect(shapes.map((s) => s.sender), ['GTBank', 'Fidelity']);
+    });
+
+    test('each shape carries the bank that wrote it', () {
+      // As two separate lists a reader has to guess which layout belongs to
+      // which bank, and guessing wrong means fixing the wrong parser.
+      final shapes = distinctShapes([from('Kuda', 'DR Amt:300.00')]);
+      expect(shapes.single.sender, 'Kuda');
+      expect(shapes.single.shape, contains('Amt:###.##'));
     });
 
     test('it stops at the limit', () {
       // Genuinely different layouts, not the same one with different numbers
       // in it -- those collapse to a single shape, which is the point.
       final shapes = distinctShapes([
-        for (var i = 0; i < 30; i++) 'DR Amt:1.00${'/' * (i + 1)} Bal:1.00',
+        for (var i = 0; i < 30; i++)
+          from('Bank', 'DR Amt:1.00${'/' * (i + 1)} Bal:1.00'),
       ], limit: 3);
       expect(shapes, hasLength(3));
     });
 
     test('empty messages are skipped, not reported as blanks', () {
-      expect(distinctShapes(['', '   ']), isEmpty);
+      expect(distinctShapes([from('Bank', ''), from('Bank', '   ')]), isEmpty);
     });
   });
 }
