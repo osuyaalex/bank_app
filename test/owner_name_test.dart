@@ -20,7 +20,9 @@ void main() {
       // Their own account. Offering it as family would file a transfer
       // between the user's own accounts as money spent on a relative.
       expect(
-          sharedSurname('ALEXANDER ADENIYI OSUYA', 'Alexander Osuya'), isNull);
+        sharedSurname('ALEXANDER ADENIYI OSUYA', 'Alexander Osuya'),
+        isNull,
+      );
     });
 
     test('a middle name in the narration does not defeat the guard', () {
@@ -65,16 +67,22 @@ void main() {
         'ALEXANDER OSUYA',
         'OSUYA ALEXANDER ADENIYI',
       ]) {
-        expect(looksLikeOwnAccount(key, 'Alexander Osuya'), isTrue,
-            reason: key);
+        expect(
+          looksLikeOwnAccount(key, 'Alexander Osuya'),
+          isTrue,
+          reason: key,
+        );
         expect(sharedSurname(key, 'Alexander Osuya'), isNull, reason: key);
       }
     });
 
     test('relatives are not swallowed by the own-account test', () {
       for (final key in ['RICHARD OSUYA', 'CHARLES OSUYA', 'OMOTOLA OSUYA']) {
-        expect(looksLikeOwnAccount(key, 'Alexander Osuya'), isFalse,
-            reason: key);
+        expect(
+          looksLikeOwnAccount(key, 'Alexander Osuya'),
+          isFalse,
+          reason: key,
+        );
         expect(sharedSurname(key, 'Alexander Osuya'), 'osuya', reason: key);
       }
     });
@@ -82,6 +90,64 @@ void main() {
     test('short fragments are ignored', () {
       // Two-letter overlaps would match half the address book.
       expect(sharedSurname('OS BUKKA', 'Alexander Os'), isNull);
+    });
+  });
+
+  group('an own account written shorter than the stored name', () {
+    // Banks and aggregators truncate. A self-transfer that is not recognised
+    // as one gets counted as spending, which overstates a month by whatever
+    // the user moved between their own accounts -- the largest single figure
+    // in most people's records, and the most expensive thing to get wrong.
+    const owner = 'Faith Chinonso Umunnakwe';
+
+    test('a middle name cut to three letters', () {
+      // The real one: Mono truncates the narration at 38 characters, so
+      // CHINONSO arrives as CHI, and the old rule asked whether every part of
+      // the stored name was present. It never could be.
+      expect(looksLikeOwnAccount('UMUNNAKWE FAITH CHI', owner), isTrue);
+    });
+
+    test('the parts in a different order', () {
+      expect(looksLikeOwnAccount('UMUNNAKWE FAITH', owner), isTrue);
+      expect(looksLikeOwnAccount('FAITH UMUNNAKWE', owner), isTrue);
+    });
+
+    test('a missing middle name', () {
+      expect(looksLikeOwnAccount('FAITH UMUNNAKWE', owner), isTrue);
+      expect(looksLikeOwnAccount('CHINONSO UMUNNAKWE', owner), isTrue);
+    });
+
+    test('a surname cut short', () {
+      expect(looksLikeOwnAccount('FAITH UMUNN', owner), isTrue);
+    });
+  });
+
+  group('what the looser rule must still refuse', () {
+    const owner = 'Faith Chinonso Umunnakwe';
+
+    test('a relative sharing only the surname', () {
+      expect(looksLikeOwnAccount('RICHARD UMUNNAKWE', owner), isFalse);
+      expect(looksLikeOwnAccount('CHARLES UMUNNAKWE', owner), isFalse);
+    });
+
+    test('a stranger sharing only a first name', () {
+      expect(looksLikeOwnAccount('FAITH ADEYEMI', owner), isFalse);
+    });
+
+    test('one name on its own is never enough', () {
+      // A key of a single matching part is a coincidence, not an account.
+      expect(looksLikeOwnAccount('FAITH', owner), isFalse);
+      expect(looksLikeOwnAccount('UMUNNAKWE', owner), isFalse);
+    });
+
+    test('two fragments and no real name', () {
+      // `ADE ALE` against `Adeniyi Alexander` is two prefixes and no
+      // evidence, so at least one part has to be a name rather than a stub.
+      expect(looksLikeOwnAccount('ADE ALE', 'Adeniyi Alexander'), isFalse);
+    });
+
+    test('a merchant that happens to start the same way', () {
+      expect(looksLikeOwnAccount('FAITH BAKERY LTD', owner), isFalse);
     });
   });
 }

@@ -1200,23 +1200,62 @@ bool looksLikeOwnAccount(String key, String? ownerName) {
     return true;
   }
 
-  // Word-wise as well, because a middle name the profile does not carry
-  // breaks the prefix test: `ALEXANDER ADENIYI OSUYA` against a stored
-  // `Alexander Osuya` shares every part and no prefix.
   List<String> parts(String v) => v
       .toLowerCase()
       .split(RegExp(r'[^a-z]+'))
       .where((p) => p.length > 2)
       .toList();
+
   final owner = parts(ownerName);
   if (owner.length < 2) return false;
-  final keyParts = parts(key).toSet();
-  for (final part in owner) {
-    final found = keyParts.any((k) =>
-        k == part ||
-        (part.length >= 4 && k.startsWith(part)) ||
-        (k.length >= 4 && part.startsWith(k)));
-    if (!found) return false;
+  final keyParts = parts(key);
+  if (keyParts.isEmpty) return false;
+
+  /// The same name, where one spelling may be a prefix of the other.
+  ///
+  /// Four characters before a prefix counts, because three-letter stubs match
+  /// far too much: `ADE` opens a great many Nigerian names.
+  bool same(String x, String y) =>
+      x == y ||
+      (x.length >= 4 && y.startsWith(x)) ||
+      (y.length >= 4 && x.startsWith(y));
+
+  /// The same, down to three characters.
+  ///
+  /// Only used where a whole key has to match and one part of it carries a
+  /// real name, which is what stops `ADE ALE` counting as `Adeniyi
+  /// Alexander`.
+  bool sameTruncated(String x, String y) =>
+      same(x, y) ||
+      (x.length >= 3 && y.startsWith(x)) ||
+      (y.length >= 3 && x.startsWith(y));
+
+  // Direction one: every part of the stored name appears in the key.
+  //
+  // This is for a key that carries *more* than the profile -- a middle name
+  // the user never typed in. `ALEXANDER ADENIYI OSUYA` against a stored
+  // `Alexander Osuya` shares every part and no prefix.
+  final everyOwnerPartPresent = owner.every(
+    (p) => keyParts.any((k) => same(k, p)),
+  );
+  if (everyOwnerPartPresent) return true;
+
+  // Direction two: every part of the key appears in the stored name.
+  //
+  // This is for a key that carries *less*, which is what happens when the
+  // source truncates. `UMUNNAKWE FAITH CHI` is one person's own transfer with
+  // `CHINONSO` cut to three characters, and asking direction one about it
+  // fails on a name the bank simply did not have room for -- so the money
+  // moved between somebody's own accounts gets counted as spending, which is
+  // the single most expensive thing this function can get wrong.
+  //
+  // More permissive, so it is fenced. Two matching parts at least, and one of
+  // them a real name rather than a fragment: a single shared first name is a
+  // coincidence, and `ADE ALE` against `Adeniyi Alexander` is two fragments
+  // and no evidence.
+  if (keyParts.length < 2) return false;
+  if (!keyParts.every((k) => owner.any((p) => sameTruncated(k, p)))) {
+    return false;
   }
-  return true;
+  return keyParts.any((k) => k.length >= 4);
 }
