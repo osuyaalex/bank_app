@@ -85,6 +85,23 @@ class SmsInbox {
     }
   }
 
+  /// Vocabulary that separates a bank alert from the rest of an inbox.
+  ///
+  /// "A named sender and a digit somewhere" is nearly every marketing text,
+  /// delivery notice and one-time code a Nigerian phone receives. Reporting
+  /// those would fill the reports with noise, and would mean reducing messages
+  /// to their shape that were never bank alerts in the first place -- which
+  /// the redaction makes harmless, but there is no reason to touch them.
+  ///
+  /// An amount stated in money, or the vocabulary of a ledger entry. Every
+  /// bank alert has one or the other, whatever format it is written in.
+  static final _looksLikeMoney = RegExp(
+    r'(?:NGN|₦|N)\s?\d'
+    r'|\b(?:debit|debited|credit|credited|withdraw\w*|deposit\w*'
+    r'|balance|bal|acct|account|amt|amount|transaction|txn|transfer|trf)\b',
+    caseSensitive: false,
+  );
+
   /// Messages that look like bank alerts and that the parser cannot read.
   ///
   /// The raw bodies, for one purpose only: reducing them to their shape so a
@@ -109,7 +126,7 @@ class SmsInbox {
         if (sender == null || body == null || body.trim().isEmpty) continue;
         // A person texts from a number; a bank texts from a name.
         if (!RegExp(r'[A-Za-z]{3}').hasMatch(sender)) continue;
-        if (!RegExp(r'\d').hasMatch(body)) continue;
+        if (!_looksLikeMoney.hasMatch(body)) continue;
         if (parseAlert(sender, body) != null) continue;
         bodies.add(body);
         senders.add(sender);
