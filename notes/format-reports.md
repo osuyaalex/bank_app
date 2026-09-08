@@ -52,6 +52,44 @@ has not heard of, and a redactor that fails silently is worse than none,
 because its output looks safe. `looksRedacted` checks the result again before
 the write and drops anything that fails.
 
+## Telling the people who are waiting
+
+Anyone who sends a report has their phone subscribed to a Firebase Cloud
+Messaging topic named after the bank. Nothing about them is stored to do it,
+here or anywhere: the subscription lives on Google's side, against a push
+token this app never uploads.
+
+**To notify everyone waiting on a bank:**
+
+1. Work out the topic name. It is `bank_` followed by the sender id
+   lowercased with everything that is not a letter or digit removed, exactly
+   as `topicForSender` in `lib/data/bank_topics.dart` produces it:
+
+   ```
+   GTBank        ->  bank_gtbank
+   Access Bank   ->  bank_accessbank
+   U.B.A         ->  bank_uba
+   ```
+
+   Get this wrong by one character and the message goes to nobody, with
+   nothing anywhere saying so. `test/bank_topics_test.dart` pins the rule.
+
+2. **Firebase console -> Messaging -> New campaign -> Notification.** Write the
+   message, and under Target choose **Topic**, then type the name.
+
+3. Send.
+
+**Send it after the update is live and fully rolled out, not when the fix is
+merged.** At a 20% staged rollout, four in five people who get the message
+still have the build that cannot read their bank, and a notification that
+turns out to be wrong is the last one they will trust.
+
+You cannot see who is on a topic, or how many. FCM is send-only from your
+side. For a count, use the reports in Firestore.
+
+Nobody has to be removed afterwards: the app unsubscribes on its own the next
+time it opens and finds it can read that bank.
+
 ## Turning a report into a fix
 
 1. Take a shape from the report and fill the `#`s back in with plausible

@@ -12,6 +12,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../data/bank_topics.dart';
 import '../../data/format_reports.dart';
 import '../../data/sms_shape.dart';
 import 'category_picker.dart' show brandBlue;
@@ -68,6 +69,12 @@ class _ShareFormatSheetState extends State<_ShareFormatSheet> {
         shapes: widget.shapes,
         appVersion: widget.appVersion,
       );
+      // Following the bank, not the user. Nothing about them is stored to do
+      // it, and when the format works they are told without us ever having
+      // known who they were.
+      if (id != null) {
+        await BankTopics.followAll(widget.shapes.map((s) => s.sender));
+      }
       if (!mounted) return;
       setState(() {
         _sending = false;
