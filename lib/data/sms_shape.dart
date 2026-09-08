@@ -96,19 +96,31 @@ bool looksRedacted(String shaped) {
   return true;
 }
 
+/// One layout, and the bank that wrote it.
+typedef ShapedAlert = ({String sender, String shape});
+
 /// The shapes worth reporting, newest first, with duplicates removed.
 ///
 /// One bank writes one format, so twenty messages from it produce one shape.
 /// Sending twenty copies would tell the reader nothing extra and give the
 /// sender twenty chances to be identified by something that slipped through.
-List<String> distinctShapes(Iterable<String> bodies, {int limit = 8}) {
-  final out = <String>[];
-  for (final body in bodies) {
-    if (body.trim().isEmpty) continue;
-    final shaped = shapeOf(body).trim();
+///
+/// Each shape keeps the sender that wrote it. Reported as two separate lists
+/// -- seven layouts here, three bank names there -- a reader has to guess
+/// which belongs to which, and guessing wrong means writing a parser rule for
+/// the wrong bank.
+List<ShapedAlert> distinctShapes(
+  Iterable<({String sender, String body})> alerts, {
+  int limit = 8,
+}) {
+  final out = <ShapedAlert>[];
+  final seen = <String>{};
+  for (final alert in alerts) {
+    if (alert.body.trim().isEmpty) continue;
+    final shaped = shapeOf(alert.body).trim();
     if (shaped.isEmpty || !looksRedacted(shaped)) continue;
-    if (out.contains(shaped)) continue;
-    out.add(shaped);
+    if (!seen.add('${alert.sender}\u0000$shaped')) continue;
+    out.add((sender: alert.sender, shape: shaped));
     if (out.length >= limit) break;
   }
   return out;

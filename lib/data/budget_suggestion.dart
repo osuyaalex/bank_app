@@ -68,7 +68,7 @@ class BudgetSuggestion {
   String get basis => switch (months.length) {
         0 => 'No full month to go on yet',
         1 => 'Based on one full month',
-        2 => 'Based on 2 months — still settling',
+        2 => 'Based on 2 months, still settling',
         _ => 'Based on your last ${months.length} months',
       };
 }

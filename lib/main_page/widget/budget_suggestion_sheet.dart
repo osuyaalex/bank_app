@@ -286,7 +286,7 @@ class _SuggestionRow extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       farOff
-                          ? 'You have ${money(currentBudget)} set — you have '
+                          ? 'You have ${money(currentBudget)} set, and you have '
                               'been going well past it'
                           : 'Currently ${money(currentBudget)}',
                       style: TextStyle(

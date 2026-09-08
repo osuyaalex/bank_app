@@ -180,7 +180,7 @@ class _HowItWorksPageState extends State<HowItWorksPage>
               _enter(
                 0,
                 Text(
-                  'Four steps. The first takes a minute — '
+                  'Four steps. The first takes a minute, '
                   'the rest happen on their own.',
                   style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.82),

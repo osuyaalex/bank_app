@@ -1,0 +1,12 @@
+# Netlify redirects for bank-ai.netlify.app
+#
+# The privacy policy now lives in the app's own repository, so the page that
+# describes what the app collects and the code that collects it change
+# together. This forwards the old address to it.
+#
+# The site root is NOT redirected, and must not be: it is the Google OAuth2
+# disclosure page for the gmail_readonly scope, and taking it down removes a
+# document Google's verification requires.
+
+/policy      https://osuyaalex.github.io/bank_app/policy/  301
+/policy/*    https://osuyaalex.github.io/bank_app/policy/  301

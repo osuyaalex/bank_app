@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'widget/scanning_view.dart';
 import 'package:banking_app/data/background_scan.dart';
 import 'package:banking_app/data/budget_status.dart';
@@ -11,6 +12,7 @@ import 'package:banking_app/main_page/select_track_items.dart';
 import 'package:banking_app/main_page/item_details.dart';
 import 'package:banking_app/main_page/widget/progress_bar.dart';
 import 'package:banking_app/data/models.dart' show slugifyCategory;
+import 'package:banking_app/data/bank_topics.dart';
 import 'package:banking_app/data/sms_inbox.dart';
 import 'package:banking_app/main_page/widget/share_format_sheet.dart';
 import 'package:banking_app/data/unseen_activity.dart';
@@ -69,9 +71,7 @@ class _HomePageState extends State<HomePage> {
   /// What has been filed since the user last opened each budget.
   UnseenTally _unseen = const UnseenTally();
   String _currentMonth = '';
-  Map<String, dynamic> _data = {};
   List<String> _currentMonthDocs = [];
-  Map<String, dynamic> _monthData = {};
   ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
   ValueNotifier<bool> _updateDailySpend = ValueNotifier<bool>(false);
   int _lastPage = 0;
@@ -380,7 +380,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _offerToShareFormat() async {
     final found = await SmsInbox.unreadableAlerts();
     if (!mounted) return;
-    if (found.bodies.isEmpty) {
+    if (found.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Every bank message here is already being read.'),
@@ -388,11 +388,7 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
-    await showShareFormatSheet(
-      context,
-      bodies: found.bodies,
-      senders: found.senders,
-    );
+    await showShareFormatSheet(context, alerts: found);
   }
 
   /// Signing out, behind a name and a confirmation.
@@ -591,6 +587,11 @@ class _HomePageState extends State<HomePage> {
     await _getAllCurrentMonthDocs();
     await _loadNeedsSorting();
 
+    // A bank that has started working is a bank nobody needs telling about.
+    // Behind the screen, because it reads the inbox and nothing here waits on
+    // the result.
+    unawaited(BankTopics.reconcile());
+
     if (!mounted) return;
     setState(() {
       _preparing = false;
@@ -661,9 +662,6 @@ class _HomePageState extends State<HomePage> {
                                 _currentMonthDataNotifier.value =
                                     _currentMonthDocs[index];
                                 _manuallyUpdateDailySpend();
-                                _monthData =
-                                    documents[index].data()
-                                        as Map<String, dynamic>;
                               },
                             ),
                             itemCount: documents.length,

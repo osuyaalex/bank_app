@@ -8,8 +8,8 @@ Firestore, top-level collection **`format_reports`**, one document per report.
 
 ```
 format_reports/{autoId}
-  shapes      [string]   the redacted layouts, one per distinct format
-  senders     [string]   the sender ids they came from — this names the bank
+  shapes      [map]      {sender, shape} per distinct format
+  senders     [string]   the sender ids, flat, for finding reports by bank
   uid         string     who sent it, so a follow-up is possible
   email       string?    only if they asked to be told when their bank works
   note        string?    reserved; nothing writes it yet
@@ -25,7 +25,7 @@ descending. That is the whole workflow; there is nothing to install.
 
 The app cannot read this collection. `firestore.rules` denies `read` outright,
 because one user must never be able to list what another has sent. If you ever
-want this programmatically, it needs a service account and the Admin SDK — the
+want this programmatically, it needs a service account and the Admin SDK , the
 client is deliberately write-only.
 
 ## What a report actually contains
@@ -43,7 +43,7 @@ Bal:142.92                         Bal:###.##
 
 Every digit becomes `#`. Every word that is not bank vocabulary becomes
 `<name>` or `<w>`. What survives is the labels, the separators, the keywords,
-the order, the date format and the direction marker — which is the entire
+the order, the date format and the direction marker , which is the entire
 input to writing a parser rule.
 
 The redaction is an **allow-list**, deliberately: a deny-list of "things that
@@ -51,6 +51,44 @@ look like names" fails silently the first time somebody is called something it
 has not heard of, and a redactor that fails silently is worse than none,
 because its output looks safe. `looksRedacted` checks the result again before
 the write and drops anything that fails.
+
+## Telling the people who are waiting
+
+Anyone who sends a report has their phone subscribed to a Firebase Cloud
+Messaging topic named after the bank. Nothing about them is stored to do it,
+here or anywhere: the subscription lives on Google's side, against a push
+token this app never uploads.
+
+**To notify everyone waiting on a bank:**
+
+1. Work out the topic name. It is `bank_` followed by the sender id
+   lowercased with everything that is not a letter or digit removed, exactly
+   as `topicForSender` in `lib/data/bank_topics.dart` produces it:
+
+   ```
+   GTBank        ->  bank_gtbank
+   Access Bank   ->  bank_accessbank
+   U.B.A         ->  bank_uba
+   ```
+
+   Get this wrong by one character and the message goes to nobody, with
+   nothing anywhere saying so. `test/bank_topics_test.dart` pins the rule.
+
+2. **Firebase console -> Messaging -> New campaign -> Notification.** Write the
+   message, and under Target choose **Topic**, then type the name.
+
+3. Send.
+
+**Send it after the update is live and fully rolled out, not when the fix is
+merged.** At a 20% staged rollout, four in five people who get the message
+still have the build that cannot read their bank, and a notification that
+turns out to be wrong is the last one they will trust.
+
+You cannot see who is on a topic, or how many. FCM is send-only from your
+side. For a count, use the reports in Firestore.
+
+Nobody has to be removed afterwards: the app unsubscribes on its own the next
+time it opens and finds it can read that bank.
 
 ## Turning a report into a fix
 
@@ -68,10 +106,10 @@ the write and drops anything that fails.
 
 Three things that are not code:
 
-- **Play Data Safety form** — declare that the app collects and transmits this,
+- **Play Data Safety form** , declare that the app collects and transmits this,
   what it is, and that it is optional.
-- **Privacy policy** — `bank-ai.netlify.app/policy` needs a clause covering it.
-- **In-app disclosure** — the sheet itself is the disclosure. It shows the exact
+- **Privacy policy** , `bank-ai.netlify.app/policy` needs a clause covering it.
+- **In-app disclosure** , the sheet itself is the disclosure. It shows the exact
   payload before asking, which is what makes the consent real. Do not replace
   that preview with a summary.
 

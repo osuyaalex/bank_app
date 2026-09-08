@@ -2,7 +2,6 @@
 import 'dart:io';
 import 'package:banking_app/parsing/bank_alert.dart';
 import 'package:banking_app/data/migration_plan.dart';
-import 'package:banking_app/data/models.dart';
 
 void main(List<String> args) {
   final raw = File(args.first).readAsStringSync();

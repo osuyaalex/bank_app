@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:banking_app/parsing/bank_alert.dart';
 import 'package:banking_app/data/migration_plan.dart';
-import 'package:banking_app/data/models.dart';
 import 'package:banking_app/parsing/merchant_dictionary.dart';
 
 /// Real Zenith alert bodies (account digits altered).

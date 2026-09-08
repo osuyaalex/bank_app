@@ -69,7 +69,7 @@ Future<void> showBankChargesSheet(
                           ? 'Nothing so far this month.'
                           : '${charges.length} '
                               '${charges.length == 1 ? "fee" : "fees"} this '
-                              'month. These sit outside your budgets — a fee '
+                              'month. These sit outside your budgets. A fee '
                               'is not a spending decision, so it should not '
                               'eat a budget you set for spending.',
                       style:

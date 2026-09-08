@@ -55,7 +55,7 @@ class _UnreadableSmsViewState extends State<UnreadableSmsView> {
   Future<void> _offerToShare() async {
     final found = await SmsInbox.unreadableAlerts();
     if (!mounted) return;
-    if (found.bodies.isEmpty) {
+    if (found.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Nothing here we could use. Thank you anyway.'),
@@ -63,11 +63,7 @@ class _UnreadableSmsViewState extends State<UnreadableSmsView> {
       );
       return;
     }
-    final id = await showShareFormatSheet(
-      context,
-      bodies: found.bodies,
-      senders: found.senders,
-    );
+    final id = await showShareFormatSheet(context, alerts: found);
     if (id != null && mounted) setState(() => _shared = true);
   }
 
@@ -221,7 +217,7 @@ class _UnreadableSmsViewState extends State<UnreadableSmsView> {
                         ),
                       ),
                       label: Text(
-                        _shared ? 'Sent — thank you' : 'Help us read it',
+                        _shared ? 'Sent, thank you' : 'Help us read it',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 15,
