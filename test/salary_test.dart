@@ -252,6 +252,63 @@ void main() {
     });
   });
 
+  group('money that only moved', () {
+    TransactionRecord toSelf(double amount) => TransactionRecord(
+      smsId: 'self',
+      bank: 'ZENITH',
+      kind: AlertKind.debit,
+      channel: TxnChannel.transfer,
+      // Still waiting to be sorted: the map has not recognised it.
+      status: TxnStatus.pending,
+      amount: amount,
+      occurredAt: _d(8, 29),
+      counterpartyKey: 'ALEXANDER ADENIYI OSUYA',
+    );
+
+    test('a transfer to the user\'s own account is not counted as gone', () {
+      // Found on a real account: N8,000 to the owner's own name was being
+      // added to what had been spent, because nothing had sorted it yet.
+      final c = payCycle(
+        [toSelf(8000)],
+        start: _d(8, 24),
+        end: _d(9, 13),
+        salary: 350000,
+        ownerName: 'Alexander Osuya',
+      );
+      expect(c.spent, 0);
+      expect(c.unsorted, 0);
+    });
+  });
+
+  group('unsorted money, by who received it', () {
+    test('grouped by payee, largest first', () {
+      TransactionRecord pending(String id, String who, double amount) =>
+          TransactionRecord(
+            smsId: id,
+            bank: 'ZENITH',
+            kind: AlertKind.debit,
+            channel: TxnChannel.transfer,
+            status: TxnStatus.pending,
+            amount: amount,
+            occurredAt: _d(8, 25),
+            counterpartyKey: who,
+          );
+      final c = payCycle(
+        [
+          pending('1', 'PAYSTACK CHECKOUT', 28000),
+          pending('2', 'RICHARD OSUYA', 150000),
+          pending('3', 'PAYSTACK CHECKOUT', 21400),
+        ],
+        start: _d(8, 24),
+        end: _d(9, 13),
+        salary: 350000,
+      );
+      expect(c.unsortedByPayee.keys, ['RICHARD OSUYA', 'PAYSTACK CHECKOUT']);
+      expect(c.unsortedByPayee['PAYSTACK CHECKOUT'], 49400);
+      expect(c.unsorted, 199400);
+    });
+  });
+
   test('the next payday is expected on the usual gap', () {
     final s = detectSalary([
       _in('1', 'BRIGHTPATH LTD', 350000, _d(6, 25)),

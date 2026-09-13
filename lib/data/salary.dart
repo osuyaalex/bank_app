@@ -190,6 +190,7 @@ class PayCycle {
     required this.spent,
     required this.byCategory,
     required this.unsorted,
+    required this.unsortedByPayee,
     required this.charges,
     required this.dailyTotals,
   });
@@ -210,6 +211,11 @@ class PayCycle {
 
   /// Spending not yet given a category.
   final double unsorted;
+
+  /// The same money by who received it, largest first. A single "not sorted"
+  /// line hides that most of it went to two or three people, which is the
+  /// thing the user actually wants to know.
+  final Map<String, double> unsortedByPayee;
 
   /// Bank fees.
   final double charges;
@@ -238,6 +244,7 @@ PayCycle payCycle(
   required DateTime start,
   required DateTime end,
   required double salary,
+  String? ownerName,
 }) {
   // By calendar date, not by hours since the payment landed: money spent at
   // 8am the morning after a 9am payday is day two, not day one.
@@ -245,6 +252,7 @@ PayCycle payCycle(
   final days = dateOf(end).difference(dateOf(start)).inDays + 1;
   final daily = List<double>.filled(days < 1 ? 1 : days, 0);
   final byCategory = <String, double>{};
+  final byPayee = <String, double>{};
   var unsorted = 0.0, charges = 0.0, spent = 0.0;
 
   for (final t in transactions) {
@@ -259,10 +267,20 @@ PayCycle payCycle(
     } else if (t.kind == AlertKind.debit) {
       // Excluded debits are the user moving money to their own account.
       if (t.status == TxnStatus.excluded) continue;
+      // So is one the map has not caught yet. Counting it would say money is
+      // gone when it has only moved to another of the user's own accounts.
+      if (t.counterpartyKey != null &&
+          looksLikeOwnAccount(t.counterpartyKey!, ownerName)) {
+        continue;
+      }
       if (t.status == TxnStatus.labeled && t.categoryId != null) {
         byCategory[t.categoryId!] = (byCategory[t.categoryId!] ?? 0) + amount;
       } else {
         unsorted += amount;
+        final who = (t.counterpartyKey == null || t.counterpartyKey!.isEmpty)
+            ? 'Unknown'
+            : t.counterpartyKey!;
+        byPayee[who] = (byPayee[who] ?? 0) + amount;
       }
     } else {
       continue;
@@ -279,6 +297,9 @@ PayCycle payCycle(
     spent: spent,
     byCategory: byCategory,
     unsorted: unsorted,
+    unsortedByPayee: Map.fromEntries(
+      byPayee.entries.toList()..sort((a, b) => b.value.compareTo(a.value)),
+    ),
     charges: charges,
     dailyTotals: daily,
   );

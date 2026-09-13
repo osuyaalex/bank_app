@@ -107,6 +107,7 @@ class _SalaryPageState extends State<SalaryPage> {
       start: latest.occurredAt!,
       end: now,
       salary: amount,
+      ownerName: _ownerName,
     );
 
     // The previous cycle, cut off at the same day number, so "at this point
@@ -118,6 +119,7 @@ class _SalaryPageState extends State<SalaryPage> {
         start: prev.occurredAt!,
         end: latest.occurredAt!.subtract(const Duration(seconds: 1)),
         salary: prev.amount ?? salary.typical,
+        ownerName: _ownerName,
       );
       _previous = full;
     }
@@ -331,11 +333,28 @@ class _SalaryPageState extends State<SalaryPage> {
         : '${_fmt(-diff)} less gone than at this point last month';
   }
 
+  /// Unsorted money by who received it: the largest few by name, the rest
+  /// together.
+  ///
+  /// One "Not sorted yet" line hid that most of it had gone to two or three
+  /// people, which is exactly what someone looking at this wants to know.
+  List<({String name, double amount})> _unsortedRows(PayCycle c) {
+    const shown = 4;
+    final entries = c.unsortedByPayee.entries.toList();
+    final rows = <({String name, double amount})>[
+      for (final e in entries.take(shown))
+        (name: '${_title(e.key)} (not sorted)', amount: e.value),
+    ];
+    final rest = entries.skip(shown).fold(0.0, (t, e) => t + e.value);
+    if (rest > 0) rows.add((name: 'Other, not sorted yet', amount: rest));
+    return rows;
+  }
+
   Widget _whereItWent(PayCycle c) {
     final rows = <({String name, double amount})>[
       for (final e in c.byCategory.entries)
         (name: _categoryNames[e.key] ?? 'Other', amount: e.value),
-      if (c.unsorted > 0) (name: 'Not sorted yet', amount: c.unsorted),
+      ..._unsortedRows(c),
       if (c.charges > 0) (name: 'Bank charges', amount: c.charges),
     ]..sort((a, b) => b.amount.compareTo(a.amount));
     final top = rows.isEmpty ? 1.0 : rows.first.amount;

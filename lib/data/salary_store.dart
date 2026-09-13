@@ -2,14 +2,20 @@
 /// screen.
 library;
 
+import 'dart:isolate';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../parsing/bank_alert.dart';
+import 'inbox_history.dart';
+import 'migration.dart' show InboxMessage;
 import 'migration_plan.dart' show monthKeyOf;
 import 'models.dart';
 import 'salary.dart';
+import 'sms_inbox.dart';
+import 'spend_repository.dart';
 
 class SalaryStore {
   SalaryStore({FirebaseFirestore? db, String? uid})
@@ -19,17 +25,37 @@ class SalaryStore {
   final FirebaseFirestore db;
   final String uid;
 
-  /// How many months back to read. Enough to see several paydays and the
-  /// previous cycle, and no more: every month read is a batch of database
-  /// reads.
-  static const monthsBack = 5;
+  /// How far back to look. A little over a year, so the same history serves
+  /// features that compare with this time last year, not only the salary.
+  static const lookBack = Duration(days: 400);
 
-  /// Money in, money out and bank charges for the last [monthsBack] months.
+  /// How many recent months of the user's own sorting decisions to lay over
+  /// the inbox history. The current pay cycle always falls inside these.
+  static const decisionMonths = 2;
+
+  /// Every bank alert on the phone from the last [lookBack], as transactions.
+  ///
+  /// Read from the SMS inbox rather than the database, which only ever holds
+  /// about a month -- nowhere near enough to see two paydays. Recent
+  /// transactions then take the category and status saved in the database,
+  /// so a payment the user re-sorted shows where they put it.
   Future<List<TransactionRecord>> recentTransactions({DateTime? now}) async {
     final today = now ?? DateTime.now();
+    final inbox = await SmsInbox.readForMigration() ?? const <InboxMessage>[];
+    final counterparties = await SpendRepository(
+      db: db,
+      uid: uid,
+    ).loadCounterparties();
+    final since = today.subtract(lookBack);
+
+    // Off the main thread: thousands of messages would freeze the screen.
+    final history = await Isolate.run(
+      () => historyFromInbox(inbox, counterparties, since: since),
+    );
+
+    final saved = <String, ({TxnStatus status, String? categoryId})>{};
     final user = db.collection('Users').doc(uid);
-    final out = <TransactionRecord>[];
-    for (var i = 0; i < monthsBack; i++) {
+    for (var i = 0; i < decisionMonths; i++) {
       final key = monthKeyOf(DateTime(today.year, today.month - i, 1));
       final snap = await user
           .collection('months')
@@ -38,35 +64,16 @@ class SalaryStore {
           .get();
       for (final d in snap.docs) {
         final m = d.data();
-        final kind = AlertKind.values.firstWhere(
-          (k) => k.name == m['kind'],
-          orElse: () => AlertKind.other,
-        );
-        if (kind == AlertKind.other) continue;
-        out.add(
-          TransactionRecord(
-            smsId: d.id,
-            bank: m['bank'] ?? '',
-            kind: kind,
-            channel: TxnChannel.values.firstWhere(
-              (c) => c.name == m['channel'],
-              orElse: () => TxnChannel.unknown,
-            ),
-            status: TxnStatus.values.firstWhere(
-              (s) => s.name == m['status'],
-              orElse: () => TxnStatus.pending,
-            ),
-            amount: (m['amount'] as num?)?.toDouble(),
-            occurredAt: DateTime.tryParse(m['occurredAt'] ?? ''),
-            narration: m['narration'] ?? '',
-            counterpartyKey: m['counterpartyKey'],
-            categoryId: m['categoryId'],
-            isReversal: m['isReversal'] == true,
+        saved[d.id] = (
+          status: TxnStatus.values.firstWhere(
+            (v) => v.name == m['status'],
+            orElse: () => TxnStatus.pending,
           ),
+          categoryId: m['categoryId'] as String?,
         );
       }
     }
-    return out;
+    return withSavedDecisions(history, saved);
   }
 
   // -------------------------------------------------------------------------
@@ -181,6 +188,7 @@ class SalaryStore {
       start: salary.latest.occurredAt!,
       end: now,
       salary: salary.latest.amount ?? salary.typical,
+      ownerName: ownerName,
     );
     final summary = SalarySummary(
       salary: salary.latest.amount ?? salary.typical,
