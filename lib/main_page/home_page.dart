@@ -16,6 +16,8 @@ import 'package:banking_app/data/bank_topics.dart';
 import 'package:banking_app/data/sms_inbox.dart';
 import 'package:banking_app/main_page/widget/share_format_sheet.dart';
 import 'package:banking_app/data/unseen_activity.dart';
+import 'package:banking_app/data/salary_store.dart';
+import 'package:banking_app/main_page/salary_page.dart';
 import 'package:flutter/services.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -70,6 +72,10 @@ class _HomePageState extends State<HomePage> {
 
   /// What has been filed since the user last opened each budget.
   UnseenTally _unseen = const UnseenTally();
+
+  /// The latest salary and how much of it has gone, remembered from the last
+  /// time it was worked out.
+  SalarySummary? _salary;
   String _currentMonth = '';
   List<String> _currentMonthDocs = [];
   ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
@@ -431,12 +437,15 @@ class _HomePageState extends State<HomePage> {
       final count = await repo.pendingCount();
       final untagged = await repo.pendingTagCount();
       final unseen = await UnseenActivity.load();
+      final salary = await SalaryStore.cachedSummary();
       if (mounted) {
         setState(() {
           _needsSorting = count;
           _untagged = untagged;
           _unseen = unseen;
+          _salary = salary;
         });
+        unawaited(_refreshSalaryIfStale(salary));
         await _deliverNudge(unseen);
       }
     } catch (_) {
@@ -475,6 +484,110 @@ class _HomePageState extends State<HomePage> {
   }
 
   /// One line, for when marking each budget would light the whole screen.
+  /// Works the salary out again when the remembered figure is old.
+  ///
+  /// Five months of transactions is too much to read every time the home
+  /// screen opens, so it is redone at most every few hours, behind the screen.
+  Future<void> _refreshSalaryIfStale(SalarySummary? cached) async {
+    if (cached != null &&
+        DateTime.now().difference(cached.computedAt) <
+            const Duration(hours: 6)) {
+      return;
+    }
+    try {
+      final repo = SpendRepository();
+      final fresh = await SalaryStore().refreshSummary(
+        currency: await repo.currencySymbol(),
+        ownerName: await repo.ownerName(),
+      );
+      final latest = fresh ?? await SalaryStore.cachedSummary();
+      if (mounted) setState(() => _salary = latest);
+    } catch (_) {
+      // Only a card on the home screen.
+    }
+  }
+
+  Widget _salaryCard() {
+    final s = _salary;
+    if (s == null || !s.found || s.salary <= 0) return const SizedBox.shrink();
+    final days = DateTime.now().difference(s.paidOn).inDays;
+    final share = (s.spent / s.salary).clamp(0.0, 1.0);
+    final fmt = NumberFormat('#,###');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SalaryPage()),
+            );
+            final updated = await SalaryStore.cachedSummary();
+            if (mounted) setState(() => _salary = updated);
+          },
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.payments_outlined,
+                  color: Color(0xff5AA5E2),
+                  size: 19,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${s.currency}${fmt.format(s.spent.round())} of your '
+                        '${s.currency}${fmt.format(s.salary.round())} salary gone',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: LinearProgressIndicator(
+                          value: share,
+                          minHeight: 5,
+                          backgroundColor: Colors.grey.shade200,
+                          valueColor: const AlwaysStoppedAnimation(
+                            Color(0xff5AA5E2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        days <= 0
+                            ? 'Arrived today'
+                            : 'Arrived $days day${days == 1 ? '' : 's'} ago',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.black38),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _unseenSummary() {
     if (_unseen.total == 0 || _unseen.markIndividually) {
       return const SizedBox.shrink();
@@ -949,6 +1062,7 @@ class _HomePageState extends State<HomePage> {
                                 return Column(
                                   children: [
                                     _sortBanner(),
+                                    _salaryCard(),
                                     _unseenSummary(),
                                     Expanded(
                                       child: ListView.builder(
