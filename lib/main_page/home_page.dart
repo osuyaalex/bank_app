@@ -16,6 +16,8 @@ import 'package:banking_app/data/bank_topics.dart';
 import 'package:banking_app/data/sms_inbox.dart';
 import 'package:banking_app/main_page/widget/share_format_sheet.dart';
 import 'package:banking_app/data/unseen_activity.dart';
+import 'package:banking_app/data/money_owed_store.dart';
+import 'package:banking_app/main_page/money_owed_page.dart';
 import 'package:flutter/services.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -70,6 +72,11 @@ class _HomePageState extends State<HomePage> {
 
   /// What has been filed since the user last opened each budget.
   UnseenTally _unseen = const UnseenTally();
+
+  /// What the money-owed screen found last time it was opened. Null until it
+  /// has been opened once, which is when the home card invites a first look.
+  ({double outstanding, int people, int toReview, String currency})?
+  _owedSummary;
   String _currentMonth = '';
   List<String> _currentMonthDocs = [];
   ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
@@ -431,11 +438,13 @@ class _HomePageState extends State<HomePage> {
       final count = await repo.pendingCount();
       final untagged = await repo.pendingTagCount();
       final unseen = await UnseenActivity.load();
+      final owedSummary = await MoneyOwedStore.cachedSummary();
       if (mounted) {
         setState(() {
           _needsSorting = count;
           _untagged = untagged;
           _unseen = unseen;
+          _owedSummary = owedSummary;
         });
         await _deliverNudge(unseen);
       }
@@ -475,6 +484,73 @@ class _HomePageState extends State<HomePage> {
   }
 
   /// One line, for when marking each budget would light the whole screen.
+  /// Money other people owe the user.
+  ///
+  /// Reads a remembered summary rather than working it out, because working
+  /// it out means reading every month of transfers and the home screen opens
+  /// far too often for that. Before the first visit it simply invites one.
+  Widget _owedCard() {
+    final s = _owedSummary;
+    final String line;
+    if (s == null) {
+      line = 'Lent anyone money? See who hasn\'t paid you back';
+    } else if (s.outstanding > 0.5) {
+      line =
+          'Owed to you: ${s.currency}${NumberFormat('#,###').format(s.outstanding.round())}'
+          ' by ${s.people} ${s.people == 1 ? 'person' : 'people'}';
+    } else if (s.toReview > 0) {
+      line =
+          '${s.toReview} transfer${s.toReview == 1 ? '' : 's'} '
+          'might have been loans';
+    } else {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MoneyOwedPage()),
+            );
+            await _loadNeedsSorting();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.handshake_outlined,
+                  color: Color(0xff5AA5E2),
+                  size: 19,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    line,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.black38),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _unseenSummary() {
     if (_unseen.total == 0 || _unseen.markIndividually) {
       return const SizedBox.shrink();
@@ -950,6 +1026,7 @@ class _HomePageState extends State<HomePage> {
                                   children: [
                                     _sortBanner(),
                                     _unseenSummary(),
+                                    _owedCard(),
                                     Expanded(
                                       child: ListView.builder(
                                         itemCount:
