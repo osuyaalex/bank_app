@@ -75,13 +75,6 @@ void main() {
       );
     });
 
-    test('a payment the user hid is not', () {
-      expect(
-        whereBigPaymentsWent([_in('1', 'A', 200000, _d(8, 24))], hidden: {'1'}),
-        isEmpty,
-      );
-    });
-
     test('newest first', () {
       final p = whereBigPaymentsWent([
         _in('old', 'A', 200000, _d(8, 17)),
@@ -123,7 +116,9 @@ void main() {
       expect(p.left, 0);
       expect(p.isGone, isTrue);
       expect(p.goneOn, _d(8, 29));
-      expect(p.fromOtherMoney, 245845);
+      // Only what was left of it came out of the second spending.
+      expect(p.uses.last.taken, 50000);
+      expect(p.uses.last.isPart, isTrue);
     });
 
     test('moving money to your own account is not spending', () {
@@ -143,7 +138,7 @@ void main() {
       expect(p.used, 0);
     });
 
-    test('bank charges count, and are kept apart', () {
+    test('bank charges count', () {
       final p = whereBigPaymentsWent([
         _in('1', 'A', 350000, _d(8, 24)),
         _out(
@@ -154,21 +149,44 @@ void main() {
           status: TxnStatus.excluded,
         ),
       ]).single;
-      expect(p.charges, 53.75);
+      expect(p.uses.single.spend.kind, AlertKind.charge);
       expect(p.used, 53.75);
     });
 
-    test('sorted spending by budget, unsorted by who received it', () {
+    test('every spending is listed in order, with what was left after it', () {
       final p = whereBigPaymentsWent([
         _in('1', 'A', 350000, _d(8, 24)),
-        _out('2', 20000, _d(8, 25), category: 'food'),
-        _out('3', 150000, _d(8, 25), to: 'RICHARD OSUYA'),
+        _out('3', 150000, _d(8, 25, 9), to: 'RICHARD OSUYA'),
+        _out('2', 20000, _d(8, 25, 8), category: 'food'),
         _out('4', 28000, _d(8, 26), to: 'PAYSTACK CHECKOUT'),
-        _out('5', 21400, _d(8, 27), to: 'PAYSTACK CHECKOUT'),
       ]).single;
-      expect(p.byCategory['food'], 20000);
-      expect(p.unsortedByPayee['RICHARD OSUYA'], 150000);
-      expect(p.unsortedByPayee['PAYSTACK CHECKOUT'], 49400);
+      expect(p.uses.map((u) => u.spend.smsId), ['2', '3', '4']);
+      expect(p.uses.map((u) => u.leftAfter), [330000, 180000, 152000]);
+      expect(p.uses.every((u) => !u.isPart), isTrue);
+    });
+
+    test('a declined card payment is not spending', () {
+      // Wema texts a declined payment with the balance untouched.
+      TransactionRecord withBalance(TransactionRecord t, double bal) =>
+          TransactionRecord(
+            smsId: t.smsId,
+            bank: 'WEMA',
+            kind: t.kind,
+            channel: t.channel,
+            status: t.status,
+            amount: t.amount,
+            balanceAfter: bal,
+            occurredAt: t.occurredAt,
+            account: '0253****25',
+            counterpartyKey: t.counterpartyKey,
+          );
+      final p = whereBigPaymentsWent([
+        withBalance(_in('1', 'A', 150000, _d(8, 4)), 150086.43),
+        withBalance(_out('2', 150000, _d(8, 4, 13)), 86.43),
+        withBalance(_out('4', 13100, _d(8, 5)), 86.43),
+      ]).single;
+      expect(p.used, 150000);
+      expect(p.uses.map((u) => u.spend.smsId), ['2']);
     });
   });
 
@@ -198,36 +216,32 @@ void main() {
       ]);
       final a = p.firstWhere((x) => x.credit.smsId == 'a');
       final b = p.firstWhere((x) => x.credit.smsId == 'b');
-      expect(a.byCategory['rent'], 100000);
-      expect(b.byCategory['rent'], 30000);
+      expect(a.uses.single.taken, 100000);
+      expect(b.uses.single.taken, 30000);
+      expect(b.uses.single.isPart, isTrue);
     });
 
-    test('other money is only counted once everything big is used up', () {
+    test('nothing more is taken once every payment is used up', () {
       final p = whereBigPaymentsWent([
         _in('a', 'A', 100000, _d(8, 17)),
         _in('b', 'B', 100000, _d(8, 18)),
         _out('1', 250000, _d(8, 19)),
+        _out('2', 5000, _d(8, 20)),
       ]);
       expect(p.every((x) => x.isGone), isTrue);
-      expect(p.firstWhere((x) => x.credit.smsId == 'b').fromOtherMoney, 50000);
-      expect(p.firstWhere((x) => x.credit.smsId == 'a').fromOtherMoney, 0);
+      expect(p.every((x) => x.uses.length == 1), isTrue);
     });
   });
 
-  group('how much was left each day', () {
+  group('what was left', () {
     test('it only goes down, and never below zero', () {
       final p = whereBigPaymentsWent([
         _in('1', 'A', 350000, _d(8, 24, 9)),
         _out('2', 100000, _d(8, 24, 18)),
         _out('3', 400000, _d(8, 27)),
       ]).single;
-      final left = p.leftByDay(_d(8, 29));
-      expect(left.first, 250000);
-      expect(left[3], 0);
-      expect(left.last, 0);
-      for (var i = 1; i < left.length; i++) {
-        expect(left[i], lessThanOrEqualTo(left[i - 1]));
-      }
+      final left = p.uses.map((u) => u.leftAfter).toList();
+      expect(left, [250000, 0]);
       expect(p.daysToGo, 4);
     });
   });

@@ -1,35 +1,52 @@
-/// What happened to each large amount of money the user received.
-///
-/// This started as "where your salary went", and a real account showed why
-/// that was the wrong question. The app recognised a salary by its pattern --
-/// the same payer, about a month apart -- and picked up a YouTube payment that
-/// happened to match a job that had ended months earlier. It cannot tell a
-/// salary from any other regular payment, and many people are paid by gigs,
-/// contracts and platforms that follow no pattern at all.
-///
-/// So there is no guessing here. Any single payment of [bigPaymentFloor] or
-/// more is followed, whatever it was for.
+/// What happened to one large payment, line by line.
 ///
 /// Money is not labelled once it lands, so a rule decides which payment a
-/// purchase came out of, and the rule is simple enough to say out loud:
+/// purchase came out of. The first version worked the rule out and showed
+/// only the answer -- "all gone in 6 days" -- which nobody could check. Now
+/// every payment it counts is listed, in order, with what was left after it,
+/// so the user can read it and see where they disagree.
 ///
-///  1. Spending after a big payment comes out of that payment first, before
-///     any money the user already had.
+/// The rule, simple enough to say out loud:
+///
+///  1. Spending after a big payment comes out of it first, before any money
+///     the user already had.
 ///  2. When several big payments overlap, they are used up in the order they
 ///     arrived.
-///  3. Spending after every big payment is used up comes from "other money",
-///     and is shown on its own, never added to a payment.
+///  3. Nothing is taken from a payment once it is used up, so it can never
+///     show more gone than it was.
 ///
-/// So no payment can ever show more gone than it was.
+/// Any single payment of [bigPaymentFloor] or more is followed, whatever it
+/// was for: the app cannot tell a salary from any other payment.
 library;
 
 import '../parsing/bank_alert.dart';
 import 'models.dart';
+import 'month_statement.dart';
 
 /// The smallest amount treated as a big payment.
 const bigPaymentFloor = 100000.0;
 
-/// One big payment and everything that came out of it.
+/// One spending counted against a big payment.
+class PaymentUse {
+  const PaymentUse({
+    required this.spend,
+    required this.taken,
+    required this.leftAfter,
+  });
+
+  final TransactionRecord spend;
+
+  /// How much of [spend] came out of this payment. Less than the whole
+  /// amount when an earlier payment paid for part of it, or this one ran out
+  /// part way.
+  final double taken;
+
+  final double leftAfter;
+
+  bool get isPart => taken < (spend.amount ?? 0) - 0.005;
+}
+
+/// One big payment and everything counted against it.
 class BigPayment {
   BigPayment(this.credit)
     : amount = credit.amount ?? 0,
@@ -41,110 +58,61 @@ class BigPayment {
 
   String get from => credit.counterpartyKey ?? '';
 
-  double _used = 0;
-  double get used => _used;
-  double get left => (amount - _used).clamp(0, amount);
+  final List<PaymentUse> uses = [];
+
+  double get used => uses.fold(0.0, (t, u) => t + u.taken);
+  double get left => (amount - used).clamp(0, amount);
   bool get isGone => left < 0.5;
 
   /// When the last of it went, or null while some is left.
-  DateTime? goneOn;
-
-  /// Category id to amount, for spending that was sorted.
-  final Map<String, double> byCategory = {};
-
-  /// Who received unsorted spending, and how much.
-  final Map<String, double> unsortedByPayee = {};
-
-  double charges = 0;
-
-  /// Spending after this payment was used up and before the next big payment
-  /// arrived, that no big payment covered.
-  double fromOtherMoney = 0;
-
-  /// Amount taken from this payment on each calendar day since it arrived,
-  /// keyed by days since arrival.
-  final Map<int, double> _usedOnDay = {};
-
-  /// How much of it was left at the end of each day, from the day it arrived
-  /// to [until], never below zero.
-  List<double> leftByDay(DateTime until) {
-    final days = _dateOf(until).difference(_dateOf(arrivedAt)).inDays + 1;
-    var left = amount;
-    return [
-      for (var d = 0; d < (days < 1 ? 1 : days); d++)
-        left = (left - (_usedOnDay[d] ?? 0)).clamp(0, amount),
-    ];
-  }
+  DateTime? get goneOn =>
+      isGone && uses.isNotEmpty ? uses.last.spend.occurredAt : null;
 
   /// Days from arrival until it was all gone, counting the day it arrived as
   /// day one. Null while some is left.
-  int? get daysToGo => goneOn == null
-      ? null
-      : _dateOf(goneOn!).difference(_dateOf(arrivedAt)).inDays + 1;
+  int? get daysToGo {
+    final gone = goneOn;
+    if (gone == null) return null;
+    DateTime date(DateTime d) => DateTime(d.year, d.month, d.day);
+    return date(gone).difference(date(arrivedAt)).inDays + 1;
+  }
 
   void _take(TransactionRecord spend, double take) {
-    _used += take;
-    final day = _dateOf(
-      spend.occurredAt!,
-    ).difference(_dateOf(arrivedAt)).inDays;
-    _usedOnDay[day] = (_usedOnDay[day] ?? 0) + take;
-    if (spend.kind == AlertKind.charge) {
-      charges += take;
-    } else if (spend.status == TxnStatus.labeled && spend.categoryId != null) {
-      byCategory[spend.categoryId!] =
-          (byCategory[spend.categoryId!] ?? 0) + take;
-    } else {
-      final who =
-          (spend.counterpartyKey == null || spend.counterpartyKey!.isEmpty)
-          ? 'Unknown'
-          : spend.counterpartyKey!;
-      unsortedByPayee[who] = (unsortedByPayee[who] ?? 0) + take;
-    }
-    if (isGone && goneOn == null) goneOn = spend.occurredAt;
+    uses.add(PaymentUse(spend: spend, taken: take, leftAfter: left - take));
   }
 }
-
-DateTime _dateOf(DateTime d) => DateTime(d.year, d.month, d.day);
 
 /// Whether a transaction is money arriving that counts as a big payment.
 bool isBigPayment(
   TransactionRecord t, {
   String? ownerName,
+  Set<String> ownKeys = const {},
   double floor = bigPaymentFloor,
-  Set<String> hidden = const {},
 }) =>
     t.kind == AlertKind.credit &&
     !t.isReversal &&
     t.occurredAt != null &&
     (t.amount ?? 0) >= floor &&
-    !hidden.contains(t.smsId) &&
     // Money moved in from the user's own other account is not new money.
-    !(t.counterpartyKey != null &&
-        looksLikeOwnAccount(t.counterpartyKey!, ownerName));
+    !isOwnTransfer(t, ownerName: ownerName, ownKeys: ownKeys);
 
 /// Whether a transaction is money genuinely leaving the user.
-bool _isSpending(TransactionRecord t, String? ownerName) {
-  if (t.occurredAt == null || t.isReversal || (t.amount ?? 0) <= 0) {
-    return false;
-  }
-  if (t.kind == AlertKind.charge) return true;
-  if (t.kind != AlertKind.debit) return false;
-  // Excluded debits are transfers to the user's own accounts.
-  if (t.status == TxnStatus.excluded) return false;
-  // As is one nothing has sorted yet. Moving money is not spending it.
-  if (t.counterpartyKey != null &&
-      looksLikeOwnAccount(t.counterpartyKey!, ownerName)) {
-    return false;
-  }
-  return true;
+bool _isSpending(TransactionRecord t, String? ownerName, Set<String> ownKeys) {
+  if (t.occurredAt == null || (t.amount ?? 0) <= 0) return false;
+  if (effectOf(t) >= 0) return false;
+  // A bank taking back money it credited by mistake is not spending either.
+  if (t.kind == AlertKind.debit && t.isReversal) return false;
+  // Moving money to your own account is not spending it.
+  return !isOwnTransfer(t, ownerName: ownerName, ownKeys: ownKeys);
 }
 
-/// Every big payment in [transactions] and what came out of it, newest first.
+/// Every big payment in [transactions] and what was counted against it,
+/// newest first.
 List<BigPayment> whereBigPaymentsWent(
   List<TransactionRecord> transactions, {
   String? ownerName,
+  Set<String> ownKeys = const {},
   double floor = bigPaymentFloor,
-  Set<String> hidden = const {},
 }) {
   final payments =
       transactions
@@ -152,36 +120,36 @@ List<BigPayment> whereBigPaymentsWent(
             (t) => isBigPayment(
               t,
               ownerName: ownerName,
+              ownKeys: ownKeys,
               floor: floor,
-              hidden: hidden,
             ),
           )
           .map(BigPayment.new)
           .toList()
-        ..sort((a, b) => a.arrivedAt.compareTo(b.arrivedAt));
+        ..sort((a, b) => compareTransactions(a.credit, b.credit));
   if (payments.isEmpty) return const [];
 
-  final spending = transactions.where((t) => _isSpending(t, ownerName)).toList()
-    ..sort((a, b) => a.occurredAt!.compareTo(b.occurredAt!));
+  final sorted = transactions.where((t) => t.occurredAt != null).toList()
+    ..sort(compareTransactions);
+  final declined = declinedDebits(sorted);
+  final spending = sorted
+      .where(
+        (t) =>
+            !declined.contains(t.smsId) && _isSpending(t, ownerName, ownKeys),
+      )
+      .toList();
 
   for (final spend in spending) {
-    final when = spend.occurredAt!;
-    // Only payments that had already arrived can pay for this.
-    final arrived = payments.where((p) => !p.arrivedAt.isAfter(when)).toList();
-    if (arrived.isEmpty) continue; // before the first big payment
-
     var owed = spend.amount!;
-    // Oldest first.
-    for (final p in arrived) {
-      if (owed <= 0) break;
+    // Oldest first, and only payments that had already arrived.
+    for (final p in payments) {
+      if (owed <= 0.005) break;
+      if (p.arrivedAt.isAfter(spend.occurredAt!)) break;
       if (p.isGone) continue;
       final take = owed < p.left ? owed : p.left;
       p._take(spend, take);
       owed -= take;
     }
-    // Nothing big left to cover it: other money, credited to the latest
-    // payment so it can say what happened after it ran out.
-    if (owed > 0.005) arrived.last.fromOtherMoney += owed;
   }
 
   return payments.reversed.toList();

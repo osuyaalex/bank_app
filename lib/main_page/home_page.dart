@@ -16,8 +16,8 @@ import 'package:banking_app/data/bank_topics.dart';
 import 'package:banking_app/data/sms_inbox.dart';
 import 'package:banking_app/main_page/widget/share_format_sheet.dart';
 import 'package:banking_app/data/unseen_activity.dart';
-import 'package:banking_app/data/big_payment_store.dart';
-import 'package:banking_app/main_page/big_payments_page.dart';
+import 'package:banking_app/data/statement_store.dart';
+import 'package:banking_app/main_page/month_statement_page.dart';
 import 'package:flutter/services.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -75,7 +75,7 @@ class _HomePageState extends State<HomePage> {
 
   /// The latest big payment and how much of it is left, remembered from the
   /// last time it was worked out.
-  BigPaymentSummary? _bigPayment;
+  StatementSummary? _statement;
   String _currentMonth = '';
   List<String> _currentMonthDocs = [];
   ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
@@ -437,15 +437,15 @@ class _HomePageState extends State<HomePage> {
       final count = await repo.pendingCount();
       final untagged = await repo.pendingTagCount();
       final unseen = await UnseenActivity.load();
-      final bigPayment = await BigPaymentStore.cachedSummary();
+      final statement = await StatementStore.cachedSummary();
       if (mounted) {
         setState(() {
           _needsSorting = count;
           _untagged = untagged;
           _unseen = unseen;
-          _bigPayment = bigPayment;
+          _statement = statement;
         });
-        unawaited(_refreshBigPaymentIfStale(bigPayment));
+        unawaited(_refreshStatementIfStale(statement));
         await _deliverNudge(unseen);
       }
     } catch (_) {
@@ -483,44 +483,37 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// One line, for when marking each budget would light the whole screen.
-  /// Works the latest big payment out again when the remembered one is old.
+  /// Works this month's money in and out again when the remembered figures
+  /// are old, or from an earlier month.
   ///
   /// It means parsing the SMS inbox, which is too slow to do every time the
   /// home screen opens, so it is redone at most every few hours, behind the
   /// screen.
-  Future<void> _refreshBigPaymentIfStale(BigPaymentSummary? cached) async {
+  Future<void> _refreshStatementIfStale(StatementSummary? cached) async {
+    final now = DateTime.now();
     if (cached != null &&
-        DateTime.now().difference(cached.computedAt) <
-            const Duration(hours: 6)) {
+        cached.month.year == now.year &&
+        cached.month.month == now.month &&
+        now.difference(cached.computedAt) < const Duration(hours: 6)) {
       return;
     }
     try {
-      final repo = SpendRepository();
-      final fresh = await BigPaymentStore().refreshSummary(
-        currency: await repo.currencySymbol(),
-        ownerName: await repo.ownerName(),
+      final fresh = await StatementStore().refreshSummary(
+        currency: await SpendRepository().currencySymbol(),
       );
-      if (mounted) setState(() => _bigPayment = fresh);
+      if (mounted) setState(() => _statement = fresh);
     } catch (_) {
       // Only a card on the home screen.
     }
   }
 
-  Widget _bigPaymentCard() {
-    final b = _bigPayment;
-    if (b == null || !b.found || b.amount <= 0) return const SizedBox.shrink();
+  Widget _statementCard() {
+    final s = _statement;
+    if (s == null || (s.moneyIn < 0.5 && s.moneyOut < 0.5)) {
+      return const SizedBox.shrink();
+    }
     final fmt = NumberFormat('#,###');
-    final used = (b.amount - b.left).clamp(0.0, b.amount);
-    final share = (used / b.amount).clamp(0.0, 1.0);
-    final name = b.from
-        .trim()
-        .split(RegExp(r'\s+'))
-        .map((w) => w.isEmpty ? w : '${w[0]}${w.substring(1).toLowerCase()}')
-        .join(' ');
-    final status = b.left < 0.5
-        ? 'All gone'
-        : '${b.currency}${fmt.format(b.left.round())} left';
+    String money(double v) => '${s.currency}${fmt.format(v.round())}';
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -531,10 +524,10 @@ class _HomePageState extends State<HomePage> {
           onTap: () async {
             await Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const BigPaymentsPage()),
+              MaterialPageRoute(builder: (_) => const MonthStatementPage()),
             );
-            final updated = await BigPaymentStore.cachedSummary();
-            if (mounted) setState(() => _bigPayment = updated);
+            final updated = await StatementStore.cachedSummary();
+            if (mounted) setState(() => _statement = updated);
           },
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
@@ -545,7 +538,7 @@ class _HomePageState extends State<HomePage> {
             child: Row(
               children: [
                 const Icon(
-                  Icons.payments_outlined,
+                  Icons.receipt_long_outlined,
                   color: Color(0xff5AA5E2),
                   size: 19,
                 ),
@@ -555,30 +548,18 @@ class _HomePageState extends State<HomePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${b.currency}${fmt.format(b.amount.round())} from $name',
+                        '${DateFormat('MMMM').format(s.month)} so far',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 13.5,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(3),
-                        child: LinearProgressIndicator(
-                          value: share,
-                          minHeight: 5,
-                          backgroundColor: Colors.grey.shade200,
-                          valueColor: const AlwaysStoppedAnimation(
-                            Color(0xff5AA5E2),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
-                        '$status · see where it went',
+                        'In ${money(s.moneyIn)} · Out ${money(s.moneyOut)}',
                         style: TextStyle(
-                          fontSize: 11.5,
-                          color: Colors.grey.shade600,
+                          fontSize: 12.5,
+                          color: Colors.grey.shade700,
                         ),
                       ),
                     ],
@@ -593,6 +574,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  /// One line, for when marking each budget would light the whole screen.
   Widget _unseenSummary() {
     if (_unseen.total == 0 || _unseen.markIndividually) {
       return const SizedBox.shrink();
@@ -1067,7 +1049,7 @@ class _HomePageState extends State<HomePage> {
                                 return Column(
                                   children: [
                                     _sortBanner(),
-                                    _bigPaymentCard(),
+                                    _statementCard(),
                                     _unseenSummary(),
                                     Expanded(
                                       child: ListView.builder(

@@ -1,7 +1,8 @@
-/// How much of a payment was left at the end of each day.
+/// The money in every account the app can check, at the end of each day.
 ///
-/// One series, falling from the full amount to zero, so it can never show
-/// more gone than the payment was. The card title names it; no legend.
+/// One series, so no legend: the card title names it. Touching the chart
+/// shows that day's balance and what came in and went out, which is what
+/// explains a jump or a fall.
 library;
 
 import 'package:flutter/material.dart';
@@ -11,30 +12,35 @@ import 'category_picker.dart' show brandBlue;
 
 const _ink = Color(0xff1C1939);
 
-class MoneyLeftChart extends StatefulWidget {
-  const MoneyLeftChart({
+class BalanceChart extends StatefulWidget {
+  const BalanceChart({
     super.key,
-    required this.leftByDay,
-    required this.amount,
-    required this.currency,
+    required this.balances,
     required this.start,
+    required this.currency,
+    this.moneyIn = const [],
+    this.moneyOut = const [],
   });
 
-  /// What was left at the end of each day, day one first.
-  final List<double> leftByDay;
-  final double amount;
-  final String currency;
+  /// The balance at the end of each day, day one first.
+  final List<double> balances;
+
+  /// Money in and out on each day, same order. Optional.
+  final List<double> moneyIn;
+  final List<double> moneyOut;
+
   final DateTime start;
+  final String currency;
 
   @override
-  State<MoneyLeftChart> createState() => _MoneyLeftChartState();
+  State<BalanceChart> createState() => _BalanceChartState();
 }
 
-class _MoneyLeftChartState extends State<MoneyLeftChart> {
+class _BalanceChartState extends State<BalanceChart> {
   int? _selected;
 
   void _select(Offset local, double width) {
-    final n = widget.leftByDay.length;
+    final n = widget.balances.length;
     if (n == 0) return;
     final i = n == 1
         ? 0
@@ -45,9 +51,25 @@ class _MoneyLeftChartState extends State<MoneyLeftChart> {
   @override
   Widget build(BuildContext context) {
     final money = NumberFormat('#,###');
+    String fmt(double v) =>
+        '${v < 0 ? '-' : ''}${widget.currency}${money.format(v.abs().round())}';
     final sel = _selected;
-    final n = widget.leftByDay.length;
+    final n = widget.balances.length;
     final end = widget.start.add(Duration(days: n - 1));
+
+    String label(int i) {
+      final parts = [
+        DateFormat('EEE d MMM').format(widget.start.add(Duration(days: i))),
+        fmt(widget.balances[i]),
+      ];
+      if (i < widget.moneyIn.length && widget.moneyIn[i] >= 0.5) {
+        parts.add('in ${fmt(widget.moneyIn[i])}');
+      }
+      if (i < widget.moneyOut.length && widget.moneyOut[i] >= 0.5) {
+        parts.add('out ${fmt(widget.moneyOut[i])}');
+      }
+      return parts.join(' · ');
+    }
 
     return LayoutBuilder(
       builder: (context, box) {
@@ -56,7 +78,7 @@ class _MoneyLeftChartState extends State<MoneyLeftChart> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              height: 24,
+              height: 22,
               child: sel == null
                   ? Text(
                       'Touch the chart to see each day',
@@ -65,16 +87,20 @@ class _MoneyLeftChartState extends State<MoneyLeftChart> {
                         color: Colors.grey.shade500,
                       ),
                     )
-                  : Text(
-                      '${DateFormat('EEE d MMM').format(widget.start.add(Duration(days: sel)))}'
-                      ' · ${widget.currency}${money.format(widget.leftByDay[sel].round())} left',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: _ink,
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        label(sel),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: _ink,
+                        ),
                       ),
                     ),
             ),
+            const SizedBox(height: 4),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onPanDown: (d) => _select(d.localPosition, width),
@@ -82,12 +108,11 @@ class _MoneyLeftChartState extends State<MoneyLeftChart> {
               onPanEnd: (_) => setState(() => _selected = null),
               onPanCancel: () => setState(() => _selected = null),
               child: SizedBox(
-                height: 160,
+                height: 150,
                 width: width,
                 child: CustomPaint(
-                  painter: _LeftPainter(
-                    left: widget.leftByDay,
-                    amount: widget.amount,
+                  painter: _BalancePainter(
+                    values: widget.balances,
                     selected: sel,
                   ),
                 ),
@@ -119,41 +144,42 @@ class _MoneyLeftChartState extends State<MoneyLeftChart> {
   }
 }
 
-class _LeftPainter extends CustomPainter {
-  _LeftPainter({
-    required this.left,
-    required this.amount,
-    required this.selected,
-  });
+class _BalancePainter extends CustomPainter {
+  _BalancePainter({required this.values, required this.selected});
 
-  final List<double> left;
-  final double amount;
+  final List<double> values;
   final int? selected;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final n = left.length;
-    if (n == 0 || amount <= 0) return;
-    double y(double v) => size.height - (v / amount) * size.height;
-    double x(int i) => n <= 1 ? 0 : i / (n - 1) * size.width;
+    final n = values.length;
+    if (n == 0) return;
+    final top = values.reduce((a, b) => a > b ? a : b);
+    final bottom = values
+        .reduce((a, b) => a < b ? a : b)
+        .clamp(double.negativeInfinity, 0.0);
+    final span = (top - bottom) <= 0 ? 1.0 : top - bottom;
+    // A little room above the highest point so the line never clips.
+    final plot = size.height - 6;
+    double y(double v) => 6 + plot - ((v - bottom) / span) * plot;
+    double x(int i) => n <= 1 ? size.width / 2 : i / (n - 1) * size.width;
 
-    // Baseline: zero left. A recessive hairline.
+    // Zero. A recessive hairline.
     canvas.drawLine(
-      Offset(0, size.height),
-      Offset(size.width, size.height),
+      Offset(0, y(0)),
+      Offset(size.width, y(0)),
       Paint()
         ..color = const Color(0xffE6E8F0)
         ..strokeWidth = 1,
     );
 
-    // Start from the full amount at the moment it arrived, then each day.
-    final line = Path()..moveTo(0, y(amount));
-    for (var i = 0; i < n; i++) {
-      line.lineTo(x(i), y(left[i]));
+    final line = Path()..moveTo(x(0), y(values[0]));
+    for (var i = 1; i < n; i++) {
+      line.lineTo(x(i), y(values[i]));
     }
     final area = Path.from(line)
-      ..lineTo(x(n - 1), size.height)
-      ..lineTo(0, size.height)
+      ..lineTo(x(n - 1), y(0))
+      ..lineTo(x(0), y(0))
       ..close();
 
     canvas.drawPath(area, Paint()..color = brandBlue.withValues(alpha: 0.10));
@@ -167,9 +193,12 @@ class _LeftPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
 
-    final end = Offset(x(n - 1), y(left.last));
-    canvas.drawCircle(end, 6, Paint()..color = Colors.white);
-    canvas.drawCircle(end, 4.5, Paint()..color = brandBlue);
+    void dot(Offset p) {
+      canvas.drawCircle(p, 6, Paint()..color = Colors.white);
+      canvas.drawCircle(p, 4.5, Paint()..color = brandBlue);
+    }
+
+    dot(Offset(x(n - 1), y(values.last)));
 
     final s = selected;
     if (s != null && s < n) {
@@ -181,13 +210,11 @@ class _LeftPainter extends CustomPainter {
           ..color = const Color(0xff9A98AE)
           ..strokeWidth = 1,
       );
-      final p = Offset(sx, y(left[s]));
-      canvas.drawCircle(p, 6, Paint()..color = Colors.white);
-      canvas.drawCircle(p, 4.5, Paint()..color = brandBlue);
+      dot(Offset(sx, y(values[s])));
     }
   }
 
   @override
-  bool shouldRepaint(_LeftPainter old) =>
-      old.selected != selected || old.left != left || old.amount != amount;
+  bool shouldRepaint(_BalancePainter old) =>
+      old.selected != selected || old.values != values;
 }
