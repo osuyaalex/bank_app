@@ -16,8 +16,8 @@ import 'package:banking_app/data/bank_topics.dart';
 import 'package:banking_app/data/sms_inbox.dart';
 import 'package:banking_app/main_page/widget/share_format_sheet.dart';
 import 'package:banking_app/data/unseen_activity.dart';
-import 'package:banking_app/data/salary_store.dart';
-import 'package:banking_app/main_page/salary_page.dart';
+import 'package:banking_app/data/big_payment_store.dart';
+import 'package:banking_app/main_page/big_payments_page.dart';
 import 'package:flutter/services.dart';
 import 'package:banking_app/main_page/widget/stream_builder.dart';
 import 'package:banking_app/utilities/snackbar.dart';
@@ -73,9 +73,9 @@ class _HomePageState extends State<HomePage> {
   /// What has been filed since the user last opened each budget.
   UnseenTally _unseen = const UnseenTally();
 
-  /// The latest salary and how much of it has gone, remembered from the last
-  /// time it was worked out.
-  SalarySummary? _salary;
+  /// The latest big payment and how much of it is left, remembered from the
+  /// last time it was worked out.
+  BigPaymentSummary? _bigPayment;
   String _currentMonth = '';
   List<String> _currentMonthDocs = [];
   ValueNotifier<String> _currentMonthDataNotifier = ValueNotifier<String>('');
@@ -437,15 +437,15 @@ class _HomePageState extends State<HomePage> {
       final count = await repo.pendingCount();
       final untagged = await repo.pendingTagCount();
       final unseen = await UnseenActivity.load();
-      final salary = await SalaryStore.cachedSummary();
+      final bigPayment = await BigPaymentStore.cachedSummary();
       if (mounted) {
         setState(() {
           _needsSorting = count;
           _untagged = untagged;
           _unseen = unseen;
-          _salary = salary;
+          _bigPayment = bigPayment;
         });
-        unawaited(_refreshSalaryIfStale(salary));
+        unawaited(_refreshBigPaymentIfStale(bigPayment));
         await _deliverNudge(unseen);
       }
     } catch (_) {
@@ -484,11 +484,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   /// One line, for when marking each budget would light the whole screen.
-  /// Works the salary out again when the remembered figure is old.
+  /// Works the latest big payment out again when the remembered one is old.
   ///
-  /// Five months of transactions is too much to read every time the home
-  /// screen opens, so it is redone at most every few hours, behind the screen.
-  Future<void> _refreshSalaryIfStale(SalarySummary? cached) async {
+  /// It means parsing the SMS inbox, which is too slow to do every time the
+  /// home screen opens, so it is redone at most every few hours, behind the
+  /// screen.
+  Future<void> _refreshBigPaymentIfStale(BigPaymentSummary? cached) async {
     if (cached != null &&
         DateTime.now().difference(cached.computedAt) <
             const Duration(hours: 6)) {
@@ -496,23 +497,30 @@ class _HomePageState extends State<HomePage> {
     }
     try {
       final repo = SpendRepository();
-      final fresh = await SalaryStore().refreshSummary(
+      final fresh = await BigPaymentStore().refreshSummary(
         currency: await repo.currencySymbol(),
         ownerName: await repo.ownerName(),
       );
-      final latest = fresh ?? await SalaryStore.cachedSummary();
-      if (mounted) setState(() => _salary = latest);
+      if (mounted) setState(() => _bigPayment = fresh);
     } catch (_) {
       // Only a card on the home screen.
     }
   }
 
-  Widget _salaryCard() {
-    final s = _salary;
-    if (s == null || !s.found || s.salary <= 0) return const SizedBox.shrink();
-    final days = DateTime.now().difference(s.paidOn).inDays;
-    final share = (s.spent / s.salary).clamp(0.0, 1.0);
+  Widget _bigPaymentCard() {
+    final b = _bigPayment;
+    if (b == null || !b.found || b.amount <= 0) return const SizedBox.shrink();
     final fmt = NumberFormat('#,###');
+    final used = (b.amount - b.left).clamp(0.0, b.amount);
+    final share = (used / b.amount).clamp(0.0, 1.0);
+    final name = b.from
+        .trim()
+        .split(RegExp(r'\s+'))
+        .map((w) => w.isEmpty ? w : '${w[0]}${w.substring(1).toLowerCase()}')
+        .join(' ');
+    final status = b.left < 0.5
+        ? 'All gone'
+        : '${b.currency}${fmt.format(b.left.round())} left';
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -523,10 +531,10 @@ class _HomePageState extends State<HomePage> {
           onTap: () async {
             await Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const SalaryPage()),
+              MaterialPageRoute(builder: (_) => const BigPaymentsPage()),
             );
-            final updated = await SalaryStore.cachedSummary();
-            if (mounted) setState(() => _salary = updated);
+            final updated = await BigPaymentStore.cachedSummary();
+            if (mounted) setState(() => _bigPayment = updated);
           },
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
@@ -547,8 +555,7 @@ class _HomePageState extends State<HomePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${s.currency}${fmt.format(s.spent.round())} of your '
-                        '${s.currency}${fmt.format(s.salary.round())} salary gone',
+                        '${b.currency}${fmt.format(b.amount.round())} from $name',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 13.5,
@@ -568,9 +575,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        days <= 0
-                            ? 'Arrived today'
-                            : 'Arrived $days day${days == 1 ? '' : 's'} ago',
+                        '$status · see where it went',
                         style: TextStyle(
                           fontSize: 11.5,
                           color: Colors.grey.shade600,
@@ -1062,7 +1067,7 @@ class _HomePageState extends State<HomePage> {
                                 return Column(
                                   children: [
                                     _sortBanner(),
-                                    _salaryCard(),
+                                    _bigPaymentCard(),
                                     _unseenSummary(),
                                     Expanded(
                                       child: ListView.builder(

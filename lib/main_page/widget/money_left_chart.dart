@@ -1,7 +1,7 @@
-/// How fast a salary drained: money gone, day by day, against the salary.
+/// How much of a payment was left at the end of each day.
 ///
-/// One series, so no legend -- the card title names it. The salary is a solid
-/// hairline reference with its own label, not a second series.
+/// One series, falling from the full amount to zero, so it can never show
+/// more gone than the payment was. The card title names it; no legend.
 library;
 
 import 'package:flutter/material.dart';
@@ -11,35 +11,30 @@ import 'category_picker.dart' show brandBlue;
 
 const _ink = Color(0xff1C1939);
 
-class SalaryDrainChart extends StatefulWidget {
-  const SalaryDrainChart({
+class MoneyLeftChart extends StatefulWidget {
+  const MoneyLeftChart({
     super.key,
-    required this.dailyTotals,
-    required this.salary,
+    required this.leftByDay,
+    required this.amount,
     required this.currency,
     required this.start,
   });
 
-  /// Money out on each day, day 1 first.
-  final List<double> dailyTotals;
-  final double salary;
+  /// What was left at the end of each day, day one first.
+  final List<double> leftByDay;
+  final double amount;
   final String currency;
   final DateTime start;
 
   @override
-  State<SalaryDrainChart> createState() => _SalaryDrainChartState();
+  State<MoneyLeftChart> createState() => _MoneyLeftChartState();
 }
 
-class _SalaryDrainChartState extends State<SalaryDrainChart> {
+class _MoneyLeftChartState extends State<MoneyLeftChart> {
   int? _selected;
 
-  List<double> get _cumulative {
-    var running = 0.0;
-    return [for (final d in widget.dailyTotals) running += d];
-  }
-
   void _select(Offset local, double width) {
-    final n = widget.dailyTotals.length;
+    final n = widget.leftByDay.length;
     if (n == 0) return;
     final i = n == 1
         ? 0
@@ -49,9 +44,10 @@ class _SalaryDrainChartState extends State<SalaryDrainChart> {
 
   @override
   Widget build(BuildContext context) {
-    final cumulative = _cumulative;
     final money = NumberFormat('#,###');
     final sel = _selected;
+    final n = widget.leftByDay.length;
+    final end = widget.start.add(Duration(days: n - 1));
 
     return LayoutBuilder(
       builder: (context, box) {
@@ -71,8 +67,7 @@ class _SalaryDrainChartState extends State<SalaryDrainChart> {
                     )
                   : Text(
                       '${DateFormat('EEE d MMM').format(widget.start.add(Duration(days: sel)))}'
-                      ' · day ${sel + 1} · '
-                      '${widget.currency}${money.format(cumulative[sel].round())} gone',
+                      ' · ${widget.currency}${money.format(widget.leftByDay[sel].round())} left',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -87,15 +82,13 @@ class _SalaryDrainChartState extends State<SalaryDrainChart> {
               onPanEnd: (_) => setState(() => _selected = null),
               onPanCancel: () => setState(() => _selected = null),
               child: SizedBox(
-                height: 170,
+                height: 160,
                 width: width,
                 child: CustomPaint(
-                  painter: _DrainPainter(
-                    cumulative: cumulative,
-                    salary: widget.salary,
+                  painter: _LeftPainter(
+                    left: widget.leftByDay,
+                    amount: widget.amount,
                     selected: sel,
-                    salaryLabel:
-                        'Salary ${widget.currency}${money.format(widget.salary.round())}',
                   ),
                 ),
               ),
@@ -109,7 +102,7 @@ class _SalaryDrainChartState extends State<SalaryDrainChart> {
                 ),
                 const Spacer(),
                 Text(
-                  'Today',
+                  _isToday(end) ? 'Today' : DateFormat('d MMM').format(end),
                   style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
                 ),
               ],
@@ -119,71 +112,50 @@ class _SalaryDrainChartState extends State<SalaryDrainChart> {
       },
     );
   }
+
+  bool _isToday(DateTime d) {
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
 }
 
-class _DrainPainter extends CustomPainter {
-  _DrainPainter({
-    required this.cumulative,
-    required this.salary,
+class _LeftPainter extends CustomPainter {
+  _LeftPainter({
+    required this.left,
+    required this.amount,
     required this.selected,
-    required this.salaryLabel,
   });
 
-  final List<double> cumulative;
-  final double salary;
+  final List<double> left;
+  final double amount;
   final int? selected;
-  final String salaryLabel;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const top = 18.0; // room for the salary label
-    final h = size.height - top;
-    final maxY =
-        [
-          salary,
-          if (cumulative.isNotEmpty) cumulative.last,
-        ].reduce((a, b) => a > b ? a : b) *
-        1.05;
-    double y(double v) => top + h - (maxY <= 0 ? 0 : v / maxY * h);
-    final n = cumulative.length;
-    double x(int i) => n <= 1 ? size.width : i / (n - 1) * size.width;
+    final n = left.length;
+    if (n == 0 || amount <= 0) return;
+    double y(double v) => size.height - (v / amount) * size.height;
+    double x(int i) => n <= 1 ? 0 : i / (n - 1) * size.width;
 
-    // Baseline: a recessive hairline.
-    final hair = Paint()
-      ..color = const Color(0xffE6E8F0)
-      ..strokeWidth = 1;
-    canvas.drawLine(Offset(0, top + h), Offset(size.width, top + h), hair);
-
-    // The salary: a solid hairline reference, labelled in ink, not colour.
-    final salaryY = y(salary);
+    // Baseline: zero left. A recessive hairline.
     canvas.drawLine(
-      Offset(0, salaryY),
-      Offset(size.width, salaryY),
+      Offset(0, size.height),
+      Offset(size.width, size.height),
       Paint()
-        ..color = const Color(0xffB9BCCB)
+        ..color = const Color(0xffE6E8F0)
         ..strokeWidth = 1,
     );
-    final tp = TextPainter(
-      text: TextSpan(
-        text: salaryLabel,
-        style: const TextStyle(fontSize: 11, color: Color(0xff5F5C78)),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(size.width - tp.width, salaryY - tp.height - 2));
 
-    if (n == 0) return;
-
-    final line = Path()..moveTo(x(0), y(cumulative[0]));
-    for (var i = 1; i < n; i++) {
-      line.lineTo(x(i), y(cumulative[i]));
+    // Start from the full amount at the moment it arrived, then each day.
+    final line = Path()..moveTo(0, y(amount));
+    for (var i = 0; i < n; i++) {
+      line.lineTo(x(i), y(left[i]));
     }
     final area = Path.from(line)
-      ..lineTo(x(n - 1), top + h)
-      ..lineTo(x(0), top + h)
+      ..lineTo(x(n - 1), size.height)
+      ..lineTo(0, size.height)
       ..close();
 
-    // Area as a wash, never a solid block.
     canvas.drawPath(area, Paint()..color = brandBlue.withValues(alpha: 0.10));
     canvas.drawPath(
       line,
@@ -195,8 +167,7 @@ class _DrainPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
 
-    // End dot, with a surface ring so it reads against the line.
-    final end = Offset(x(n - 1), y(cumulative.last));
+    final end = Offset(x(n - 1), y(left.last));
     canvas.drawCircle(end, 6, Paint()..color = Colors.white);
     canvas.drawCircle(end, 4.5, Paint()..color = brandBlue);
 
@@ -204,21 +175,19 @@ class _DrainPainter extends CustomPainter {
     if (s != null && s < n) {
       final sx = x(s);
       canvas.drawLine(
-        Offset(sx, top),
-        Offset(sx, top + h),
+        Offset(sx, 0),
+        Offset(sx, size.height),
         Paint()
           ..color = const Color(0xff9A98AE)
           ..strokeWidth = 1,
       );
-      final p = Offset(sx, y(cumulative[s]));
+      final p = Offset(sx, y(left[s]));
       canvas.drawCircle(p, 6, Paint()..color = Colors.white);
       canvas.drawCircle(p, 4.5, Paint()..color = brandBlue);
     }
   }
 
   @override
-  bool shouldRepaint(_DrainPainter old) =>
-      old.selected != selected ||
-      old.cumulative != cumulative ||
-      old.salary != salary;
+  bool shouldRepaint(_LeftPainter old) =>
+      old.selected != selected || old.left != left || old.amount != amount;
 }
