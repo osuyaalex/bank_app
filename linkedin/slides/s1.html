@@ -1,0 +1,58 @@
+<meta charset="utf-8"><title>slide 1</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .stage { display:block; }
+  .flow { position:absolute; left:0; top:26px; width:512px; display:flex; flex-direction:column; gap:20px; }
+  .step { background:rgba(255,255,255,.055); border:1.5px solid rgba(255,255,255,.14); border-radius:22px; padding:24px 26px; }
+  .step .tag { font-size:14px; font-weight:800; letter-spacing:.15em; text-transform:uppercase; color:#8FA6E8; }
+  .step .big { font-size:38px; font-weight:800; letter-spacing:-.02em; margin-top:8px; }
+  .step p { margin-top:8px; font-size:19px; color:#AFBAD8; line-height:1.4; }
+  .down { width:44px; height:44px; margin-left:36px; border-radius:50%; background:#4C7DFF;
+          display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 8px rgba(76,125,255,.14); }
+  .down svg { width:20px; height:20px; }
+  .gemstep { display:flex; align-items:center; gap:22px; border-color:rgba(155,114,203,.45);
+             background:linear-gradient(120deg, rgba(155,114,203,.16), rgba(66,133,244,.10)); }
+  .gemstep .txt .big { font-size:30px; }
+  .phone { right:6px; top:62px; }
+  .pill { position:absolute; right:0; top:0; display:flex; align-items:center; gap:12px;
+          background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.16);
+          border-radius:999px; padding:12px 22px; font-size:19px; letter-spacing:.12em; font-weight:600; color:#CFD9F5; }
+  .pill b { color:#fff; }
+</style>
+<div class="slide">
+  <div class="kicker"><span class="dot"></span>Part 1 &middot; how it worked</div>
+  <h1>Forty lines, and<br>a great deal of <em>faith</em>.</h1>
+  <p class="sub">Version one of the app had no parser and no dictionary. It had a filter, and it had Gemini.</p>
+
+  <div class="stage">
+    <div class="flow">
+      <div class="step">
+        <div class="tag">1 &mdash; your inbox</div>
+        <div class="big">5,348 text messages</div>
+        <p>Bank alerts, adverts, OTPs, friends. All mixed together.</p>
+      </div>
+      <div class="down"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M5 13l7 7 7-7"/></svg></div>
+      <div class="step">
+        <div class="tag">2 &mdash; the filter</div>
+        <div class="code" style="margin-top:12px">says <span class="s">"debit"</span> or <span class="s">"dr"</span><br>&nbsp;&nbsp;<span class="k">AND</span> <span class="s">"acc"</span> or <span class="s">"acct"</span></div>
+        <p>That was the whole test for &ldquo;is this a bank transaction&rdquo;.</p>
+      </div>
+      <div class="down"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M5 13l7 7 7-7"/></svg></div>
+      <div class="step gemstep">
+        <svg width="66" height="66" viewBox="0 0 24 24" style="flex:none"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4285F4"/><stop offset="45%" stop-color="#9B72CB"/><stop offset="100%" stop-color="#D96570"/></linearGradient></defs><path fill="url(#gg)" d="M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12C6.627 12 12 6.627 12 0z"/></svg>
+        <div class="txt">
+          <div class="tag">3 &mdash; gemini</div>
+          <div class="big">Read it. Name the amount.<br>Pick the budget.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pill">THE APP YOU SAW</div>
+    <div class="phone"><div class="screen"><img src="shots/1.png"></div></div>
+  </div>
+
+  <div class="foot">
+    <div class="line">That was it. <span>No parser. No dictionary.</span></div>
+    <div class="who">bank alerts &rarr; a model &rarr; a number<br>one message at a time</div>
+  </div>
+</div>

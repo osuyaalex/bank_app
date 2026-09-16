@@ -1,0 +1,53 @@
+<meta charset="utf-8"><title>part 2 slide a</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .phone { left:0; top:26px; }
+  .right { position:absolute; left:420px; right:0; top:26px; display:flex; flex-direction:column; gap:20px; }
+  .note { position:static; width:auto; }
+  .math { display:flex; align-items:center; gap:24px; background:rgba(255,255,255,.055);
+          border:1.5px solid rgba(255,255,255,.14); border-radius:22px; padding:24px 26px; }
+  .math .n { font-size:66px; font-weight:800; letter-spacing:-.04em; line-height:1; }
+  .math .n.was { color:#FF8B8B; }
+  .math .n.now { color:#68E3B0; }
+  .math .l { font-size:17px; color:#98A5C6; margin-top:8px; letter-spacing:.08em; text-transform:uppercase; font-weight:700; }
+  .math .to { font-size:38px; color:#8FA6E8; }
+  .note .big { font-size:28px; }
+  .note p { font-size:19px; }
+</style>
+<div class="slide">
+  <div class="kicker"><span class="dot"></span>Part 2 &middot; the batch screen</div>
+  <h1>It stopped asking about<br>payments. It asks about <em>people</em>.</h1>
+  <p class="sub">You should not have to sort a year of spending by hand, one transaction at a time.</p>
+
+  <div class="stage">
+    <div class="phone"><div class="screen"><img src="shots/batch.png"></div></div>
+    <div class="right">
+      <div class="math">
+        <div><div class="n was">1,271</div><div class="l">payments found</div></div>
+        <div class="to">&rarr;</div>
+        <div><div class="n now">20</div><div class="l">questions asked</div></div>
+      </div>
+
+      <div class="note">
+        <div class="tag">one row, one name</div>
+        <div class="big">51 payments to Chowdeck<br>is one question, not 51.</div>
+      </div>
+
+      <div class="note">
+        <div class="tag">in the order that matters</div>
+        <p>Sorted by how often you paid them. The names that shaped your month sit at the top &mdash; and it never asks more than twenty.</p>
+      </div>
+
+      <div class="note good">
+        <div class="tag">answer once</div>
+        <div class="big">Every future payment to<br>that name files itself.</div>
+        <p>No model, no network, nothing leaving the phone.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="line">A year of spending, <span>sorted in about a minute.</span></div>
+    <div class="who">names shown are demo data<br>the screen is the real app</div>
+  </div>
+</div>

@@ -1,0 +1,63 @@
+<meta charset="utf-8"><title>slide 3</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .phone { right:0; top:34px; }
+  .left { position:absolute; left:0; width:520px; top:34px; display:flex; flex-direction:column; gap:22px; }
+  .bubble { display:flex; gap:18px; align-items:flex-start;
+            background:linear-gradient(120deg, rgba(155,114,203,.16), rgba(66,133,244,.10));
+            border:1.5px solid rgba(155,114,203,.45); border-radius:22px; padding:22px 24px; }
+  .bubble .said { font-family:"JetBrains Mono",monospace; font-size:30px; font-weight:700; color:#fff; }
+  .bubble .cap { font-size:17px; color:#B9A9D8; margin-top:8px; }
+  .gate { border:1.5px solid rgba(255,122,122,.5); background:rgba(255,90,90,.10); border-radius:22px; padding:22px 24px; }
+  .gate .tag { font-size:14px; font-weight:800; letter-spacing:.15em; text-transform:uppercase; color:#FF9C9C; }
+  .stamp { display:inline-block; margin-top:14px; border:2.5px solid #FF6B6B; color:#FF8B8B;
+           font-size:22px; font-weight:800; letter-spacing:.16em; padding:8px 18px; border-radius:10px;
+           transform:rotate(-3deg); }
+  .names { display:flex; flex-wrap:wrap; gap:10px; margin-top:6px; }
+  .names span { font-size:20px; font-weight:600; color:#FFB3B3; background:rgba(255,90,90,.12);
+                border:1.5px solid rgba(255,122,122,.34); border-radius:999px; padding:8px 16px; }
+  .loop { display:flex; align-items:center; gap:14px; font-size:22px; font-weight:700; color:#FF9C9C; }
+  .loop svg { width:34px; height:34px; }
+</style>
+<div class="slide">
+  <div class="kicker"><span class="dot"></span>Part 1 &middot; fault three</div>
+  <h1>Then I threw away<br>its <em>right</em> answers.</h1>
+  <p class="sub">Gemini replied correctly. My own code refused to accept the reply.</p>
+
+  <div class="stage">
+    <div class="left">
+      <div class="bubble">
+        <svg width="52" height="52" viewBox="0 0 24 24" style="flex:none"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4285F4"/><stop offset="45%" stop-color="#9B72CB"/><stop offset="100%" stop-color="#D96570"/></linearGradient></defs><path fill="url(#gg)" d="M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12C6.627 12 12 6.627 12 0z"/></svg>
+        <div><div class="said">1200, Public Transport</div>
+        <div class="cap">Correct. The amount, and the budget it belongs to.</div></div>
+      </div>
+
+      <div class="gate">
+        <div class="tag">my check on the answer</div>
+        <div class="code" style="margin-top:12px;font-size:22px">^\d+(\.\d+)?,\s?<span class="x">\w+</span>$</div>
+        <p style="font-size:19px;color:#E7B9B9;margin-top:12px"><b>\w+</b> matches letters. It does not match a space.</p>
+        <div class="stamp">REJECTED</div>
+      </div>
+
+      <div class="gate">
+        <div class="tag">6 of my 29 budgets have a space</div>
+        <div class="names">
+          <span>Public Transport</span><span>Car Fuel</span><span>Mobile Phone</span>
+          <span>Gym Membership</span><span>Pet Supplies</span><span>Personal Care</span>
+        </div>
+      </div>
+
+      <div class="loop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FF8B8B" stroke-width="2.4" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+        ask again &mdash; and again &mdash; forever
+      </div>
+    </div>
+
+    <div class="phone"><div class="screen"><img src="shots/3.png"></div></div>
+  </div>
+
+  <div class="foot">
+    <div class="line">The AI wasn't the problem. <span>I was.</span></div>
+    <div class="who">do { ask } while (true)<br>no retry limit, no fallback</div>
+  </div>
+</div>

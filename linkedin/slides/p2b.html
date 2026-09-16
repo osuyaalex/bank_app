@@ -1,0 +1,58 @@
+<meta charset="utf-8"><title>part 2 slide b</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .stage { display:flex; flex-direction:column; justify-content:center; gap:30px; }
+  .vs { display:flex; align-items:stretch; gap:26px; }
+  .col { flex:1; border-radius:26px; padding:38px 34px; border:1.5px solid rgba(255,255,255,.14);
+         background:rgba(255,255,255,.055); position:relative; }
+  .col .tag { font-size:16px; font-weight:800; letter-spacing:.15em; text-transform:uppercase; color:#8FA6E8; }
+  .col .n { font-size:132px; font-weight:800; letter-spacing:-.05em; line-height:1; margin-top:16px; }
+  .col .u { font-size:21px; color:#A6B2D4; margin-top:12px; }
+  .col.ai { border-color:rgba(155,114,203,.45); background:linear-gradient(140deg, rgba(155,114,203,.14), rgba(66,133,244,.08)); }
+  .col .gm { position:absolute; top:30px; right:32px; opacity:.85; }
+  .verdict { display:flex; align-items:center; gap:24px; background:rgba(74,222,160,.09);
+             border:1.5px solid rgba(74,222,160,.4); border-radius:24px; padding:30px 34px; }
+  .verdict .h { font-size:44px; font-weight:800; letter-spacing:-.02em; color:#68E3B0; white-space:nowrap; }
+  .verdict p { font-size:22px; color:#C3CCE6; line-height:1.45; }
+  .why { display:flex; gap:20px; }
+  .why div { flex:1; background:rgba(255,255,255,.05); border:1.5px solid rgba(255,255,255,.12);
+             border-radius:20px; padding:22px 24px; font-size:20px; line-height:1.4; color:#CBD5EF; }
+  .why b { display:block; color:#fff; font-size:22px; margin-bottom:8px; }
+</style>
+<div class="slide">
+  <div class="kicker"><span class="dot"></span>Part 2 &middot; what the AI was worth</div>
+  <h1>I took the AI out.<br>It cost me <em>nothing</em>.</h1>
+  <p class="sub">Both versions, over the same 5,348 messages off my own phone. Money leaving the account &mdash; the thing the app exists to catch.</p>
+
+  <div class="stage">
+    <div class="vs">
+      <div class="col ai">
+        <svg class="gm" width="46" height="46" viewBox="0 0 24 24"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4285F4"/><stop offset="45%" stop-color="#9B72CB"/><stop offset="100%" stop-color="#D96570"/></linearGradient></defs><path fill="url(#gg)" d="M12 0c0 6.627 5.373 12 12 12-6.627 0-12 5.373-12 12 0-6.627-5.373-12-12-12C6.627 12 12 6.627 12 0z"/></svg>
+        <div class="tag">with gemini</div>
+        <div class="n">1,270</div>
+        <div class="u">transactions caught</div>
+      </div>
+      <div class="col">
+        <div class="tag">with a parser</div>
+        <div class="n">1,271</div>
+        <div class="u">transactions caught</div>
+      </div>
+    </div>
+
+    <div class="verdict">
+      <div class="h">A dead heat.</div>
+      <p>The model I was paying for, waiting on, and blaming for wrong answers was not doing the work I thought it was doing.</p>
+    </div>
+
+    <div class="why">
+      <div><b>It sent your alerts to Google.</b>Every salary, every rent payment, off the phone.</div>
+      <div><b>It cost money forever.</b>Per user, per transaction, for as long as the app lived.</div>
+      <div><b>It needed a connection.</b>To tell you what you spent on lunch.</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="line">Same job. <span>No model, no network, no bill.</span></div>
+    <div class="who">1,270 vs 1,271 &mdash; measured, not estimated<br>same inbox, same run</div>
+  </div>
+</div>

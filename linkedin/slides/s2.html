@@ -1,0 +1,63 @@
+<meta charset="utf-8"><title>slide 2</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .phone { left:0; top:34px; }
+  .right { position:absolute; left:412px; right:0; top:34px; display:flex; flex-direction:column; gap:26px; }
+  .week { display:flex; gap:12px; }
+  .day { flex:1; border-radius:18px; padding:16px 0 18px; text-align:center;
+         background:rgba(255,255,255,.06); border:1.5px solid rgba(255,255,255,.13); }
+  .day .d { font-size:15px; font-weight:800; letter-spacing:.1em; color:#8FA6E8; }
+  .day .m { margin-top:12px; font-size:26px; font-weight:800; color:#68E3B0; }
+  .day.miss { background:rgba(255,90,90,.14); border-color:rgba(255,122,122,.5); }
+  .day.miss .d { color:#FF9C9C; }
+  .day.miss .m { color:#FF8B8B; }
+  .day.dim { opacity:.35; }
+  .note { position:static; width:auto; }
+  .lost { display:flex; align-items:baseline; gap:16px; }
+  .lost .n { font-size:80px; font-weight:800; letter-spacing:-.04em; color:#FF8B8B; line-height:1; }
+  .lost .t { font-size:23px; color:#C3CCE6; line-height:1.35; }
+</style>
+<div class="slide">
+  <div class="kicker"><span class="dot"></span>Part 1 &middot; fault one</div>
+  <h1>It only ever read <em>today</em>.</h1>
+  <p class="sub">Every time you opened it, the app asked your phone for one day of messages. The day you opened it.</p>
+
+  <div class="stage">
+    <div class="phone"><div class="screen"><img src="shots/2.png"></div></div>
+    <div class="right">
+      <div class="week">
+        <div class="day"><div class="d">MON</div><div class="m">&check;</div></div>
+        <div class="day"><div class="d">TUE</div><div class="m">&check;</div></div>
+        <div class="day miss"><div class="d">WED</div><div class="m">&times;</div></div>
+        <div class="day"><div class="d">THU</div><div class="m">&check;</div></div>
+        <div class="day dim"><div class="d">FRI</div><div class="m">&check;</div></div>
+        <div class="day dim"><div class="d">SAT</div><div class="m">&check;</div></div>
+        <div class="day dim"><div class="d">SUN</div><div class="m">&check;</div></div>
+      </div>
+
+      <div class="code">
+        <span class="k">final</span> today = messages.where(<br>
+        &nbsp;&nbsp;(m) =&gt; m.date == <span class="s">DateTime.now()</span><br>
+        );
+      </div>
+
+      <div class="note warn">
+        <div class="tag">what that means</div>
+        <div class="lost">
+          <div class="n">0</div>
+          <div class="t">chances to catch up.<br>No backfill. No warning.<br>Nothing telling you a day was missing.</div>
+        </div>
+      </div>
+
+      <div class="note">
+        <div class="tag">and so</div>
+        <p style="font-size:22px;color:#DDE4F6">Phone off. Travelling. Just busy.<br>Wednesday's spending never existed.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="line">A record with holes <span>is not a record.</span></div>
+    <div class="who">the fix, in version two:<br>read everything since the last scan</div>
+  </div>
+</div>

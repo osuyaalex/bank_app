@@ -1,0 +1,51 @@
+<meta charset="utf-8"><title>part 2 slide c</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .stage { display:flex; flex-direction:column; justify-content:center; gap:24px; }
+  .sms { display:flex; gap:22px; }
+  .msg { flex:1; background:#F3F5FB; color:#171A2B; border-radius:22px 22px 22px 6px; padding:24px 26px; align-self:stretch;
+         font-size:20px; line-height:1.55; box-shadow:0 16px 34px rgba(0,0,0,.35); }
+  .msg .from { font-size:15px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; color:#6C77A0; margin-bottom:12px; }
+  .msg mark { background:#FFE27A; padding:1px 5px; border-radius:5px; font-weight:700; }
+  .msg mark.b { background:#B9E5FF; }
+  .legend { display:flex; gap:30px; align-items:center; font-size:19px; color:#B7C1DE; white-space:nowrap; }
+  .legend i { display:inline-block; width:16px; height:16px; border-radius:5px; margin-right:10px; vertical-align:-2px; }
+  .row { display:flex; gap:22px; }
+  .stat { flex:1; background:rgba(255,255,255,.055); border:1.5px solid rgba(255,255,255,.14);
+          border-radius:22px; padding:26px 28px; }
+  .stat .n { font-size:56px; font-weight:800; letter-spacing:-.03em; }
+  .stat .l { font-size:19px; color:#A6B2D4; margin-top:8px; line-height:1.4; }
+</style>
+<div class="slide">
+  <div class="kicker"><span class="dot"></span>Part 2 &middot; what replaced it</div>
+  <h1>Every bank writes it<br><em>differently</em>.</h1>
+  <p class="sub">A parser only knows the shapes you teach it. That is the whole trade.</p>
+
+  <div class="stage">
+    <div class="sms">
+      <div class="msg"><div class="from">bank one</div>
+        Acct: ***4412<br>Amt: <mark class="b">NGN 1,200.00</mark> DR<br>Desc: POS/CHOWDECK<br>Date: <mark>21-Jan-25</mark><br>Bal: NGN 43,905.11</div>
+      <div class="msg"><div class="from">bank two</div>
+        Txn Alert<br>Debit of <mark class="b">N1,200</mark> on acct ***4412<br>to CHOWDECK on <mark>21/01/2025 14:32</mark><br>Avail bal N43,905.11</div>
+      <div class="msg"><div class="from">bank three</div>
+        <mark class="b">NGN1,200.00</mark> DR<br>A/C: ***4412<br>CHOWDECK LAGOS<br><mark>21 Jan 2025 2:32PM</mark><br>Bal NGN43,905.11</div>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:#B9E5FF"></i>the amount &mdash; three formats</span>
+      <span><i style="background:#FFE27A"></i>the date &mdash; three formats</span>
+      <span style="color:#7E8CB4">same payment, same day, same account</span>
+    </div>
+
+    <div class="row">
+      <div class="stat"><div class="n">2,406</div><div class="l">real bank messages off my own phone, read line by line</div></div>
+      <div class="stat"><div class="n">25</div><div class="l">ways of writing a date the parser now handles</div></div>
+      <div class="stat"><div class="n">UBA</div><div class="l">reported working by a user &mdash; a bank I have never held an account with</div></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="line">It stopped recognising banks. <span>It started reading structure.</span></div>
+    <div class="who">and it is never finished &mdash;<br>banks change wording, and a user tells you</div>
+  </div>
+</div>

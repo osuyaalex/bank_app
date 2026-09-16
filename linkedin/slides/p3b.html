@@ -1,0 +1,74 @@
+<meta charset="utf-8"><title>part 3 slide b</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .stage { display:flex; flex-direction:column; gap:28px; }
+  .grids { display:flex; gap:30px; align-items:stretch; }
+  .panel { border-radius:24px; padding:28px 30px; border:1.5px solid rgba(255,255,255,.14);
+           background:rgba(255,255,255,.055); display:flex; flex-direction:column; }
+  .panel.bad { border-color:rgba(255,122,122,.42); background:rgba(255,90,90,.09); flex:1.55; }
+  .panel.good { border-color:rgba(74,222,160,.40); background:rgba(74,222,160,.08); flex:1; }
+  .panel .tag { font-size:15px; font-weight:800; letter-spacing:.15em; text-transform:uppercase; }
+  .panel.bad .tag { color:#FF9C9C; } .panel.good .tag { color:#68E3B0; }
+  .dots { display:grid; gap:9px; margin-top:20px; justify-content:start; }
+  .panel.bad .dots { grid-template-columns:repeat(10, 32px); }
+  .panel.good .dots { grid-template-columns:repeat(5, 32px); }
+  .d { width:32px; height:32px; border-radius:9px; }
+  .panel.bad .d { background:rgba(255,122,122,.34); border:1.5px solid rgba(255,140,140,.55); }
+  .panel.good .d { background:rgba(74,222,160,.30); border:1.5px solid rgba(104,227,176,.6); }
+  .panel .n { margin-top:auto; padding-top:22px; font-size:60px; font-weight:800; letter-spacing:-.035em; line-height:1; }
+  .panel.bad .n { color:#FF8B8B; } .panel.good .n { color:#68E3B0; }
+  .panel .u { font-size:19px; color:#B3BEDB; margin-top:10px; line-height:1.4; }
+  .note { position:static; width:auto; }
+  .note .big { font-size:29px; }
+  .note p { font-size:20px; }
+</style>
+<div class="slide">
+  <div class="kicker"><span class="dot"></span>Part 3 &middot; the cost of one question</div>
+  <h1>Twenty questions.<br>One hundred <em>decisions</em>.</h1>
+  <p class="sub">Grouping got the list down to twenty names. It did nothing about what each one asked of you.</p>
+
+  <div class="stage">
+    <div class="grids">
+      <div class="panel bad">
+        <div class="tag">before &mdash; five steps, twenty names</div>
+        <div class="dots">
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+        </div>
+        <div class="n">100</div>
+        <div class="u">taps, reads and judgements to finish the screen once</div>
+      </div>
+
+      <div class="panel good">
+        <div class="tag">after</div>
+        <div class="dots">
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+          <div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div>
+        </div>
+        <div class="n">20</div>
+        <div class="u">one tap each, and fewer than twenty once it starts filing on its own</div>
+      </div>
+    </div>
+
+    <div class="note warn">
+      <div class="tag">and the worst step was the last one</div>
+      <div class="big">Twenty budgets, each starting at &#8358;0.</div>
+      <p>You do not know what a reasonable monthly figure for Lunch is. The app was holding 38 of your payments to that kitchen and could have told you &mdash; it just never offered.</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="line">A short list of hard questions <span>is still hard.</span></div>
+    <div class="who">5 steps counted from the day-one build<br>20 is the screen's own maximum</div>
+  </div>
+</div>
